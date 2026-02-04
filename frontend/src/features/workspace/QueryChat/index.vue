@@ -11,6 +11,7 @@ const message = useMessage()
 // Query input
 const question = ref('')
 const isExecuting = ref(false)
+const showExamples = ref(true)
 
 // Query options
 const maxIterations = ref(5)
@@ -27,13 +28,29 @@ const modelOptions = [
   { label: 'GPT-4', value: 'gpt4' }
 ]
 
-// Example questions
-const exampleQuestions = [
-  '查询所有电视频道',
-  '查找收视率最高的节目',
-  '统计每个国家的频道数量',
-  '查询所有动画片及其播出频道'
-]
+// Example questions for spider_tvshow database
+const exampleQuestions = computed(() => {
+  const dbName = workspaceStore.currentDatabase?.name || ''
+  
+  if (dbName === 'spider_tvshow') {
+    return [
+      'List all TV channels with their countries',
+      'Which TV channel has the highest package price?',
+      'Show all cartoons and their corresponding TV channels',
+      'How many TV series are broadcasted in each country?',
+      'Find all channels that offer High Definition TV',
+      'List all cartoons directed by Ben Jones'
+    ]
+  }
+  
+  // Default examples
+  return [
+    '查询所有电视频道',
+    '查找收视率最高的节目',
+    '统计每个国家的频道数量',
+    '查询所有动画片及其播出频道'
+  ]
+})
 
 // Execution stages
 const vectorSearchStage = computed(() => ({
@@ -114,15 +131,33 @@ function handleClear() {
         />
 
         <!-- Example questions -->
-        <div class="flex flex-wrap gap-2 mt-3">
-          <span class="text-xs text-gray-400">示例：</span>
+        <div v-if="showExamples" class="mt-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-400">示例问题 (来自 Spider Benchmark):</span>
+            <button
+              class="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              @click="showExamples = false"
+            >
+              收起 ↑
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="example in exampleQuestions"
+              :key="example"
+              class="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-300 hover:from-blue-500/20 hover:to-cyan-500/20 transition-all border border-blue-500/20 hover:border-blue-400/40 hover:shadow-lg hover:shadow-blue-500/10"
+              @click="useExample(example)"
+            >
+              {{ example }}
+            </button>
+          </div>
+        </div>
+        <div v-else class="mt-3">
           <button
-            v-for="example in exampleQuestions"
-            :key="example"
-            class="text-xs px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors border border-blue-500/20"
-            @click="useExample(example)"
+            class="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            @click="showExamples = true"
           >
-            {{ example }}
+            显示示例问题 ↓
           </button>
         </div>
       </div>
@@ -351,20 +386,32 @@ function handleClear() {
 
 <style scoped>
 .query-input :deep(.n-input__textarea-el) {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e5e7eb;
   font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.query-input :deep(.n-input__textarea-el::placeholder) {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .query-input :deep(.n-input__textarea-el):focus {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .param-item :deep(.n-input-number),
 .param-item :deep(.n-select) {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.param-item :deep(.n-input-number .n-input__input-el),
+.param-item :deep(.n-select .n-base-selection) {
+  color: #e5e7eb;
 }
 
 .react-step {

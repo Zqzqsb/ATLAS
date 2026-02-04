@@ -23,6 +23,10 @@ export interface Database {
   lastConnected?: string
   description?: string
   tags?: string[]
+  metadata?: {
+    lakebaseId?: number
+    [key: string]: any
+  }
 }
 
 export interface DatabaseConfig {

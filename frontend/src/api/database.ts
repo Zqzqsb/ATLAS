@@ -118,7 +118,7 @@ const mockEcommerceSchema: SchemaInfo = {
 function transformDatasource(ds: any): Database {
   const dbName = ds.database_name?.String || ds.database_name || ds.name
   return {
-    id: String(ds.id),
+    id: ds.name, // Use name as ID (e.g., "spider_tvshow")
     name: ds.name,
     displayName: dbName,
     type: ds.db_type || 'mariadb',

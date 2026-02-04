@@ -103,8 +103,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     loadingSchema.value = true
     try {
+      // Get lakebase numeric ID
+      const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
+      
       // Use lakebase API to get schema from rc_tables and rc_columns
-      const response = await fetch(`/api/v1/lakebase/datasources/${currentDatabaseId.value}`)
+      const response = await fetch(`/api/v1/lakebase/datasources/${lakebaseId}`)
       const data = await response.json()
       
       if (data.tables && data.columns) {
@@ -134,12 +137,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function fetchContexts() {
-    if (!currentDatabaseId.value) return
+    if (!currentDatabaseId.value || !currentDatabase.value) return
 
     loadingContexts.value = true
     try {
+      // Get lakebase numeric ID
+      const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
+      
       // Use lakebase API to get contexts from rc_tables and rc_columns
-      const response = await fetch(`/api/v1/lakebase/datasources/${currentDatabaseId.value}`)
+      const response = await fetch(`/api/v1/lakebase/datasources/${lakebaseId}`)
       const data = await response.json()
       
       if (data.contexts) {
@@ -205,11 +211,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       {
         question: q,
         databaseId: currentDatabaseId.value,
-        database: currentDatabase.value.name,
+        database: currentDatabaseId.value, // Use ID instead of name
         options: queryOptions.value
       },
       (event: { type: string; data: any }) => {
+        console.log('SSE Event:', event.type, event.data) // Debug log
+        
         switch (event.type) {
+          case 'thought':
+          case 'action':
+          case 'observation':
+          case 'finish':
+            // ReAct step events
+            if (event.data.step !== undefined) {
+              const existingIndex = reactSteps.value.findIndex(s => s.step === event.data.step)
+              if (existingIndex >= 0) {
+                // Update existing step
+                reactSteps.value[existingIndex] = {
+                  ...reactSteps.value[existingIndex],
+                  ...event.data
+                }
+              } else {
+                // Add new step
+                reactSteps.value.push(event.data)
+              }
+            }
+            break
           case 'grounding_start':
             groundingStage.value = 'stage1'
             break
@@ -223,9 +250,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             groundingStage.value = 'done'
             groundingResult.value = event.data
             break
-          case 'react_step':
-            reactSteps.value.push(event.data)
-            break
           case 'context_retrieved':
             usedContexts.value = event.data.contexts || []
             break
@@ -237,6 +261,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             break
           case 'complete':
             generatedSql.value = event.data.sql || event.data.final_sql || generatedSql.value
+            if (event.data.execution_result) {
+              executionResult.value = event.data.execution_result.rows || []
+            }
             queryDuration.value = Date.now() - startTime
             isQuerying.value = false
 
@@ -255,7 +282,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
             break
           case 'error':
-            queryError.value = event.data.message || 'Unknown error'
+            queryError.value = event.data.message || event.data.error || 'Unknown error'
             isQuerying.value = false
             break
         }

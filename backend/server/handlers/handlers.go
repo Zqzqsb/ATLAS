@@ -1146,9 +1146,9 @@ func (h *Handler) ListAvailableConnections(c *gin.Context) {
 	demoConfig := h.inferenceService.GetDemoDatabases()
 	if demoConfig == nil {
 		c.JSON(http.StatusOK, gin.H{
-			"available":   []interface{}{},
-			"count":       0,
-			"message":     "Demo database configuration not found",
+			"available": []interface{}{},
+			"count":     0,
+			"message":   "Demo database configuration not found",
 		})
 		return
 	}
@@ -1173,14 +1173,14 @@ func (h *Handler) ListAvailableConnections(c *gin.Context) {
 
 	// Internal Docker network container names (backend connects to these directly)
 	internalHostMapping := map[string]string{
-		"car_1_mysql":                         "reactsql_demo_car_1_mysql",
-		"car_1_postgresql":                    "reactsql_demo_car_1_postgres",
-		"flight_2_mysql":                      "reactsql_demo_flight_2_mysql",
-		"flight_2_postgresql":                 "reactsql_demo_flight_2_postgres",
-		"college_2_mysql":                     "reactsql_demo_college_2_mysql",
-		"college_2_postgresql":                "reactsql_demo_college_2_postgres",
-		"employee_hire_evaluation_mysql":      "reactsql_demo_employee_mysql",
-		"employee_hire_evaluation_postgresql": "reactsql_demo_employee_postgres",
+		"car_1_mysql":                         "lucid_demo_car_1_mysql",
+		"car_1_postgresql":                    "lucid_demo_car_1_postgres",
+		"flight_2_mysql":                      "lucid_demo_flight_2_mysql",
+		"flight_2_postgresql":                 "lucid_demo_flight_2_postgres",
+		"college_2_mysql":                     "lucid_demo_college_2_mysql",
+		"college_2_postgresql":                "lucid_demo_college_2_postgres",
+		"employee_hire_evaluation_mysql":      "lucid_demo_employee_mysql",
+		"employee_hire_evaluation_postgresql": "lucid_demo_employee_postgres",
 	}
 
 	// Internal Docker ports (MySQL=3306, PostgreSQL=5432)
@@ -1227,19 +1227,19 @@ func (h *Handler) ListAvailableConnections(c *gin.Context) {
 			// Backend connects via Docker internal network (container_name:internal_port)
 			// Frontend displays localhost:external_port
 			available = append(available, map[string]interface{}{
-				"id":              connID,
-			"name":            fmt.Sprintf("%s (%s)", db.Name, strings.ToUpper(connType)),
-				"description":     db.Description,
-				"domain":          db.Domain,
-				"data_scale":      db.DataScale,
-				"type":            conn.Type,
-				"host":            internalHost,   // Docker container name for backend connection
-				"port":            internalPort,   // Internal port (3306/5432)
-				"display_host":    "localhost",    // For UI display only
-				"display_port":    displayPort,    // External port for UI display (15001, etc.)
-				"database":        conn.Database,
-				"user":            conn.User,
-				"password":        conn.Password,
+				"id":               connID,
+				"name":             fmt.Sprintf("%s (%s)", db.Name, strings.ToUpper(connType)),
+				"description":      db.Description,
+				"domain":           db.Domain,
+				"data_scale":       db.DataScale,
+				"type":             conn.Type,
+				"host":             internalHost, // Docker container name for backend connection
+				"port":             internalPort, // Internal port (3306/5432)
+				"display_host":     "localhost",  // For UI display only
+				"display_port":     displayPort,  // External port for UI display (15001, etc.)
+				"database":         conn.Database,
+				"user":             conn.User,
+				"password":         conn.Password,
 				"sample_questions": db.SampleQuestions,
 			})
 		}
@@ -1265,10 +1265,10 @@ func (h *Handler) LoadDemoDatabases(c *gin.Context) {
 	// Find the base directory for SQLite databases
 	// This is needed because the paths in demo_databases.json are relative
 	sqliteBaseDirs := []string{
-		"/app",                                      // Container path
-		"/root/workspace/ReActSql/system",          // Dev path (system dir)
-		"/root/workspace/ReActSql",                  // Project root
-		".",                                         // Current dir
+		"/app",                         // Container path
+		"/root/workspace/lucid/system", // Dev path (system dir)
+		"/root/workspace/lucid",        // Project root
+		".",                            // Current dir
 	}
 
 	// Find which base directory contains the SQLite files

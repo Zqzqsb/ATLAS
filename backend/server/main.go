@@ -96,7 +96,7 @@ func main() {
 	// Initialize Lake-Base Storage Service
 	// ========================================
 	var lakebaseService *services.LakebaseService
-	lakebaseConfigPath := "config/lakebase.yaml"
+	lakebaseConfigPath := "configs/lakebase.yaml"
 	if _, err := os.Stat(lakebaseConfigPath); err == nil {
 		lakebaseService, err = services.NewLakebaseService(lakebaseConfigPath)
 		if err != nil {

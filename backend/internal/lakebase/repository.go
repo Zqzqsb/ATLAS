@@ -86,11 +86,11 @@ func NewMySQLRepository(pool *ConnectionPool) *MySQLRepository {
 
 func (r *MySQLRepository) CreateDatasource(ctx context.Context, ds *Datasource) (int64, error) {
 	query := `
-		INSERT INTO rc_datasource (name, db_type, host, port, username, password, database_name, status)
+		INSERT INTO rc_datasources (name, db_type, host, port, username, db_name, description, status)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := r.pool.ExecContext(ctx, query,
-		ds.Name, ds.DBType, ds.Host, ds.Port, ds.Username, ds.Password, ds.DatabaseName, ds.Status)
+		ds.Name, ds.DBType, ds.Host, ds.Port, ds.Username, ds.DatabaseName, ds.Description, ds.Status)
 	if err != nil {
 		return 0, fmt.Errorf("lakebase: failed to create datasource: %w", err)
 	}
@@ -99,14 +99,14 @@ func (r *MySQLRepository) CreateDatasource(ctx context.Context, ds *Datasource) 
 
 func (r *MySQLRepository) GetDatasource(ctx context.Context, id int64) (*Datasource, error) {
 	query := `
-		SELECT id, name, db_type, host, port, username, password, database_name, status,
+		SELECT id, name, db_type, host, port, username, db_name, description, status,
 		       last_sync_at, created_at, updated_at
-		FROM rc_datasource WHERE id = ?
+		FROM rc_datasources WHERE id = ?
 	`
 	ds := &Datasource{}
 	err := r.pool.QueryRowContext(ctx, query, id).Scan(
-		&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username, &ds.Password,
-		&ds.DatabaseName, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt)
+		&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username,
+		&ds.DatabaseName, &ds.Description, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrDatasourceNotFound
 	}
@@ -118,14 +118,14 @@ func (r *MySQLRepository) GetDatasource(ctx context.Context, id int64) (*Datasou
 
 func (r *MySQLRepository) GetDatasourceByName(ctx context.Context, name string) (*Datasource, error) {
 	query := `
-		SELECT id, name, db_type, host, port, username, password, database_name, status,
+		SELECT id, name, db_type, host, port, username, db_name, description, status,
 		       last_sync_at, created_at, updated_at
-		FROM rc_datasource WHERE name = ?
+		FROM rc_datasources WHERE name = ?
 	`
 	ds := &Datasource{}
 	err := r.pool.QueryRowContext(ctx, query, name).Scan(
-		&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username, &ds.Password,
-		&ds.DatabaseName, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt)
+		&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username,
+		&ds.DatabaseName, &ds.Description, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrDatasourceNotFound
 	}
@@ -137,9 +137,9 @@ func (r *MySQLRepository) GetDatasourceByName(ctx context.Context, name string) 
 
 func (r *MySQLRepository) ListDatasources(ctx context.Context) ([]*Datasource, error) {
 	query := `
-		SELECT id, name, db_type, host, port, username, password, database_name, status,
+		SELECT id, name, db_type, host, port, username, db_name, description, status,
 		       last_sync_at, created_at, updated_at
-		FROM rc_datasource ORDER BY created_at DESC
+		FROM rc_datasources ORDER BY created_at DESC
 	`
 	rows, err := r.pool.QueryContext(ctx, query)
 	if err != nil {
@@ -151,8 +151,8 @@ func (r *MySQLRepository) ListDatasources(ctx context.Context) ([]*Datasource, e
 	for rows.Next() {
 		ds := &Datasource{}
 		if err := rows.Scan(
-			&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username, &ds.Password,
-			&ds.DatabaseName, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt); err != nil {
+			&ds.ID, &ds.Name, &ds.DBType, &ds.Host, &ds.Port, &ds.Username,
+			&ds.DatabaseName, &ds.Description, &ds.Status, &ds.LastSyncAt, &ds.CreatedAt, &ds.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("lakebase: failed to scan datasource: %w", err)
 		}
 		datasources = append(datasources, ds)
@@ -162,13 +162,13 @@ func (r *MySQLRepository) ListDatasources(ctx context.Context) ([]*Datasource, e
 
 func (r *MySQLRepository) UpdateDatasource(ctx context.Context, ds *Datasource) error {
 	query := `
-		UPDATE rc_datasource
-		SET name = ?, db_type = ?, host = ?, port = ?, username = ?, password = ?,
-		    database_name = ?, status = ?
+		UPDATE rc_datasources
+		SET name = ?, db_type = ?, host = ?, port = ?, username = ?,
+		    db_name = ?, description = ?, status = ?
 		WHERE id = ?
 	`
 	result, err := r.pool.ExecContext(ctx, query,
-		ds.Name, ds.DBType, ds.Host, ds.Port, ds.Username, ds.Password, ds.DatabaseName, ds.Status, ds.ID)
+		ds.Name, ds.DBType, ds.Host, ds.Port, ds.Username, ds.DatabaseName, ds.Description, ds.Status, ds.ID)
 	if err != nil {
 		return fmt.Errorf("lakebase: failed to update datasource: %w", err)
 	}
@@ -180,7 +180,7 @@ func (r *MySQLRepository) UpdateDatasource(ctx context.Context, ds *Datasource) 
 }
 
 func (r *MySQLRepository) DeleteDatasource(ctx context.Context, id int64) error {
-	query := `DELETE FROM rc_datasource WHERE id = ?`
+	query := `DELETE FROM rc_datasources WHERE id = ?`
 	result, err := r.pool.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("lakebase: failed to delete datasource: %w", err)
@@ -193,7 +193,7 @@ func (r *MySQLRepository) DeleteDatasource(ctx context.Context, id int64) error 
 }
 
 func (r *MySQLRepository) UpdateDatasourceLastSync(ctx context.Context, id int64) error {
-	query := `UPDATE rc_datasource SET last_sync_at = NOW() WHERE id = ?`
+	query := `UPDATE rc_datasources SET last_sync_at = NOW() WHERE id = ?`
 	_, err := r.pool.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("lakebase: failed to update last sync: %w", err)

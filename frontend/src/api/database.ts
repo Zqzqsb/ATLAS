@@ -114,14 +114,39 @@ const mockEcommerceSchema: SchemaInfo = {
   lastUpdated: new Date().toISOString()
 }
 
+// Transform lakebase datasource to Database type
+function transformDatasource(ds: any): Database {
+  return {
+    id: String(ds.id),
+    name: ds.name,
+    displayName: ds.description?.String || ds.name,
+    type: ds.db_type || 'mariadb',
+    host: ds.host?.String || 'localhost',
+    port: ds.port?.Int32 || 3306,
+    status: ds.status === 'active' ? 'connected' : 'disconnected',
+    tableCount: 0,
+    hasRichContext: true,
+    contextCount: 0,
+    lastConnected: ds.updated_at,
+    description: ds.description?.String || '',
+    tags: ['lakebase']
+  }
+}
+
 export const databaseApi = {
   /**
-   * Get all connected databases
+   * Get all connected databases from lakebase
    */
   list: async (): Promise<Database[]> => {
     try {
-      const response = await client.get<Database[]>('/databases')
-      return response.data
+      // First try lakebase datasources API
+      const response = await client.get<{ datasources: any[] }>('/lakebase/datasources')
+      if (response.data.datasources && response.data.datasources.length > 0) {
+        return response.data.datasources.map(transformDatasource)
+      }
+      // Fallback to legacy databases API
+      const legacyResponse = await client.get<Database[]>('/databases')
+      return legacyResponse.data
     } catch {
       // Return mock data for demo
       return mockDatabases

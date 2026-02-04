@@ -1393,12 +1393,11 @@ func (h *Handler) saveOnboardingToLakebase(
 	ds := &lakebase.Datasource{
 		Name:         connectionID,
 		DBType:       dbType,
-		Host:         "onboarding", // Placeholder - actual connection info would come from config
-		Port:         0,
-		Username:     "",
-		Password:     "",
-		DatabaseName: dbName,
-		Status:       lakebase.DatasourceStatusEnabled,
+		Host:         sql.NullString{String: "onboarding", Valid: true},
+		Port:         sql.NullInt32{Int32: 0, Valid: true},
+		Username:     sql.NullString{},
+		DatabaseName: sql.NullString{String: dbName, Valid: true},
+		Status:       lakebase.DatasourceStatusActive,
 	}
 
 	existingDS, err := h.lakebaseService.GetOrCreateDatasource(ctx, ds)

@@ -1,5 +1,5 @@
 -- ============================================================
--- ReActSQL Demo MySQL Database
+-- lucid Demo MySQL Database
 -- E-commerce scenario with sample data for Text-to-SQL demos
 -- ============================================================
 

@@ -10,24 +10,28 @@ import (
 
 // Datasource represents a data source configuration
 type Datasource struct {
-	ID           int64        `json:"id" db:"id"`
-	Name         string       `json:"name" db:"name"`
-	DBType       string       `json:"db_type" db:"db_type"`
-	Host         string       `json:"host" db:"host"`
-	Port         int          `json:"port" db:"port"`
-	Username     string       `json:"username" db:"username"`
-	Password     string       `json:"-" db:"password"` // Hidden in JSON
-	DatabaseName string       `json:"database_name" db:"database_name"`
-	Status       int8         `json:"status" db:"status"`
-	LastSyncAt   sql.NullTime `json:"last_sync_at" db:"last_sync_at"`
-	CreatedAt    time.Time    `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at" db:"updated_at"`
+	ID           int64          `json:"id" db:"id"`
+	Name         string         `json:"name" db:"name"`
+	DBType       string         `json:"db_type" db:"db_type"`
+	Host         sql.NullString `json:"host" db:"host"`
+	Port         sql.NullInt32  `json:"port" db:"port"`
+	Username     sql.NullString `json:"username" db:"username"`
+	DatabaseName sql.NullString `json:"database_name" db:"db_name"`
+	Description  sql.NullString `json:"description" db:"description"`
+	Status       string         `json:"status" db:"status"`
+	LastSyncAt   sql.NullTime   `json:"last_sync_at" db:"last_sync_at"`
+	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
 }
 
 // DatasourceStatus constants
 const (
-	DatasourceStatusDisabled int8 = 0
-	DatasourceStatusEnabled  int8 = 1
+	DatasourceStatusActive   = "active"
+	DatasourceStatusInactive = "inactive"
+	DatasourceStatusError    = "error"
+	// Legacy aliases
+	DatasourceStatusEnabled  = DatasourceStatusActive
+	DatasourceStatusDisabled = DatasourceStatusInactive
 )
 
 // SchemaMetadata represents schema structure metadata

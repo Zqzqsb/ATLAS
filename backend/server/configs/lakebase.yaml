@@ -1,0 +1,28 @@
+# Lake-Base Storage Configuration
+# For LUCID Rich Context management
+
+lakebase:
+  host: lucid-mariadb
+  port: 3306
+  user: lucid
+  password: lucid2024
+  database: lucid
+  max_open_conns: 20
+  max_idle_conns: 10
+  conn_max_lifetime: 300s
+
+embedding:
+  enabled: false
+  model: text-embedding-3-small
+  dimension: 1536
+  batch_size: 100
+
+vector_search:
+  top_k: 10
+  min_score: 0.7
+  max_distance: 0.3
+
+agent:
+  enable_ddl_detection: true
+  check_interval: 60
+  auto_refresh_context: true

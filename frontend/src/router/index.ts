@@ -8,7 +8,7 @@ const router = createRouter({
       path: '/',
       name: 'Landing',
       component: () => import('@/features/landing/index.vue'),
-      meta: { title: 'ReActSQL - 数据库集合' }
+      meta: { title: 'LUCID - My Databases' }
     },
 
     // Workspace - Database specific
@@ -46,7 +46,7 @@ const router = createRouter({
 // Navigation guards
 router.beforeEach((to, from, next) => {
   // Update document title
-  document.title = (to.meta.title as string) || 'ReActSQL'
+  document.title = (to.meta.title as string) || 'LUCID'
   next()
 })
 

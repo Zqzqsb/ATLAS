@@ -49,3 +49,5 @@ config/llm_config.json
 # === OS ===
 .DS_Store
 Thumbs.db
+
+iterations

@@ -23,6 +23,16 @@ lakebase:
 
 # Demo databases (all in MariaDB)
 databases:
+  # Spider TVShow (MariaDB native)
+  - id: "spider_tvshow"
+    name: "Spider TVShow"
+    type: "mysql"
+    host: "lucid-mariadb"
+    port: 3306
+    user: "lucid"
+    password: "lucid2024"
+    database: "spider_tvshow"
+
   # Spider SQLite compatibility layer (optional)
   - id: "spider_sqlite"
     name: "Spider (SQLite)"

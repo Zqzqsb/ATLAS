@@ -99,11 +99,33 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function fetchSchema() {
-    if (!currentDatabaseId.value) return
+    if (!currentDatabaseId.value || !currentDatabase.value) return
 
     loadingSchema.value = true
     try {
-      schemaCache.value = await databaseApi.getSchema(currentDatabaseId.value)
+      // Use lakebase API to get schema from rc_tables and rc_columns
+      const response = await fetch(`/api/v1/lakebase/datasources/${currentDatabaseId.value}`)
+      const data = await response.json()
+      
+      if (data.tables && data.columns) {
+        // Transform to SchemaInfo format
+        schemaCache.value = {
+          databaseId: currentDatabaseId.value,
+          databaseName: currentDatabase.value.name,
+          tables: data.tables.map((t: any) => ({
+            name: t.table_name,
+            comment: t.description || '',
+            columns: data.columns
+              .filter((c: any) => c.table_name === t.table_name)
+              .map((c: any) => ({
+                name: c.column_name,
+                type: c.data_type || 'VARCHAR',
+                nullable: true,
+                comment: c.description || ''
+              }))
+          }))
+        }
+      }
     } catch (e: any) {
       console.error('Failed to fetch schema:', e)
     } finally {
@@ -116,7 +138,22 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     loadingContexts.value = true
     try {
-      contexts.value = await contextApi.list(currentDatabaseId.value)
+      // Use lakebase API to get contexts from rc_tables and rc_columns
+      const response = await fetch(`/api/v1/lakebase/datasources/${currentDatabaseId.value}`)
+      const data = await response.json()
+      
+      if (data.contexts) {
+        contexts.value = data.contexts.map((ctx: any) => ({
+          id: String(ctx.id),
+          databaseId: currentDatabaseId.value!,
+          tableName: ctx.table_name,
+          columnName: ctx.column_name,
+          type: ctx.context_type || 'description',
+          content: ctx.content,
+          createdAt: ctx.created_at,
+          usageCount: 0
+        }))
+      }
     } catch (e: any) {
       console.error('Failed to fetch contexts:', e)
     } finally {

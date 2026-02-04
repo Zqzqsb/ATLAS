@@ -162,12 +162,49 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			desc = t.Description.String
 		}
 		tables = append(tables, map[string]interface{}{
-			"name":         t.TableName,
+			"table_name":   t.TableName,
 			"description":  desc,
 			"row_count":    t.RowCount,
 			"column_count": columnCountMap[t.TableName],
 			"is_expired":   t.IsExpired,
 			"confidence":   t.Confidence,
+		})
+	}
+
+	// Build column details
+	columns := make([]map[string]interface{}, 0, len(columnInfos))
+	for _, c := range columnInfos {
+		desc := ""
+		if c.Description.Valid {
+			desc = c.Description.String
+		}
+		dataType := ""
+		if c.DataType.Valid {
+			dataType = c.DataType.String
+		}
+		columns = append(columns, map[string]interface{}{
+			"table_name":   c.TableName,
+			"column_name":  c.ColumnName,
+			"data_type":    dataType,
+			"description":  desc,
+			"is_pk":        c.IsPrimaryKey,
+			"is_fk":        c.IsForeignKey,
+			"is_nullable":  c.IsNullable,
+			"is_expired":   c.IsExpired,
+			"confidence":   c.Confidence,
+		})
+	}
+
+	// Build context details
+	contextList := make([]map[string]interface{}, 0, len(contexts))
+	for _, ctx := range contexts {
+		contextList = append(contextList, map[string]interface{}{
+			"id":           ctx.ID,
+			"table_name":   ctx.TableName,
+			"column_name":  ctx.ColumnName,
+			"context_type": ctx.ContextType,
+			"content":      ctx.Content,
+			"created_at":   ctx.CreatedAt,
 		})
 	}
 
@@ -185,6 +222,8 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			"updated_at":    ds.UpdatedAt,
 		},
 		"tables":           tables,
+		"columns":          columns,
+		"contexts":         contextList,
 		"tables_count":     len(tableInfos),
 		"columns_count":    len(columnInfos),
 		"context_count":    len(contexts),

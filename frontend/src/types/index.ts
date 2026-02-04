@@ -63,9 +63,11 @@ export interface ColumnInfo {
 }
 
 export interface SchemaInfo {
+  databaseId?: string
+  databaseName?: string
   tables: TableInfo[]
-  relationships: Relationship[]
-  lastUpdated: string
+  relationships?: Relationship[]
+  lastUpdated?: string
 }
 
 export interface Relationship {

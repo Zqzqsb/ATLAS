@@ -49,16 +49,16 @@ async function handleAddDatabase(config: DatabaseConfig) {
         <div class="text-center mb-12">
           <div class="flex items-center justify-center gap-3 mb-4">
             <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <span class="text-white font-bold text-2xl">RS</span>
+              <span class="text-white font-bold text-2xl">LC</span>
             </div>
           </div>
           <h1 class="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-3">
-            ReActSQL
+            LUCID
           </h1>
           <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            基于湖仓一体的智能 Text-to-SQL 系统
+            Lakebase-Unified Context-aware Intelligence for Data
             <br>
-            <span class="text-sm">Rich Context 自维持 · 多阶段 Grounding · ReAct 推理</span>
+            <span class="text-sm">Agent Self-Maintaining · Vector Grounding · ReAct Reasoning</span>
           </p>
         </div>
 

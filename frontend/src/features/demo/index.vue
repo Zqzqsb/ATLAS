@@ -30,7 +30,7 @@ onMounted(() => {
     <!-- Hero header -->
     <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-12 px-6">
       <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold mb-2">ReActSQL Demo</h1>
+        <h1 class="text-3xl font-bold mb-2">LUCID Demo</h1>
         <p class="text-blue-100 text-lg">
           湖仓一体的智能 Text-to-SQL 系统核心能力演示
         </p>

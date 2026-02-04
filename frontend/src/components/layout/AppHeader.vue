@@ -49,9 +49,9 @@ function handleDatabaseSelect(key: string) {
         @click="goHome"
       >
         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <span class="text-white font-bold text-sm">RS</span>
+          <span class="text-white font-bold text-sm">LC</span>
         </div>
-        <span class="font-semibold text-lg text-gray-800 dark:text-gray-100">ReActSQL</span>
+        <span class="font-semibold text-lg text-gray-800 dark:text-gray-100">LUCID</span>
       </div>
 
       <!-- Database indicator (when in workspace) -->

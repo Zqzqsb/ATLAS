@@ -22,7 +22,7 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 py-4 flex-between">
         <div class="flex items-center gap-3">
           <div class="i-carbon-data-base text-2xl text-blue-500" />
-          <h1 class="text-xl font-bold text-gray-900">ReActSQL</h1>
+          <h1 class="text-xl font-bold text-gray-900">LUCID</h1>
           <span class="text-sm text-gray-500">湖基原生 Text-to-SQL</span>
         </div>
         <div class="flex items-center gap-4 text-sm text-gray-600">

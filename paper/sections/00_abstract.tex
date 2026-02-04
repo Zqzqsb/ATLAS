@@ -1,6 +1,0 @@
-% Abstract for conference paper
-Text-to-SQL systems have achieved remarkable progress with large language models (LLMs), yet their reliability remains challenged by two fundamental issues: insufficient schema understanding and unreliable benchmark evaluation. We present ReAct SQL, a tool-augmented agent framework that addresses both challenges through a unified ReAct paradigm and systematic dataset calibration.
-
-Our framework introduces three key innovations: (1) a Rich Context mechanism that captures comprehensive database metadata including indexes, JOIN paths, and field semantics through autonomous database analysis; (2) a minimal tool set (verify\_sql, execute\_sql, update\_rich\_context) that enables capability decoupling for ablation studies; and (3) database-specific syntax guidance for multi-database compatibility (SQLite, MySQL, PostgreSQL).
-
-To ensure reliable evaluation, we systematically calibrated the Spider dev dataset through 221 manual annotations, correcting errors and ambiguities that affect evaluation accuracy. Experimental results demonstrate that our framework achieves state-of-the-art performance on Spider dev, with ablation studies confirming the effectiveness of each component. Our work provides both a high-performance Text-to-SQL solution and a more reliable benchmark for future research.

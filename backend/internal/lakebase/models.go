@@ -1,5 +1,5 @@
 // Package lakebase provides lake-base multi-modal storage operations
-// for Rich Context management in ReActSQL system.
+// for Rich Context management in LUCID system.
 package lakebase
 
 import (

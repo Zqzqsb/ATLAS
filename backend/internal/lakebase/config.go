@@ -1,5 +1,5 @@
 // Package lakebase provides lake-base multi-modal storage operations
-// for Rich Context management in ReActSQL system.
+// for Rich Context management in LUCID system.
 package lakebase
 
 import (
@@ -87,7 +87,7 @@ func (c *LakebaseConfig) applyDefaults() {
 		c.Lakebase.User = "root"
 	}
 	if c.Lakebase.Database == "" {
-		c.Lakebase.Database = "reactsql"
+		c.Lakebase.Database = "lucid"
 	}
 	if c.Lakebase.MaxOpenConns == 0 {
 		c.Lakebase.MaxOpenConns = 20
@@ -171,7 +171,7 @@ func DefaultLakebaseConfig() *LakebaseConfig {
 			Port:            3310,
 			User:            "root",
 			Password:        "your_strong_password",
-			Database:        "reactsql",
+			Database:        "lucid",
 			MaxOpenConns:    20,
 			MaxIdleConns:    10,
 			ConnMaxLifetime: 300 * time.Second,

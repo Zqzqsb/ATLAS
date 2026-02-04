@@ -1,4 +1,4 @@
-// Package agent provides self-maintenance capabilities for ReActSQL.
+// Package agent provides self-maintenance capabilities for LUCID.
 // It includes DDL change detection, context expiration, and automatic updates.
 package agent
 

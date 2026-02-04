@@ -110,6 +110,8 @@ func main() {
 				lakebaseService = nil
 			} else {
 				log.Println("✅ Lake-Base storage connected successfully")
+				// Set lakebase service to inference engine for rich context loading
+				inferenceEngine.SetLakebaseService(lakebaseService)
 			}
 			cancel()
 		}
@@ -270,6 +272,7 @@ func main() {
 		api.GET("/lakebase/datasources/:id/context/:table", h.GetLakebaseTableContext)
 		api.GET("/lakebase/datasources/:id/changelog", h.GetLakebaseChangeLogs)
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
+		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContext)
 
 		// Semantic Grounding routes (VLDB Demo V3)
 		if groundingHandlers != nil {

@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tmc/langchaingo/llms"
 )
 
 // ===========================================
@@ -448,5 +451,164 @@ func (h *Handler) GenerateEmbeddings(c *gin.Context) {
 		"columns_processed":  result.ColumnsProcessed,
 		"contexts_processed": result.ContextsProcessed,
 		"total_embeddings":   result.TotalEmbeddings,
+	})
+}
+
+// GenerateRichContext generates Rich Context descriptions for tables and columns using LLM
+// POST /api/v1/lakebase/datasources/:id/generate-context
+func (h *Handler) GenerateRichContext(c *gin.Context) {
+	if h.lakebaseService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Lake-base service not configured",
+		})
+		return
+	}
+
+	// Get LLM model from inference service
+	var model llms.Model
+	if h.inferenceService != nil {
+		if m := h.inferenceService.GetLLMModel(); m != nil {
+			if llmModel, ok := m.(llms.Model); ok {
+				model = llmModel
+			}
+		}
+	}
+
+	if model == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "LLM service not configured",
+		})
+		return
+	}
+
+	idStr := c.Param("id")
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	defer cancel()
+
+	// Support both numeric ID and name
+	var dsID int64
+	var err error
+	dsID, err = strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		// Try finding by name
+		ds, lookupErr := h.lakebaseService.GetDatasourceByName(ctx, idStr)
+		if lookupErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Datasource not found: " + idStr,
+			})
+			return
+		}
+		dsID = ds.ID
+	}
+
+	// Get tables and columns
+	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get tables: " + err.Error(),
+		})
+		return
+	}
+
+	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get columns: " + err.Error(),
+		})
+		return
+	}
+
+	// Group columns by table
+	columnsByTable := make(map[string][]string)
+	for _, col := range columns {
+		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col.ColumnName)
+	}
+
+	// Generate descriptions using LLM
+	tablesUpdated := 0
+	columnsUpdated := 0
+
+	for _, table := range tables {
+		// Skip if already has description
+		if table.Description.Valid && table.Description.String != "" {
+			continue
+		}
+
+		// Build schema info for prompt
+		cols := columnsByTable[table.TableName]
+		colList := ""
+		for _, col := range cols {
+			colList += col + ", "
+		}
+		if len(colList) > 2 {
+			colList = colList[:len(colList)-2]
+		}
+
+		// Generate table description
+		prompt := fmt.Sprintf(`Analyze this database table and provide a concise description.
+
+Table: %s
+Columns: %s
+Row Count: %d
+
+Generate a one-sentence description of what this table stores and its business purpose.
+Output only the description text, no JSON or formatting.`, table.TableName, colList, table.RowCount)
+
+		response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
+		if err != nil {
+			continue // Skip on error, don't fail entire operation
+		}
+
+		description := strings.TrimSpace(response)
+		if description != "" {
+			err = h.lakebaseService.UpdateTableDescription(ctx, dsID, table.TableName, description, "llm", 0.85)
+			if err == nil {
+				tablesUpdated++
+			}
+		}
+	}
+
+	// Generate column descriptions
+	for _, col := range columns {
+		// Skip if already has description
+		if col.Description.Valid && col.Description.String != "" {
+			continue
+		}
+
+		prompt := fmt.Sprintf(`Analyze this database column and provide a concise description.
+
+Table: %s
+Column: %s
+Data Type: %s
+Is Primary Key: %v
+Is Foreign Key: %v
+Is Nullable: %v
+
+Generate a one-sentence description of what this column represents.
+Output only the description text, no JSON or formatting.`, 
+			col.TableName, col.ColumnName, 
+			col.DataType.String, col.IsPrimaryKey, col.IsForeignKey, col.IsNullable)
+
+		response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
+		if err != nil {
+			continue
+		}
+
+		description := strings.TrimSpace(response)
+		if description != "" {
+			err = h.lakebaseService.UpdateColumnDescription(ctx, dsID, col.TableName, col.ColumnName, description, "llm", 0.85)
+			if err == nil {
+				columnsUpdated++
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"datasource_id":   dsID,
+		"tables_updated":  tablesUpdated,
+		"columns_updated": columnsUpdated,
+		"total_tables":    len(tables),
+		"total_columns":   len(columns),
 	})
 }

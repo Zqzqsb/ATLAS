@@ -142,6 +142,11 @@ func NewPipeline(llm llms.Model, adapter adapter.DBAdapter, config *Config) *Pip
 	return p
 }
 
+// SetContext sets the shared context directly (alternative to loading from file)
+func (p *Pipeline) SetContext(ctx *contextpkg.SharedContext) {
+	p.context = ctx
+}
+
 // countTokens 统计文本的 token 数量
 func (p *Pipeline) countTokens(text string) int {
 	if p.tokenizer == nil {

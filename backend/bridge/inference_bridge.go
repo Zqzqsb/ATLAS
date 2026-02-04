@@ -8,16 +8,26 @@ import (
 
 	"lucid/interfaces"
 	"lucid/internal/adapter"
+	contextpkg "lucid/internal/context"
 	"lucid/internal/inference"
+	"lucid/internal/lakebase"
 )
+
+// LakebaseServiceInterface defines methods needed from lakebase service
+type LakebaseServiceInterface interface {
+	GetDatasourceByName(ctx context.Context, name string) (*lakebase.Datasource, error)
+	GetTablesByDatasource(ctx context.Context, dsID int64) ([]*lakebase.TableInfo, error)
+	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.ColumnInfo, error)
+}
 
 // InferenceEngineBridge wraps internal/inference.Pipeline
 // to implement interfaces.InferenceEngine
 type InferenceEngineBridge struct {
-	llm            llms.Model
-	adapterFactory *AdapterFactory
-	currentModel   string
-	modelConfigs   map[string]interfaces.ModelInfo
+	llm             llms.Model
+	adapterFactory  *AdapterFactory
+	currentModel    string
+	modelConfigs    map[string]interfaces.ModelInfo
+	lakebaseService LakebaseServiceInterface
 }
 
 // NewInferenceEngineBridge creates inference engine bridge
@@ -28,6 +38,94 @@ func NewInferenceEngineBridge(llm llms.Model, factory *AdapterFactory) *Inferenc
 		currentModel:   "default",
 		modelConfigs:   make(map[string]interfaces.ModelInfo),
 	}
+}
+
+// SetLakebaseService sets the lakebase service for loading rich context
+func (e *InferenceEngineBridge) SetLakebaseService(svc LakebaseServiceInterface) {
+	e.lakebaseService = svc
+}
+
+// loadContextFromLakebase loads rich context from lakebase for a database
+func (e *InferenceEngineBridge) loadContextFromLakebase(ctx context.Context, dbName string) *contextpkg.SharedContext {
+	if e.lakebaseService == nil {
+		return nil
+	}
+
+	// Find datasource by name
+	ds, err := e.lakebaseService.GetDatasourceByName(ctx, dbName)
+	if err != nil {
+		return nil
+	}
+
+	// Get tables and columns
+	tables, err := e.lakebaseService.GetTablesByDatasource(ctx, ds.ID)
+	if err != nil {
+		return nil
+	}
+
+	columns, err := e.lakebaseService.GetColumnsByDatasource(ctx, ds.ID)
+	if err != nil {
+		return nil
+	}
+
+	// Build SharedContext
+	sharedCtx := &contextpkg.SharedContext{
+		DatabaseName: dbName,
+		DatabaseType: ds.DBType,
+		Tables:       make(map[string]*contextpkg.TableMetadata),
+		TotalTables:  len(tables),
+	}
+
+	// Group columns by table
+	columnsByTable := make(map[string][]*lakebase.ColumnInfo)
+	for _, col := range columns {
+		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col)
+	}
+
+	// Build table metadata
+	for _, t := range tables {
+		tableMeta := &contextpkg.TableMetadata{
+			Name:     t.TableName,
+			RowCount: t.RowCount,
+		}
+
+		// Set description if available
+		if t.Description.Valid && t.Description.String != "" {
+			tableMeta.Description = t.Description.String
+			// Also add to RichContext
+			tableMeta.RichContext = map[string]contextpkg.RichContextValue{
+				"table_description": {
+					BusinessNote: contextpkg.BusinessNote{
+						Content: t.Description.String,
+						Source:  t.Source,
+					},
+				},
+			}
+		}
+
+		// Add columns
+		if cols, ok := columnsByTable[t.TableName]; ok {
+			for _, col := range cols {
+				colMeta := contextpkg.ColumnMetadata{
+					Name:         col.ColumnName,
+					Nullable:     col.IsNullable,
+					IsPrimaryKey: col.IsPrimaryKey,
+				}
+				if col.DataType.Valid {
+					colMeta.Type = col.DataType.String
+				}
+				if col.Description.Valid {
+					colMeta.Comment = col.Description.String
+				}
+				tableMeta.Columns = append(tableMeta.Columns, colMeta)
+			}
+		}
+
+		sharedCtx.Tables[t.TableName] = tableMeta
+		sharedCtx.TotalRows += t.RowCount
+	}
+
+	return sharedCtx
 }
 
 // SetLLM updates the LLM model
@@ -72,9 +170,16 @@ func (e *InferenceEngineBridge) Execute(ctx context.Context, req *interfaces.Inf
 		config.MaxIterations = 5
 	}
 
-	// Create and execute pipeline
+	// Create pipeline
 	pipeline := inference.NewPipeline(e.llm, dbAdapter, config)
 	defer pipeline.Reset()
+
+	// Load rich context from lakebase if available and requested
+	if req.UseRichContext {
+		if sharedCtx := e.loadContextFromLakebase(ctx, req.DatabaseID); sharedCtx != nil {
+			pipeline.SetContext(sharedCtx)
+		}
+	}
 
 	result, err := pipeline.Execute(ctx, req.Question)
 	if err != nil {
@@ -125,6 +230,13 @@ func (e *InferenceEngineBridge) ExecuteStream(ctx context.Context, req *interfac
 	// Create pipeline with step callback for streaming
 	pipeline := inference.NewPipeline(e.llm, dbAdapter, config)
 	defer pipeline.Reset()
+
+	// Load rich context from lakebase if available and requested
+	if req.UseRichContext {
+		if sharedCtx := e.loadContextFromLakebase(ctx, req.DatabaseID); sharedCtx != nil {
+			pipeline.SetContext(sharedCtx)
+		}
+	}
 
 	// Set streaming callback
 	pipeline.SetStepCallback(func(step inference.ReActStep, eventType string) {

@@ -748,6 +748,34 @@ func CreateDataQualityContext(dsID int64, tableName, columnName string, issues [
 	}
 }
 
+// ===========================================
+// Rich Context Update Operations
+// ===========================================
+
+// UpdateTableDescription updates the description for a specific table
+func (s *LakebaseService) UpdateTableDescription(ctx context.Context, dsID int64, tableName, description, source string, confidence float64) error {
+	if !s.IsConnected() {
+		return fmt.Errorf("lakebase: service not connected")
+	}
+	return s.repo.UpdateTableDescription(ctx, dsID, tableName, description, source, confidence)
+}
+
+// UpdateColumnDescription updates the description for a specific column
+func (s *LakebaseService) UpdateColumnDescription(ctx context.Context, dsID int64, tableName, columnName, description, source string, confidence float64) error {
+	if !s.IsConnected() {
+		return fmt.Errorf("lakebase: service not connected")
+	}
+	return s.repo.UpdateColumnDescription(ctx, dsID, tableName, columnName, description, source, confidence)
+}
+
+// UpdateColumnSynonyms updates synonyms for a column
+func (s *LakebaseService) UpdateColumnSynonyms(ctx context.Context, dsID int64, tableName, columnName, synonyms string) error {
+	if !s.IsConnected() {
+		return fmt.Errorf("lakebase: service not connected")
+	}
+	return s.repo.UpdateColumnSynonyms(ctx, dsID, tableName, columnName, synonyms)
+}
+
 // Global singleton for lakebase service
 var (
 	globalLakebaseService     *LakebaseService

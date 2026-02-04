@@ -297,6 +297,48 @@ func (r *MySQLRepository) GetColumnsByTable(ctx context.Context, dsID int64, tab
 	return columns, rows.Err()
 }
 
+// UpdateTableDescription updates the description for a table
+func (r *MySQLRepository) UpdateTableDescription(ctx context.Context, dsID int64, tableName, description, source string, confidence float64) error {
+	query := `
+		UPDATE rc_tables 
+		SET description = ?, source = ?, confidence = ?, updated_at = NOW()
+		WHERE datasource_id = ? AND table_name = ?
+	`
+	_, err := r.pool.ExecContext(ctx, query, description, source, confidence, dsID, tableName)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to update table description: %w", err)
+	}
+	return nil
+}
+
+// UpdateColumnDescription updates the description for a column
+func (r *MySQLRepository) UpdateColumnDescription(ctx context.Context, dsID int64, tableName, columnName, description, source string, confidence float64) error {
+	query := `
+		UPDATE rc_columns 
+		SET description = ?, source = ?, confidence = ?, updated_at = NOW()
+		WHERE datasource_id = ? AND table_name = ? AND column_name = ?
+	`
+	_, err := r.pool.ExecContext(ctx, query, description, source, confidence, dsID, tableName, columnName)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to update column description: %w", err)
+	}
+	return nil
+}
+
+// UpdateColumnSynonyms updates synonyms for a column
+func (r *MySQLRepository) UpdateColumnSynonyms(ctx context.Context, dsID int64, tableName, columnName, synonyms string) error {
+	query := `
+		UPDATE rc_columns 
+		SET synonyms = ?, updated_at = NOW()
+		WHERE datasource_id = ? AND table_name = ? AND column_name = ?
+	`
+	_, err := r.pool.ExecContext(ctx, query, synonyms, dsID, tableName, columnName)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to update column synonyms: %w", err)
+	}
+	return nil
+}
+
 // ===========================================
 // Schema metadata operations (legacy)
 // ===========================================

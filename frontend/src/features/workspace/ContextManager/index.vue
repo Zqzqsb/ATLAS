@@ -12,6 +12,7 @@ import {
   NForm,
   NFormItem,
   NSpace,
+  NProgress,
   useMessage
 } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -23,6 +24,7 @@ const message = useMessage()
 const searchKeyword = ref('')
 const filterTable = ref<string | null>(null)
 const filterType = ref<ContextType | null>(null)
+const isGenerating = ref(false)
 
 // Edit dialog
 const showEditDialog = ref(false)
@@ -140,6 +142,39 @@ function getTypeColor(type: ContextType): string {
   }
   return colors[type] || 'default'
 }
+
+// Auto-generate Rich Context using LLM
+async function handleAutoGenerate() {
+  if (!workspaceStore.currentDatabaseId) {
+    message.warning('请先选择数据库')
+    return
+  }
+
+  isGenerating.value = true
+  message.info('正在使用 AI 生成 Rich Context...', { duration: 0, closable: true })
+
+  try {
+    const response = await fetch(`/api/v1/lakebase/datasources/${workspaceStore.currentDatabaseId}/generate-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    const data = await response.json()
+
+    if (response.ok) {
+      message.success(`生成完成！更新了 ${data.tables_updated} 个表和 ${data.columns_updated} 个列的描述`)
+      // Refresh contexts and schema
+      await workspaceStore.fetchContexts()
+      await workspaceStore.fetchSchema()
+    } else {
+      message.error(data.error || '生成失败')
+    }
+  } catch (e: any) {
+    message.error('生成失败: ' + (e.message || '网络错误'))
+  } finally {
+    isGenerating.value = false
+  }
+}
 </script>
 
 <template>
@@ -181,6 +216,16 @@ function getTypeColor(type: ContextType): string {
             <div class="i-carbon-refresh" />
           </template>
           刷新
+        </NButton>
+        <NButton 
+          type="info" 
+          :loading="isGenerating"
+          @click="handleAutoGenerate"
+        >
+          <template #icon>
+            <div class="i-carbon-machine-learning-model" />
+          </template>
+          AI 自动生成
         </NButton>
         <NButton type="primary" @click="openCreateDialog">
           <template #icon>

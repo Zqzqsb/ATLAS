@@ -3,7 +3,7 @@
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
-.PHONY: all clean-all dev backend frontend paper clean help demo-up demo-down demo-reset
+.PHONY: all clean-all rebuild-all dev backend frontend paper clean help demo-up demo-down demo-reset
 
 # ============== Idempotent Commands ==============
 all: clean-all
@@ -18,6 +18,16 @@ all: clean-all
 	@echo "  Frontend: http://localhost:19000"
 	@echo "  Backend:  http://localhost:19001"
 	@echo "  MariaDB:  localhost:19010"
+
+rebuild-all:
+	@echo "🔄 Rebuilding all LUCID services..."
+	docker compose -f deploy/docker-compose.yml build
+	docker compose -f deploy/docker-compose.yml up -d
+	@echo ""
+	@echo "✅ All services rebuilt and restarted!"
+	@echo "  Frontend: http://localhost:19000"
+	@echo "  Backend:  http://localhost:19001"
+	@echo ""
 
 clean-all:
 	@echo "Cleaning all LUCID resources..."
@@ -175,6 +185,7 @@ help:
 	@echo "Idempotent Commands:"
 	@echo "  make all            - Clean, build, and start everything"
 	@echo "  make clean-all      - Remove all containers, volumes, images"
+	@echo "  make rebuild-all    - Rebuild and restart all services (quick)"
 	@echo ""
 	@echo "Demo (Recommended for first-time users):"
 	@echo "  make demo-up        - Start complete demo system (one command)"

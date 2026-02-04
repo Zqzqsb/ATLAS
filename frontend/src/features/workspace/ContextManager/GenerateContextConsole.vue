@@ -17,6 +17,8 @@ const message = useMessage()
 // Configuration
 const concurrency = ref(3)
 const forceRegenerate = ref(false)
+const minIterations = ref(1)
+const maxIterations = ref(3)
 
 // State
 const isRunning = ref(false)
@@ -167,7 +169,7 @@ async function startGeneration() {
     elapsedTime.value = Date.now() - startTime.value
   }, 100)
 
-  addLog('system', `Starting generation with ${concurrency.value} workers...`, 'info')
+  addLog('system', `Starting generation with ${concurrency.value} workers, iterations: ${minIterations.value}-${maxIterations.value}...`, 'info')
 
   // Create SSE connection
   const url = `/api/v1/lakebase/datasources/${props.databaseId}/generate-context/stream`
@@ -178,7 +180,9 @@ async function startGeneration() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         concurrency: concurrency.value,
-        force: forceRegenerate.value
+        force: forceRegenerate.value,
+        min_iterations: minIterations.value,
+        max_iterations: maxIterations.value
       })
     })
 
@@ -343,7 +347,7 @@ onUnmounted(() => {
     <div class="generate-console">
       <!-- Configuration (shown before start) -->
       <div v-if="!isRunning && !isComplete" class="config-section mb-6">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label class="text-sm text-gray-400 mb-2 block">Worker Concurrency</label>
             <NInputNumber
@@ -360,6 +364,30 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm text-gray-400 mb-2 block">Min Iterations</label>
+            <NInputNumber
+              v-model:value="minIterations"
+              :min="1"
+              :max="5"
+              size="small"
+            />
+          </div>
+          <div>
+            <label class="text-sm text-gray-400 mb-2 block">Max Iterations</label>
+            <NInputNumber
+              v-model:value="maxIterations"
+              :min="1"
+              :max="10"
+              size="small"
+            />
+          </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2 mb-4">
+          Iterations control the depth of context analysis. Higher values produce richer context but take longer.
+        </p>
         
         <NButton
           type="primary"

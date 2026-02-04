@@ -160,9 +160,6 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 	// Get columns from rc_columns
 	columnInfos, _ := h.lakebaseService.GetColumnsByDatasource(ctx, id)
 
-	// Get context for this datasource
-	contexts, _ := h.lakebaseService.GetContextByDatasource(ctx, id)
-
 	// Get embedding count
 	embeddingCount, _ := h.lakebaseService.CountEmbeddings(ctx, id)
 
@@ -172,8 +169,11 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 		columnCountMap[c.TableName]++
 	}
 
-	// Build table summary
+	// Build table summary and collect contexts from descriptions
 	tables := make([]map[string]interface{}, 0, len(tableInfos))
+	contextList := make([]map[string]interface{}, 0)
+	contextID := 1
+
 	for _, t := range tableInfos {
 		desc := ""
 		if t.Description.Valid {
@@ -187,9 +187,24 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			"is_expired":   t.IsExpired,
 			"confidence":   t.Confidence,
 		})
+
+		// Add table description as context
+		if desc != "" {
+			contextList = append(contextList, map[string]interface{}{
+				"id":           contextID,
+				"table_name":   t.TableName,
+				"column_name":  nil,
+				"context_type": "description",
+				"content":      desc,
+				"source":       t.Source,
+				"confidence":   t.Confidence,
+				"created_at":   t.UpdatedAt,
+			})
+			contextID++
+		}
 	}
 
-	// Build column details
+	// Build column details and collect contexts from descriptions
 	columns := make([]map[string]interface{}, 0, len(columnInfos))
 	for _, c := range columnInfos {
 		desc := ""
@@ -211,19 +226,21 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			"is_expired":   c.IsExpired,
 			"confidence":   c.Confidence,
 		})
-	}
 
-	// Build context details
-	contextList := make([]map[string]interface{}, 0, len(contexts))
-	for _, ctx := range contexts {
-		contextList = append(contextList, map[string]interface{}{
-			"id":           ctx.ID,
-			"table_name":   ctx.TableName,
-			"column_name":  ctx.ColumnName,
-			"context_type": ctx.ContextType,
-			"content":      ctx.Content,
-			"created_at":   ctx.CreatedAt,
-		})
+		// Add column description as context
+		if desc != "" {
+			contextList = append(contextList, map[string]interface{}{
+				"id":           contextID,
+				"table_name":   c.TableName,
+				"column_name":  c.ColumnName,
+				"context_type": "description",
+				"content":      desc,
+				"source":       c.Source,
+				"confidence":   c.Confidence,
+				"created_at":   c.UpdatedAt,
+			})
+			contextID++
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -244,7 +261,7 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 		"contexts":         contextList,
 		"tables_count":     len(tableInfos),
 		"columns_count":    len(columnInfos),
-		"context_count":    len(contexts),
+		"context_count":    len(contextList),
 		"embeddings_count": embeddingCount,
 	})
 }
@@ -654,18 +671,31 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	// Parse request
 	var req struct {
-		Concurrency int  `json:"concurrency"` // Number of parallel workers
-		Force       bool `json:"force"`       // Force regenerate even if exists
+		Concurrency   int  `json:"concurrency"`    // Number of parallel workers
+		Force         bool `json:"force"`          // Force regenerate even if exists
+		MinIterations int  `json:"min_iterations"` // Min exploration iterations per item
+		MaxIterations int  `json:"max_iterations"` // Max exploration iterations per item
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		req.Concurrency = 3 // default
+		req.Concurrency = 3
 		req.Force = false
+		req.MinIterations = 1
+		req.MaxIterations = 3
 	}
 	if req.Concurrency < 1 {
 		req.Concurrency = 1
 	}
 	if req.Concurrency > 10 {
 		req.Concurrency = 10
+	}
+	if req.MinIterations < 1 {
+		req.MinIterations = 1
+	}
+	if req.MaxIterations < req.MinIterations {
+		req.MaxIterations = req.MinIterations
+	}
+	if req.MaxIterations > 10 {
+		req.MaxIterations = 10
 	}
 
 	// Resolve datasource ID

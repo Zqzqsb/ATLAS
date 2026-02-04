@@ -79,7 +79,7 @@ services:
   # Single database instance for both lake-base and demonstrations
   # ============================================================
   mariadb:
-    image: mariadb:11.4
+    image: mariadb:12
     container_name: lucid-mariadb
     restart: unless-stopped
     ports:

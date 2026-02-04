@@ -1,5 +1,5 @@
 -- LUCID Lake-Base Storage Initialization
--- MariaDB 11.4+ with VECTOR support
+-- MariaDB 12+ with VECTOR support
 --
 -- This script creates the rc_* (Rich Context) tables that store:
 -- - Database metadata
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS rc_terms (
 -- ============================================================
 -- 6. Embeddings (vector embeddings with HNSW index)
 -- ============================================================
--- Note: Requires MariaDB 11.4+ with VECTOR support
+-- Note: Requires MariaDB 12+ with VECTOR support
 -- Vector dimension: 1536 (OpenAI text-embedding-3-small)
 CREATE TABLE IF NOT EXISTS rc_embeddings (
     id INT AUTO_INCREMENT PRIMARY KEY,

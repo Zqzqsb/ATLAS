@@ -53,7 +53,7 @@ Access the UI at **http://localhost:19000**
 │    :19000              :19001            :19010     │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐  │
-│  │ MariaDB 11.4 - Unified Storage (:19010)     │  │
+│  │ MariaDB 12 - Unified Storage (:19010)     │  │
 │  │                                              │  │
 │  │  Lake-Base (rc_* tables):                   │  │
 │  │  ├─ rc_datasources  (Metadata)              │  │

@@ -72,10 +72,77 @@ const filteredContexts = computed(() => {
   return contexts
 })
 
+// Group contexts by table for structured display
+interface TableContextGroup {
+  tableName: string
+  tableContext: RichContext | null
+  columnContexts: RichContext[]
+}
+
+const groupedContexts = computed<TableContextGroup[]>(() => {
+  const groups = new Map<string, TableContextGroup>()
+  
+  for (const ctx of filteredContexts.value) {
+    if (!groups.has(ctx.tableName)) {
+      groups.set(ctx.tableName, {
+        tableName: ctx.tableName,
+        tableContext: null,
+        columnContexts: []
+      })
+    }
+    
+    const group = groups.get(ctx.tableName)!
+    if (!ctx.columnName) {
+      // Table-level context
+      group.tableContext = ctx
+    } else {
+      // Column-level context
+      group.columnContexts.push(ctx)
+    }
+  }
+  
+  // Sort column contexts by column name
+  for (const group of groups.values()) {
+    group.columnContexts.sort((a, b) => (a.columnName || '').localeCompare(b.columnName || ''))
+  }
+  
+  return Array.from(groups.values()).sort((a, b) => a.tableName.localeCompare(b.tableName))
+})
+
+// Track expanded tables
+const expandedTables = ref<Set<string>>(new Set())
+
+function toggleTable(tableName: string) {
+  if (expandedTables.value.has(tableName)) {
+    expandedTables.value.delete(tableName)
+  } else {
+    expandedTables.value.add(tableName)
+  }
+}
+
+function expandAll() {
+  groupedContexts.value.forEach(g => expandedTables.value.add(g.tableName))
+}
+
+function collapseAll() {
+  expandedTables.value.clear()
+}
+
 function openCreateDialog() {
   editingContext.value = null
   editForm.value = {
     tableName: filterTable.value || '',
+    columnName: '',
+    type: 'description',
+    content: ''
+  }
+  showEditDialog.value = true
+}
+
+function openCreateDialogForTable(tableName: string) {
+  editingContext.value = null
+  editForm.value = {
+    tableName,
     columnName: '',
     type: 'description',
     content: ''
@@ -237,55 +304,117 @@ async function handleGenerateComplete() {
       </template>
     </NEmpty>
 
-    <!-- Context list -->
-    <div v-else class="grid gap-4">
-      <NCard
-        v-for="ctx in filteredContexts"
-        :key="ctx.id"
-        size="small"
-        hoverable
+    <!-- Structured Context List -->
+    <div v-else class="context-tree">
+      <!-- Expand/Collapse All -->
+      <div class="flex gap-2 mb-4">
+        <NButton size="small" quaternary @click="expandAll">
+          <template #icon><div class="i-carbon-expand-all" /></template>
+          展开全部
+        </NButton>
+        <NButton size="small" quaternary @click="collapseAll">
+          <template #icon><div class="i-carbon-collapse-all" /></template>
+          折叠全部
+        </NButton>
+        <span class="text-sm text-gray-500 ml-auto">
+          {{ groupedContexts.length }} 个表，{{ filteredContexts.length }} 条 Context
+        </span>
+      </div>
+
+      <!-- Table Groups -->
+      <div 
+        v-for="group in groupedContexts" 
+        :key="group.tableName"
+        class="table-group mb-4"
       >
-        <div class="flex items-start justify-between">
-          <div class="flex-1">
-            <div class="flex items-center gap-2 mb-2">
-              <NTag size="small">{{ ctx.tableName }}</NTag>
-              <NTag v-if="ctx.columnName" size="small" type="info">
-                {{ ctx.columnName }}
-              </NTag>
-              <NTag size="small" :type="getTypeColor(ctx.type) as any">
-                {{ ctx.type }}
-              </NTag>
-              <NTag v-if="ctx.source === 'auto'" size="small" :bordered="false">
-                <template #icon>
-                  <div class="i-carbon-machine-learning" />
-                </template>
-                自动生成
-              </NTag>
-              <NTag v-else-if="ctx.source === 'feedback'" size="small" type="success" :bordered="false">
-                <template #icon>
-                  <div class="i-carbon-user-feedback" />
-                </template>
-                用户反馈
-              </NTag>
-            </div>
-            <p class="text-gray-700 dark:text-gray-300">{{ ctx.content }}</p>
-            <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
-              <span v-if="ctx.usageCount">使用 {{ ctx.usageCount }} 次</span>
-              <span v-if="ctx.confidence">置信度 {{ (ctx.confidence * 100).toFixed(0) }}%</span>
-              <span>{{ new Date(ctx.createdAt).toLocaleDateString() }}</span>
-            </div>
+        <!-- Table Header -->
+        <div 
+          class="table-header flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 cursor-pointer hover:from-blue-500/15 hover:to-cyan-500/15 transition-all"
+          @click="toggleTable(group.tableName)"
+        >
+          <div 
+            class="expand-icon transition-transform"
+            :class="{ 'rotate-90': expandedTables.has(group.tableName) }"
+          >
+            <div class="i-carbon-chevron-right text-blue-400" />
           </div>
           
-          <div class="flex items-center gap-1 ml-4">
-            <NButton quaternary size="small" @click="openEditDialog(ctx)">
-              <div class="i-carbon-edit" />
-            </NButton>
-            <NButton quaternary size="small" type="error" @click="handleDelete(ctx)">
-              <div class="i-carbon-trash-can" />
+          <div class="i-carbon-data-table text-lg text-blue-400" />
+          
+          <span class="font-semibold text-blue-300">{{ group.tableName }}</span>
+          
+          <NTag size="small" :bordered="false" class="ml-2">
+            {{ group.columnContexts.length + (group.tableContext ? 1 : 0) }} contexts
+          </NTag>
+
+          <div class="ml-auto flex items-center gap-2">
+            <NButton 
+              size="tiny" 
+              quaternary 
+              @click.stop="openCreateDialogForTable(group.tableName)"
+            >
+              <div class="i-carbon-add text-xs" />
             </NButton>
           </div>
         </div>
-      </NCard>
+
+        <!-- Expanded Content -->
+        <div 
+          v-if="expandedTables.has(group.tableName)"
+          class="table-content ml-6 mt-2 border-l-2 border-blue-500/20 pl-4"
+        >
+          <!-- Table-level Context -->
+          <div 
+            v-if="group.tableContext" 
+            class="context-item p-3 mb-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <div class="i-carbon-document text-yellow-400" />
+              <span class="text-sm font-medium text-yellow-300">Table Description</span>
+              <NTag size="tiny" type="warning">{{ group.tableContext.type }}</NTag>
+              <div class="ml-auto flex gap-1">
+                <NButton size="tiny" quaternary @click="openEditDialog(group.tableContext!)">
+                  <div class="i-carbon-edit text-xs" />
+                </NButton>
+                <NButton size="tiny" quaternary type="error" @click="handleDelete(group.tableContext!)">
+                  <div class="i-carbon-trash-can text-xs" />
+                </NButton>
+              </div>
+            </div>
+            <p class="text-sm text-gray-300 leading-relaxed">{{ group.tableContext.content }}</p>
+          </div>
+
+          <!-- Column Contexts -->
+          <div 
+            v-for="colCtx in group.columnContexts" 
+            :key="colCtx.id"
+            class="context-item p-3 mb-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <div class="i-carbon-column text-emerald-400" />
+              <span class="text-sm font-medium text-emerald-300">{{ colCtx.columnName }}</span>
+              <NTag size="tiny" type="success">{{ colCtx.type }}</NTag>
+              <div class="ml-auto flex gap-1">
+                <NButton size="tiny" quaternary @click="openEditDialog(colCtx)">
+                  <div class="i-carbon-edit text-xs" />
+                </NButton>
+                <NButton size="tiny" quaternary type="error" @click="handleDelete(colCtx)">
+                  <div class="i-carbon-trash-can text-xs" />
+                </NButton>
+              </div>
+            </div>
+            <p class="text-sm text-gray-300 leading-relaxed">{{ colCtx.content }}</p>
+          </div>
+
+          <!-- Empty columns hint -->
+          <div 
+            v-if="group.columnContexts.length === 0 && !group.tableContext"
+            class="text-sm text-gray-500 py-2"
+          >
+            暂无 Context
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Edit/Create Dialog -->

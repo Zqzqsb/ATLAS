@@ -17,6 +17,7 @@ import {
 } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { RichContext, ContextType } from '@/types'
+import GenerateContextConsole from './GenerateContextConsole.vue'
 
 const workspaceStore = useWorkspaceStore()
 const message = useMessage()
@@ -24,7 +25,7 @@ const message = useMessage()
 const searchKeyword = ref('')
 const filterTable = ref<string | null>(null)
 const filterType = ref<ContextType | null>(null)
-const isGenerating = ref(false)
+const showGenerateConsole = ref(false)
 
 // Edit dialog
 const showEditDialog = ref(false)
@@ -143,37 +144,20 @@ function getTypeColor(type: ContextType): string {
   return colors[type] || 'default'
 }
 
-// Auto-generate Rich Context using LLM
-async function handleAutoGenerate() {
+// Open generate console
+function openGenerateConsole() {
   if (!workspaceStore.currentDatabaseId) {
     message.warning('请先选择数据库')
     return
   }
+  showGenerateConsole.value = true
+}
 
-  isGenerating.value = true
-  message.info('正在使用 AI 生成 Rich Context...', { duration: 0, closable: true })
-
-  try {
-    const response = await fetch(`/api/v1/lakebase/datasources/${workspaceStore.currentDatabaseId}/generate-context`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-
-    const data = await response.json()
-
-    if (response.ok) {
-      message.success(`生成完成！更新了 ${data.tables_updated} 个表和 ${data.columns_updated} 个列的描述`)
-      // Refresh contexts and schema
-      await workspaceStore.fetchContexts()
-      await workspaceStore.fetchSchema()
-    } else {
-      message.error(data.error || '生成失败')
-    }
-  } catch (e: any) {
-    message.error('生成失败: ' + (e.message || '网络错误'))
-  } finally {
-    isGenerating.value = false
-  }
+// Handle generation complete
+async function handleGenerateComplete() {
+  // Refresh contexts and schema
+  await workspaceStore.fetchContexts()
+  await workspaceStore.fetchSchema()
 }
 </script>
 
@@ -219,8 +203,7 @@ async function handleAutoGenerate() {
         </NButton>
         <NButton 
           type="info" 
-          :loading="isGenerating"
-          @click="handleAutoGenerate"
+          @click="openGenerateConsole"
         >
           <template #icon>
             <div class="i-carbon-machine-learning-model" />
@@ -349,5 +332,12 @@ async function handleAutoGenerate() {
         </NSpace>
       </template>
     </NModal>
+
+    <!-- Generate Context Console -->
+    <GenerateContextConsole
+      v-model:show="showGenerateConsole"
+      :database-id="workspaceStore.currentDatabaseId || ''"
+      @complete="handleGenerateComplete"
+    />
   </div>
 </template>

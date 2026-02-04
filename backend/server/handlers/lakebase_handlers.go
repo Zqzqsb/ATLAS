@@ -2,14 +2,18 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
+
+	"lucid/internal/lakebase"
 )
 
 // ===========================================
@@ -610,5 +614,319 @@ Output only the description text, no JSON or formatting.`,
 		"columns_updated": columnsUpdated,
 		"total_tables":    len(tables),
 		"total_columns":   len(columns),
+	})
+}
+
+// GenerateContextEvent represents an SSE event for context generation
+type GenerateContextEvent struct {
+	Type      string      `json:"type"`      // agent_start, agent_step, agent_done, storage, complete, error
+	Agent     string      `json:"agent"`     // coordinator, worker-1, worker-2...
+	Table     string      `json:"table"`     // table name (for workers)
+	Phase     string      `json:"phase"`     // discovery, schema, rich_context, storage
+	Status    string      `json:"status"`    // running, success, error, pending
+	Message   string      `json:"message"`   // detailed message
+	Data      interface{} `json:"data"`      // structured data
+	Timestamp int64       `json:"timestamp"` // unix timestamp ms
+}
+
+// GenerateRichContextStream generates Rich Context with SSE progress streaming
+// POST /api/v1/lakebase/datasources/:id/generate-context/stream
+func (h *Handler) GenerateRichContextStream(c *gin.Context) {
+	// Validate services
+	if h.lakebaseService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Lake-base service not configured"})
+		return
+	}
+
+	// Get LLM model
+	var model llms.Model
+	if h.inferenceService != nil {
+		if m := h.inferenceService.GetLLMModel(); m != nil {
+			if llmModel, ok := m.(llms.Model); ok {
+				model = llmModel
+			}
+		}
+	}
+	if model == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "LLM service not configured"})
+		return
+	}
+
+	// Parse request
+	var req struct {
+		Concurrency int  `json:"concurrency"` // Number of parallel workers
+		Force       bool `json:"force"`       // Force regenerate even if exists
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.Concurrency = 3 // default
+		req.Force = false
+	}
+	if req.Concurrency < 1 {
+		req.Concurrency = 1
+	}
+	if req.Concurrency > 10 {
+		req.Concurrency = 10
+	}
+
+	// Resolve datasource ID
+	idStr := c.Param("id")
+	ctx := c.Request.Context()
+
+	var dsID int64
+	var err error
+	dsID, err = strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ds, lookupErr := h.lakebaseService.GetDatasourceByName(ctx, idStr)
+		if lookupErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
+			return
+		}
+		dsID = ds.ID
+	}
+
+	// Get tables and columns
+	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tables: " + err.Error()})
+		return
+	}
+
+	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get columns: " + err.Error()})
+		return
+	}
+
+	// Set SSE headers
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	// Helper to send events
+	sendEvent := func(eventType string, event GenerateContextEvent) {
+		event.Type = eventType
+		event.Timestamp = time.Now().UnixMilli()
+		data, _ := json.Marshal(event)
+		fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", eventType, string(data))
+		c.Writer.Flush()
+	}
+
+	startTime := time.Now()
+
+	// Phase 1: Coordinator - Discovery
+	sendEvent("agent_start", GenerateContextEvent{
+		Agent:   "coordinator",
+		Phase:   "discovery",
+		Status:  "running",
+		Message: "Starting table discovery...",
+	})
+
+	tableNames := make([]string, len(tables))
+	for i, t := range tables {
+		tableNames[i] = t.TableName
+	}
+
+	sendEvent("agent_step", GenerateContextEvent{
+		Agent:   "coordinator",
+		Phase:   "discovery",
+		Message: fmt.Sprintf("Found %d tables", len(tables)),
+		Data:    map[string]interface{}{"tables": tableNames, "total_columns": len(columns)},
+	})
+
+	sendEvent("agent_done", GenerateContextEvent{
+		Agent:   "coordinator",
+		Phase:   "discovery",
+		Status:  "success",
+		Message: "Discovery complete",
+	})
+
+	// Group columns by table
+	columnsByTable := make(map[string][]*lakebase.ColumnInfo)
+	for _, col := range columns {
+		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col)
+	}
+
+	// Phase 2: Worker Agents - Process tables with concurrency control
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, req.Concurrency)
+	
+	var mu sync.Mutex
+	tablesUpdated := 0
+	columnsUpdated := 0
+
+	for i, table := range tables {
+		wg.Add(1)
+		workerID := fmt.Sprintf("worker-%d", i+1)
+
+		go func(wID string, tbl *lakebase.TableInfo, cols []*lakebase.ColumnInfo) {
+			defer wg.Done()
+
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			// Start worker
+			sendEvent("agent_start", GenerateContextEvent{
+				Agent:   wID,
+				Table:   tbl.TableName,
+				Phase:   "schema",
+				Status:  "running",
+				Message: fmt.Sprintf("Analyzing %s...", tbl.TableName),
+			})
+
+			// Check if needs update
+			needsTableUpdate := req.Force || !tbl.Description.Valid || tbl.Description.String == ""
+
+			// Phase: Schema analysis
+			sendEvent("agent_step", GenerateContextEvent{
+				Agent:   wID,
+				Table:   tbl.TableName,
+				Phase:   "schema",
+				Message: fmt.Sprintf("Found %d columns", len(cols)),
+				Data:    map[string]interface{}{"column_count": len(cols)},
+			})
+
+			// Phase: Rich Context generation
+			if needsTableUpdate {
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   wID,
+					Table:   tbl.TableName,
+					Phase:   "rich_context",
+					Message: "Generating description via LLM...",
+				})
+
+				// Build column list
+				colNames := make([]string, len(cols))
+				for i, col := range cols {
+					colNames[i] = col.ColumnName
+				}
+				colList := strings.Join(colNames, ", ")
+
+				// Generate table description
+				prompt := fmt.Sprintf(`Analyze this database table and provide a concise description.
+
+Table: %s
+Columns: %s
+Row Count: %d
+
+Generate a one-sentence description of what this table stores and its business purpose.
+Output only the description text, no JSON or formatting.`, tbl.TableName, colList, tbl.RowCount)
+
+				response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
+				if err != nil {
+					sendEvent("agent_step", GenerateContextEvent{
+						Agent:   wID,
+						Table:   tbl.TableName,
+						Phase:   "rich_context",
+						Status:  "error",
+						Message: fmt.Sprintf("LLM error: %v", err),
+					})
+				} else {
+					description := strings.TrimSpace(response)
+					if description != "" {
+						// Save to database
+						sendEvent("agent_step", GenerateContextEvent{
+							Agent:   wID,
+							Table:   tbl.TableName,
+							Phase:   "storage",
+							Message: "Saving to rc_tables...",
+						})
+
+						err = h.lakebaseService.UpdateTableDescription(ctx, dsID, tbl.TableName, description, "llm", 0.85)
+						if err == nil {
+							mu.Lock()
+							tablesUpdated++
+							mu.Unlock()
+
+							sendEvent("storage", GenerateContextEvent{
+								Agent:   wID,
+								Table:   tbl.TableName,
+								Phase:   "storage",
+								Status:  "success",
+								Message: fmt.Sprintf("Saved table: %s", tbl.TableName),
+								Data:    map[string]interface{}{"target": "rc_tables", "description": description},
+							})
+						}
+					}
+				}
+			} else {
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   wID,
+					Table:   tbl.TableName,
+					Phase:   "rich_context",
+					Message: "Already has description, skipping",
+				})
+			}
+
+			// Process columns
+			for _, col := range cols {
+				needsColUpdate := req.Force || !col.Description.Valid || col.Description.String == ""
+				if !needsColUpdate {
+					continue
+				}
+
+				prompt := fmt.Sprintf(`Analyze this database column and provide a concise description.
+
+Table: %s
+Column: %s
+Data Type: %s
+Is Primary Key: %v
+Is Foreign Key: %v
+
+Generate a one-sentence description. Output only the description text.`,
+					tbl.TableName, col.ColumnName,
+					col.DataType.String, col.IsPrimaryKey, col.IsForeignKey)
+
+				response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
+				if err != nil {
+					continue
+				}
+
+				description := strings.TrimSpace(response)
+				if description != "" {
+					err = h.lakebaseService.UpdateColumnDescription(ctx, dsID, tbl.TableName, col.ColumnName, description, "llm", 0.85)
+					if err == nil {
+						mu.Lock()
+						columnsUpdated++
+						mu.Unlock()
+
+						sendEvent("storage", GenerateContextEvent{
+							Agent:   wID,
+							Table:   tbl.TableName,
+							Phase:   "storage",
+							Status:  "success",
+							Message: fmt.Sprintf("Saved column: %s.%s", tbl.TableName, col.ColumnName),
+							Data:    map[string]interface{}{"target": "rc_columns", "column": col.ColumnName},
+						})
+					}
+				}
+			}
+
+			// Worker done
+			sendEvent("agent_done", GenerateContextEvent{
+				Agent:   wID,
+				Table:   tbl.TableName,
+				Status:  "success",
+				Message: fmt.Sprintf("Completed %s", tbl.TableName),
+			})
+		}(workerID, table, columnsByTable[table.TableName])
+	}
+
+	// Wait for all workers
+	wg.Wait()
+
+	// Complete
+	duration := time.Since(startTime)
+	sendEvent("complete", GenerateContextEvent{
+		Status:  "success",
+		Message: "Generation complete",
+		Data: map[string]interface{}{
+			"tables_updated":  tablesUpdated,
+			"columns_updated": columnsUpdated,
+			"total_tables":    len(tables),
+			"total_columns":   len(columns),
+			"duration_ms":     duration.Milliseconds(),
+		},
 	})
 }

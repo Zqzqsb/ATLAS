@@ -273,6 +273,7 @@ func main() {
 		api.GET("/lakebase/datasources/:id/changelog", h.GetLakebaseChangeLogs)
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
 		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContext)
+		api.POST("/lakebase/datasources/:id/generate-context/stream", h.GenerateRichContextStream)
 
 		// Semantic Grounding routes (VLDB Demo V3)
 		if groundingHandlers != nil {

@@ -1,0 +1,25 @@
+\section{Introduction}
+
+Text-to-SQL systems have witnessed remarkable progress with the advent of large language models (LLMs), enabling natural language interfaces to databases across diverse domains. However, two fundamental challenges persist: (1) \textbf{insufficient schema understanding} -- existing methods rely primarily on table and column names, overlooking critical database metadata such as indexes, foreign key relationships, and data distributions; and (2) \textbf{unreliable evaluation benchmarks} -- recent studies reveal that widely-used datasets contain substantial annotation errors and ambiguities that compromise evaluation reliability~\cite{renggli2025fundamental}.
+
+Consider a query: \textit{"Find employees in high-performing departments"}. A robust Text-to-SQL system must understand not only the schema structure but also: (a) which index to use for efficient filtering (\texttt{idx\_emp\_dept}), (b) how to join \texttt{employees} and \texttt{departments} tables via foreign key relationships, and (c) database-specific syntax differences (e.g., \texttt{LIMIT n OFFSET m} in PostgreSQL vs. \texttt{LIMIT m, n} in MySQL). Current approaches struggle with these requirements, often generating syntactically correct but semantically flawed or inefficient SQL queries.
+
+We present \textbf{ReAct SQL}, a tool-augmented agent framework that addresses both challenges through a unified ReAct paradigm and systematic dataset calibration. Our framework makes three key contributions:
+
+\textbf{(1) Rich Context Mechanism:} We introduce a comprehensive database execution context that captures not only basic schema information but also indexes with selectivity metrics, JOIN path graphs computed via breadth-first search, field semantics annotations, and database dialect features. This context is autonomously constructed through a ReAct-driven database onboarding process, where an LLM agent iteratively executes SQL queries to gather metadata.
+
+\textbf{(2) Unified ReAct Paradigm:} Unlike existing methods that apply ReAct only at runtime, we unify both database onboarding and SQL generation under the same ReAct framework. During onboarding, the agent's task is "analyze this database and build execution context"; at runtime, the task becomes "generate SQL for this query". This task-driven approach enables adaptive database analysis and self-correcting SQL generation through a minimal tool set: \texttt{verify\_sql} (syntax validation via dry-run), \texttt{execute\_sql} (query execution and verification), and \texttt{update\_rich\_context} (context maintenance).
+
+\textbf{(3) Multi-Database Compatibility:} We achieve cross-database compatibility (SQLite, MySQL, PostgreSQL) through database-specific syntax guidance injected into prompts, significantly reducing syntax errors across different SQL dialects.
+
+To ensure reliable evaluation, we systematically calibrated the Spider dev dataset~\cite{yu2018spider} through manual inspection and annotation. We identified and corrected 221 cases involving annotation errors, query ambiguities, and schema inconsistencies. This calibration work, while a secondary contribution, is essential for trustworthy performance assessment.
+
+Experimental results on Spider dev demonstrate that ReAct SQL achieves state-of-the-art performance with 94.39\% execution accuracy (971/1034 correct queries), significantly outperforming existing methods. The system achieves 20.59\% exact match rate (213/1034) and 73.31\% semantic equivalence rate (758/1034). Ablation studies confirm the effectiveness of each component: Rich Context improves accuracy by 12.5\%, database syntax guidance reduces syntax errors by 68\%, and the ReAct loop enables self-correction that yields an additional 5.2\% improvement on complex queries. Our framework provides both a high-performance Text-to-SQL solution and a more reliable benchmark for future research.
+
+The main contributions of this work are:
+\begin{itemize}
+    \item A unified ReAct framework that integrates database onboarding and SQL generation with a minimal, decoupled tool set
+    \item A Rich Context mechanism capturing comprehensive database metadata including indexes, JOIN paths, and dialect features
+    \item State-of-the-art performance on Spider dev with systematic ablation studies
+    \item A calibrated version of Spider dev with 221 corrected annotations for reliable evaluation
+\end{itemize}

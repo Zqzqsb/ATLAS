@@ -1,0 +1,77 @@
+# ReActSQL Backend Dockerfile
+# Self-contained build - everything is within /system directory
+#
+# Build from system/ directory:
+#   docker build -f Dockerfile.backend -t reactsql_backend .
+
+# ============================================================
+# Stage 1: Build the Go binary with CGO enabled for SQLite
+# ============================================================
+FROM golang:1.24-bookworm AS builder
+
+# Install build dependencies for CGO and SQLite
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy all source code (self-contained within system/)
+COPY internal/ ./internal/
+COPY bridge/ ./bridge/
+COPY config/ ./config/
+COPY interfaces/ ./interfaces/
+COPY server/ ./server/
+
+# Build the binary with CGO enabled for SQLite support
+# Output to /build/bin/server to avoid conflict with source directory ./server
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o /build/bin/reactsql-server \
+    ./server
+
+# ============================================================
+# Stage 2: Create minimal runtime image
+# ============================================================
+FROM debian:bookworm-slim
+
+# Install runtime dependencies (SQLite libs, CA certs for HTTPS, wget for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libsqlite3-0 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r reactsql && useradd -r -g reactsql reactsql
+
+# Set working directory
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /build/bin/reactsql-server /app/server
+
+# Create directories for runtime data (volumes will be mounted here)
+RUN mkdir -p /app/contexts /app/dbs /app/data /app/configs && \
+    chown -R reactsql:reactsql /app
+
+# Switch to non-root user
+USER reactsql
+
+# Expose port
+EXPOSE 8090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8090/health || exit 1
+
+# Default command
+CMD ["/app/server", "-config", "/app/configs/system.yaml"]

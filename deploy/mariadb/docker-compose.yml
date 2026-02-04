@@ -1,0 +1,57 @@
+# LUCID Demo Database Container
+# 
+# Usage:
+#   cd system/mydb && docker compose up -d
+#
+# Connection Info:
+#   Host: localhost:3307 (or mydb:3306 from other containers)
+#   Username: demo
+#   Password: Lucid@Demo2024
+#
+# Available Databases:
+#   - ecommerce          : Original demo database (default)
+#   - messy_db           : Messy naming for error correction demo
+#   - welldesigned_ecommerce : Well-designed e-commerce for Onboarding demo
+#   - tpch               : TPC-H standard benchmark (8 tables, ~86K rows, dbgen SF=0.01)
+
+services:
+  mydb:
+    image: mysql:8.0
+    container_name: lucid_demo_db
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: Lucid@Root2024
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: demo
+      MYSQL_PASSWORD: Lucid@Demo2024
+      TZ: Asia/Shanghai
+    volumes:
+      # Original demo database
+      - ./init.sql:/docker-entrypoint-initdb.d/00_ecommerce.sql:ro
+      # Demo databases for LUCID paper
+      - ./databases/02_messy_db.sql:/docker-entrypoint-initdb.d/02_messy_db.sql:ro
+      - ./databases/03_welldesigned_ecommerce.sql:/docker-entrypoint-initdb.d/03_welldesigned_ecommerce.sql:ro
+      - ./databases/04_tpch.sql:/docker-entrypoint-initdb.d/04_tpch.sql:ro
+      # Data persistence
+      - mydb_data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pLucid@Root2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lucid_network
+
+volumes:
+  mydb_data:
+
+networks:
+  lucid_network:
+    name: lucid_network
+    driver: bridge

@@ -1,0 +1,275 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+
+	"lucid/bridge"
+	"lucid/config"
+	"lucid/internal/grounding"
+	"lucid/internal/llm"
+	"lucid/server/handlers"
+	"lucid/server/services"
+)
+
+func main() {
+	// Parse command line flags
+	configPath := flag.String("config", "configs/system.yaml", "Path to configuration file")
+	flag.Parse()
+
+	// Load configuration
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Set Gin mode
+	if cfg.Server.Mode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// ========================================
+	// Initialize dependencies using bridge layer
+	// ========================================
+
+	// Create adapter factory (bridges system interfaces to internal adapters)
+	adapterFactory := bridge.AdapterFactory()
+
+	// Create database service with adapter factory
+	dbService := services.NewDatabaseService(cfg, adapterFactory)
+
+	// Create inference engine (bridges system interfaces to internal inference)
+	inferenceEngine, err := bridge.NewInferenceEngineBridge(cfg, adapterFactory)
+	if err != nil {
+		log.Fatalf("Failed to create inference engine: %v", err)
+	}
+
+	// Create rich context provider
+	richContextProvider := bridge.NewRichContextProviderBridge()
+
+	// Create field suggester
+	fieldSuggester := bridge.NewFieldSuggesterBridge(inferenceEngine.GetLLMModel(), adapterFactory, cfg)
+
+	// Create translator and set it for services
+	translator := bridge.NewTranslatorBridge(inferenceEngine.GetLLMModel())
+	services.SetTranslator(translator)
+
+	// Create inference service with injected dependencies
+	inferenceService := services.NewInferenceService(cfg, dbService, inferenceEngine, &services.InferenceServiceOptions{
+		RichContextProvider: richContextProvider,
+		FieldSuggester:      fieldSuggester,
+	})
+
+	// ========================================
+	// Initialize Lake-Base Storage Service
+	// ========================================
+	var lakebaseService *services.LakebaseService
+	lakebaseConfigPath := "config/lakebase.yaml"
+	if _, err := os.Stat(lakebaseConfigPath); err == nil {
+		lakebaseService, err = services.NewLakebaseService(lakebaseConfigPath)
+		if err != nil {
+			log.Printf("⚠️  Lake-Base service initialization failed: %v", err)
+			log.Println("   Continuing without Lake-Base features...")
+		} else {
+			// Connect to Lake-Base storage
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := lakebaseService.Connect(ctx); err != nil {
+				log.Printf("⚠️  Lake-Base connection failed: %v", err)
+				lakebaseService = nil
+			} else {
+				log.Println("✅ Lake-Base storage connected successfully")
+			}
+			cancel()
+		}
+	} else {
+		log.Println("ℹ️  Lake-Base config not found, skipping...")
+	}
+
+	// ========================================
+	// Initialize Semantic Grounding Service
+	// ========================================
+	var groundingService *grounding.Service
+	var groundingHandlers *handlers.GroundingHandlers
+	if lakebaseService != nil {
+		// Create LLM client adapter for grounding
+		llmClient := llm.NewLangChainAdapter(inferenceEngine.GetLLMModel(), cfg.LLM.DefaultModel)
+
+		// Get vector repository from lakebase service
+		vectorRepo := lakebaseService.GetVectorRepository()
+		embedder := lakebaseService.GetEmbeddingProvider()
+
+		if vectorRepo != nil && embedder != nil {
+			groundingService = grounding.NewService(&grounding.ServiceConfig{
+				DatasourceID: 1, // Default datasource, can be changed per request
+				VectorRepo:   vectorRepo,
+				Embedder:     embedder,
+				LLMClient:    llmClient,
+				Config:       grounding.DefaultGroundingConfig(),
+			})
+			groundingHandlers = handlers.NewGroundingHandlers(groundingService)
+			log.Println("✅ Semantic Grounding service initialized")
+		} else {
+			log.Println("⚠️  Semantic Grounding skipped: missing vector repo or embedder")
+		}
+	}
+
+	// Create handlers with dependencies
+	h, err := handlers.New(&handlers.HandlerDependencies{
+		Config:           cfg,
+		DBService:        dbService,
+		InferenceService: inferenceService,
+		LakebaseService:  lakebaseService,
+		GroundingService: groundingService,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize handlers: %v", err)
+	}
+
+	// ========================================
+	// Create Gin router
+	// ========================================
+	r := gin.Default()
+
+	// Configure CORS for frontend - allow all origins for demo purposes
+	r.Use(cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			// Allow all origins for demo deployment
+			return true
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	// Health check
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "ok",
+			"timestamp": time.Now().Unix(),
+		})
+	})
+
+	// Graceful shutdown
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		log.Println("Shutting down...")
+		h.Close()
+		os.Exit(0)
+	}()
+
+	// API routes
+	api := r.Group("/api/v1")
+	{
+		// System info
+		api.GET("/system/info", h.GetSystemInfo)
+		api.GET("/models", h.GetModels)
+		api.POST("/models/switch", h.SwitchModel)
+
+		// Database routes
+		api.GET("/databases", h.ListDatabases)
+		api.GET("/databases/:id/schema", h.GetDatabaseSchema)
+		api.GET("/databases/:id/tables", h.GetDatabaseTables)
+		api.GET("/databases/:id/rich-context", h.GetRichContext)
+
+		// Database connection management
+		api.GET("/connections", h.ListConnections)
+		api.GET("/connections/available", h.ListAvailableConnections)
+		api.POST("/connections", h.AddConnection)
+		api.POST("/connections/test", h.TestConnection)
+		api.DELETE("/connections/:id", h.RemoveConnection)
+		api.POST("/connections/load-demo", h.LoadDemoDatabases)
+		api.POST("/connections/release-all", h.ReleaseAllDemoConnections)
+
+		// Text2SQL routes
+		api.POST("/text2sql", h.Text2SQL)
+		api.POST("/text2sql/stream", h.Text2SQLStream)
+		api.POST("/text2sql/suggest-fields", h.SuggestFields)
+
+		// SQL execution
+		api.POST("/databases/:id/execute", h.ExecuteSQL)
+
+		// Spider dataset routes
+		api.GET("/spider/databases", h.ListSpiderDatabases)
+		api.GET("/spider/databases/:database/questions", h.GetSpiderQuestions)
+
+		// Demo routes
+		api.GET("/demo/scenarios", h.ListDemoScenarios)
+		api.GET("/demo/scenarios/:id", h.GetDemoScenario)
+
+		// Onboarding routes (visible database analysis)
+		api.GET("/onboarding/stream", h.OnboardingStream)
+
+		// Catalog routes (for business metadata import)
+		api.POST("/catalog/upload", h.UploadCatalog)
+		api.POST("/catalog/upload-file", h.UploadCatalogFile)
+		api.GET("/catalog/template", h.GetCatalogTemplate)
+		api.GET("/catalog/schema", h.GetCatalogSchema)
+		api.GET("/catalog/export/:connection_id", h.ExportCatalogFromContext)
+
+		// Rich Context maintenance routes
+		api.GET("/context/maintenance/:connection_id", h.GetMaintenanceReport)
+		api.GET("/context/expired/:connection_id", h.GetExpiredEntries)
+		api.POST("/context/update/:connection_id", h.UpdateRichContextEntry)
+		api.POST("/context/batch-update/:connection_id", h.BatchUpdateRichContext)
+		api.POST("/context/refresh/:connection_id", h.RefreshExpiredEntries)
+
+		// Translation route
+		api.POST("/translate", h.TranslateTexts)
+
+		// Lake-Base Storage routes (VLDB Demo V3)
+		api.GET("/lakebase/status", h.GetLakebaseStatus)
+		api.POST("/lakebase/connect", h.ConnectLakebase)
+		api.GET("/lakebase/datasources", h.ListLakebaseDatasources)
+		api.GET("/lakebase/datasources/:id", h.GetLakebaseDatasource)
+		api.GET("/lakebase/datasources/:id/context/:table", h.GetLakebaseTableContext)
+		api.GET("/lakebase/datasources/:id/changelog", h.GetLakebaseChangeLogs)
+		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
+
+		// Semantic Grounding routes (VLDB Demo V3)
+		if groundingHandlers != nil {
+			api.POST("/grounding/ground", groundingHandlers.Ground)
+			api.GET("/grounding/stream", groundingHandlers.GroundStream)
+			api.GET("/grounding/config", groundingHandlers.GetConfig)
+			api.PUT("/grounding/config", groundingHandlers.UpdateConfig)
+			api.POST("/grounding/format", groundingHandlers.FormatPrompt)
+		}
+	}
+
+	// Serve static frontend files from web-new/dist (production)
+	r.Static("/assets", "../web-new/dist/assets")
+	r.StaticFile("/", "../web-new/dist/index.html")
+	r.NoRoute(func(c *gin.Context) {
+		// Don't serve index.html for API routes - return 404 instead
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
+			return
+		}
+		c.File("../web-new/dist/index.html")
+	})
+
+	// Start server
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Printf("🚀 ReActSQL Demo Server starting on %s", addr)
+	log.Printf("📊 API endpoint: http://localhost:%d/api/v1", cfg.Server.Port)
+	log.Printf("🔧 LLM Model: %s", cfg.LLM.DefaultModel)
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}

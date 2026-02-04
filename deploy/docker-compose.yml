@@ -1,0 +1,83 @@
+# ReActSQL Demo System Docker Compose
+# Self-contained stack: Frontend (Node.js SSR) + Backend (Go)
+# All build contexts are within /system directory
+#
+# Data Directory Setup:
+# Before starting, prepare the following data directories in system/data/:
+#   - data/contexts/     : Rich context JSON files
+#   - data/dbs/          : SQLite database files  
+#   - data/spider_data/  : Spider dataset (dev.json, etc.)
+
+services:
+  # ============================================================
+  # Frontend - Node.js SSR Server (pre-fetches data server-side)
+  # ============================================================
+  frontend:
+    image: reactsql_frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: reactsql_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+    environment:
+      - BACKEND_URL=http://backend:8090
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - reactsql_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ============================================================
+  # Backend - Go API Server
+  # ============================================================
+  backend:
+    image: reactsql_backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: reactsql_backend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BACKEND_PORT:-8082}:8090"
+    environment:
+      - GIN_MODE=release
+      - LLM_CONFIG_PATH=/app/llm_config.json
+      - GODEBUG=madvdontneed=1
+      - GOMAXPROCS=2
+    volumes:
+      # Configuration files
+      - ./config/llm_config.json:/app/llm_config.json:ro
+      - ./config/system.yaml:/app/configs/system.yaml:ro
+      - ./config/lakebase.yaml:/app/config/lakebase.yaml:ro
+      - ./docker/demo_databases.json:/app/demo_databases.json:ro
+      # Data directories
+      - ./data/spider_data:/app/data/spider_data:ro
+      - ./data/contexts:/app/contexts:ro
+      - ./data/dbs:/app/dbs:ro
+    networks:
+      - reactsql_net
+      - mariadb_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  reactsql_net:
+    driver: bridge
+    name: reactsql_demo_network
+  mariadb_net:
+    external: true
+    name: mariadb_default

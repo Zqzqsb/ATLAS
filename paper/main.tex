@@ -1,0 +1,53 @@
+% Conference Paper Template (Standard LaTeX)
+\documentclass[11pt,twocolumn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{natbib}
+\usepackage{hyperref}
+
+% 配置 hyperref，隐藏链接边框
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0}
+}
+
+% Title and authors
+\title{ReAct SQL: Tool-Augmented Agents with Self-Improving Context \\for Reliable Text-to-SQL}
+
+\author{
+  Author Name \\
+  Institution \\
+  \texttt{email@domain.com}
+}
+
+\begin{document}
+
+% 设置所有页面页码在底部
+\pagestyle{plain}
+
+\maketitle
+
+\begin{abstract}
+% TBD: Abstract to be filled
+\input{sections/00_abstract}
+\end{abstract}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_methodology}
+\input{sections/04_experiments}
+\input{sections/05_conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

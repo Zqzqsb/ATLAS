@@ -1,0 +1,109 @@
+\section{Methodology}
+
+\subsection{System Overview}
+
+ReAct SQL consists of two phases unified under the ReAct paradigm: (1) \textbf{Onboarding Phase} -- autonomous database analysis to build Rich Context, and (2) \textbf{Runtime Phase} -- tool-augmented SQL generation with self-correction. Both phases use the same ReAct loop (Thought-Action-Observation) but with different task objectives.
+
+\subsection{Rich Context Construction}
+
+\subsubsection{ReAct-Driven Database Analysis}
+
+Unlike template-based approaches, we use task-driven database analysis. Given the task "analyze this database and collect all necessary information", the LLM agent autonomously decides which SQL queries to execute. A typical flow:
+
+\begin{enumerate}
+    \item \textbf{Thought}: "Need to identify database type and version"
+    \item \textbf{Action}: \texttt{execute\_sql("SELECT version()")}
+    \item \textbf{Observation}: "PostgreSQL 14.5"
+    \item \textbf{Thought}: "Need to collect schema information"
+    \item \textbf{Action}: \texttt{execute\_sql("SELECT ... FROM information\_schema.columns")}
+    \item ... (continues iteratively)
+\end{enumerate}
+
+This approach adapts to different database types, scales, and features without manual configuration.
+
+\subsubsection{Rich Context Components}
+
+Our Rich Context captures:
+
+\textbf{Schema Metadata:} Tables, columns, data types, primary/foreign keys, constraints.
+
+\textbf{Index Information:} Index names, types (B-tree/Hash/GIN), columns, and selectivity metrics. For example:
+\begin{verbatim}
+{
+  "idx_emp_dept": {
+    "columns": ["department_id"],
+    "type": "B-tree",
+    "selectivity": 0.05,
+    "guidance": "Use for department filtering"
+  }
+}
+\end{verbatim}
+
+\textbf{JOIN Path Graph:} We use BFS to compute shortest JOIN paths between any two tables via foreign key relationships, enabling correct multi-table query generation.
+
+\textbf{Field Semantics:} Annotations for special fields (foreign keys, IDs, enumerations, timestamps) to aid LLM understanding.
+
+\textbf{Database Dialect Features:} Syntax differences across databases:
+\begin{itemize}
+    \item String concatenation: \texttt{||} (PostgreSQL/SQLite) vs \texttt{CONCAT()} (MySQL)
+    \item LIMIT syntax: \texttt{LIMIT n OFFSET m} vs \texttt{LIMIT m, n}
+    \item Date arithmetic: \texttt{INTERVAL} vs \texttt{DATE\_ADD()}
+\end{itemize}
+
+\subsection{Runtime SQL Generation}
+
+\subsubsection{Tool Design}
+
+We employ a minimal tool set for capability decoupling:
+
+\textbf{verify\_sql:} Validates SQL syntax via dry-run (\texttt{EXPLAIN}) without execution, providing fast feedback and execution plans.
+
+\textbf{execute\_sql:} Executes SQL to verify correctness, retrieve missing information, or test performance.
+
+\textbf{update\_rich\_context:} Updates context when information becomes stale or incorrect.
+
+\subsubsection{ReAct Loop for SQL Generation}
+
+\begin{algorithm}[h]
+\caption{ReAct SQL Generation}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Query $q$, Rich Context $C$
+\STATE \textbf{Output:} SQL $s$
+\STATE Initialize state $S_0 \leftarrow \{q, C\}$
+\FOR{$t = 1$ to $T_{\max}$}
+    \STATE $\theta_t \leftarrow \text{LLM}(S_{t-1})$ \COMMENT{Generate thought}
+    \STATE $a_t \leftarrow \text{SelectAction}(\theta_t)$ \COMMENT{Choose tool}
+    \IF{$a_t = \text{answer}(s)$}
+        \RETURN $s$
+    \ENDIF
+    \STATE $o_t \leftarrow \text{Execute}(a_t)$ \COMMENT{Execute tool}
+    \STATE $S_t \leftarrow S_{t-1} \cup \{\theta_t, a_t, o_t\}$
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Database-Specific Syntax Guidance}
+
+To handle SQL dialect differences, we inject database-specific syntax rules into prompts:
+
+\begin{verbatim}
+Database Type: SQLite
+CRITICAL: Follow SQLite syntax strictly.
+- Use || for string concatenation
+- No LIMIT offset without LIMIT clause
+- Date functions: date(), datetime(), strftime()
+\end{verbatim}
+
+This significantly reduces cross-database syntax errors.
+
+\subsection{Dataset Calibration}
+
+We systematically calibrated Spider dev through:
+\begin{enumerate}
+    \item \textbf{Error Identification:} Automated detection of syntax errors, execution failures, and schema mismatches
+    \item \textbf{Manual Annotation:} Expert review of 221 problematic cases
+    \item \textbf{Correction:} Fixed annotation errors, added \texttt{true\_question} for ambiguous queries, and corrected \texttt{true\_gold} SQL
+    \item \textbf{Verification:} Validated corrections through execution testing
+\end{enumerate}
+
+This ensures reliable evaluation and fair comparison with existing methods.

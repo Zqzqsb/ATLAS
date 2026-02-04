@@ -1,0 +1,59 @@
+# ReActSQL Frontend Dockerfile
+# Build Vue/Vite frontend and serve with Node.js SSR
+#
+# Build from system/ directory:
+#   docker build -f Dockerfile.frontend -t reactsql_frontend .
+
+# ============================================================
+# Stage 1: Build the frontend
+# ============================================================
+FROM node:20-alpine AS builder
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Set working directory
+WORKDIR /build
+
+# Copy package files first for better caching
+COPY web-new/package.json web-new/pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY web-new/ ./
+
+# Build for production
+RUN pnpm build
+
+# ============================================================
+# Stage 2: Node.js SSR runtime
+# ============================================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built assets from builder
+COPY --from=builder /build/dist ./dist
+
+# Copy SSR server
+COPY web-new/server.js ./server.js
+
+# Install only production dependencies for server
+RUN npm install express axios http-proxy-middleware
+
+# Environment variables
+ENV NODE_ENV=production
+ENV BACKEND_URL=http://backend:8080
+ENV PORT=80
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+# Start Node.js server
+CMD ["node", "server.js"]

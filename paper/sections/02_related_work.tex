@@ -1,0 +1,29 @@
+\section{Related Work}
+
+\subsection{LLM-based Text-to-SQL Methods}
+
+The advent of large language models has revolutionized Text-to-SQL research. Early approaches relied on sequence-to-sequence models~\cite{zhong2017seq2sql,xu2017sqlnet} with limited cross-domain generalization. The introduction of pre-trained models like BERT~\cite{devlin2019bert} improved schema encoding, while large language models~\cite{brown2020language,achiam2023gpt4} enabled few-shot and zero-shot SQL generation.
+
+Recent prompt-engineering methods have achieved strong performance. DIN-SQL~\cite{pourreza2024dail} decomposes Text-to-SQL into schema linking, classification, and generation sub-tasks with self-correction. DAIL-SQL~\cite{gao2024dail} employs example selection and iterative refinement. However, these methods primarily rely on basic schema information (table and column names), overlooking critical database metadata such as indexes, foreign key relationships, and data distributions that are essential for generating efficient and semantically correct SQL queries.
+
+\subsection{ReAct and Tool-Augmented Agents}
+
+The ReAct paradigm~\cite{yao2023react} synergizes reasoning and acting in language models, enabling iterative problem-solving through tool use. By interleaving thought generation, action execution, and observation processing, ReAct agents can adaptively adjust their strategies based on environmental feedback. This approach has been successfully applied to question answering, fact verification, and interactive decision-making tasks.
+
+In the context of Text-to-SQL, tool augmentation enables agents to validate SQL syntax, execute queries, and verify results. However, existing applications of ReAct to Text-to-SQL focus exclusively on runtime SQL generation, treating database schema as static input. Our work extends ReAct to database onboarding, unifying both phases under a single paradigm.
+
+\subsection{Schema Understanding and Linking}
+
+Schema linking -- identifying relevant tables and columns for a given query -- is a critical component of Text-to-SQL systems. Traditional approaches employ string matching~\cite{lei2020re}, embedding similarity, or graph-based methods to link question tokens to schema elements. Recent work leverages LLMs for semantic schema understanding, but most methods still operate on basic schema information.
+
+Our Rich Context mechanism goes beyond schema linking by capturing comprehensive database metadata including indexes with selectivity metrics, JOIN path graphs, field semantics, and database dialect features. This holistic approach enables more accurate and efficient SQL generation.
+
+\subsection{Benchmark Quality and Dataset Calibration}
+
+Recent studies have revealed fundamental challenges in Text-to-SQL evaluation. Renggli et al.~\cite{renggli2025fundamental} identify annotation errors, query ambiguities, and schema inconsistencies in widely-used benchmarks like Spider~\cite{yu2018spider} and BIRD~\cite{li2023bird}. These issues compromise evaluation reliability and hinder fair comparison across methods.
+
+Dataset calibration efforts have emerged to address these problems. MultiSQL~\cite{li2024multisql} provides schema-integrated context-dependent queries, while Text2SQL-Flow~\cite{chang2025text2sql} introduces SQL-aware data augmentation. Our work contributes a systematically calibrated version of Spider dev with 221 corrected annotations, improving evaluation trustworthiness.
+
+\subsection{Multi-Database Compatibility}
+
+SQL dialects vary significantly across database systems (MySQL, PostgreSQL, SQLite), with differences in syntax, functions, and features. Most Text-to-SQL research focuses on a single database system or assumes dialect-agnostic SQL. Our framework addresses multi-database compatibility through database-specific syntax guidance injected into prompts, enabling seamless adaptation across different SQL dialects without retraining.

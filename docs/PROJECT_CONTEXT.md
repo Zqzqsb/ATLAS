@@ -2,16 +2,6 @@
 
 > 本文档记录项目背景和开发上下文，供 Agent 快速理解项目状态
 
-## 项目来源
-
-LUCID 从 `ReActSQL` 硕士论文项目迁移而来（2024-02-04）。
-
-原仓库路径：`/root/workspace/ReActSql/`
-- `system/` 目录迁移至 `backend/` + `frontend/`
-- `paper/conference/` 迁移至 `paper/`
-
-原仓库保持不动，作为硕士论文归档。
-
 ## 项目目标
 
 **VLDB 2025/2026 Demo Track 投稿**
@@ -34,7 +24,7 @@ LUCID 从 `ReActSQL` 硕士论文项目迁移而来（2024-02-04）。
 
 ## 技术选型
 
-- **数据库**: MariaDB 12（原生 VECTOR + HNSW 索引）
+- **数据库**: MariaDB 11.4+（原生 VECTOR + HNSW 索引）
 - **后端**: Go 1.24 + Gin
 - **前端**: Vue 3 + Vite + UnoCSS + Naive UI
 - **LLM**: OpenAI / 混元
@@ -44,37 +34,55 @@ LUCID 从 `ReActSQL` 硕士论文项目迁移而来（2024-02-04）。
 
 ```bash
 Host: 127.0.0.1
-Port: 3310
-User: root
-Password: your_strong_password
+Port: 19010
+User: lucid
+Password: lucid2024
+Database: lucid
 
 # 快速连接
 make db-login
 ```
 
-## 当前待修复问题
+## 当前项目状态
 
-### Go 编译问题
+### 架构 ✅ 已完成
 
-有几个 import 路径需要补充迁移：
-- `lucid/bridge` - 需要从原仓库迁移或删除引用
-- `lucid/config` - 需要从原仓库迁移或删除引用
-- `lucid/interfaces` - 需要从原仓库迁移或删除引用
+2026-02-04 完成全容器化重构：
+- 统一使用 MariaDB 11.4+ (VECTOR + HNSW)
+- 端口规划：19000 (前端), 19001 (后端), 19010 (数据库)
+- 单一 docker-compose.yml 一键部署
+- 双语文档 (EN/ZH)
 
-### LaTeX 编译问题
+### Go 后端 ✅ 已修复
 
-缺少 `subcaption` 包，需要安装：
-```bash
-yum install texlive-subcaption
-```
+补齐了缺失的包：
+- `backend/config` - 配置加载和结构定义
+- `backend/interfaces` - 核心接口定义 (DBAdapter, InferenceEngine 等)
+- `backend/bridge` - 桥接内部实现与接口
+
+后端已可正常编译 (`go build ./...`)。
+
+### 前端 ✅ 正常
+
+- Vue3 + Vite + UnoCSS + Naive UI
+- 依赖已安装，类型检查通过
+
+### 待完善功能
+
+1. **推理引擎桥接** - `bridge/inference_bridge.go` 目前是占位实现，需要完善：
+   - 完整的 ReAct 推理循环
+   - LLM 客户端初始化（基于 llm_config.json）
+   - 流式推理支持
+
+2. **Grounding Service** - 需要完整的 LLM 模型才能初始化
+
+3. **LaTeX 编译** - 缺少 `subcaption` 包：
+   ```bash
+   yum install texlive-subcaption
+   ```
 
 ## 关键参考文档
 
-原仓库中的规划文档已部分整合到 CLAUDE.md，更多细节参考：
-- 原 `plans/LUCID_overview.md` - 系统概览
-- 原 `plans/final_reference/DEVELOPMENT_GUIDE.md` - 完整开发指南
-- 原 `plans/final_reference/前端新架构.md` - 前端设计
-
-## 迁移日期
-
-2024-02-04
+VLDB Demo Track 论文在 `paper/` 目录：
+- `paper/sections/` - 各章节 LaTeX 源文件
+- `paper/main.tex` - 主文档

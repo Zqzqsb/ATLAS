@@ -17,20 +17,27 @@
 
 ```
 lucid/
-├── backend/          # Go 后端
-│   ├── internal/     # 核心业务模块
-│   │   ├── lakebase/     # 湖基存储层 (rc_* 表)
-│   │   ├── agent/        # 自维持 Agent
-│   │   ├── grounding/    # Schema Linking
-│   │   ├── inference/    # ReAct 推理引擎
-│   │   ├── embedding/    # 向量嵌入
-│   │   └── llm/          # LLM 客户端
-│   └── server/       # HTTP API + SSE
-├── frontend/         # Vue3 + Vite + UnoCSS + Naive UI
-├── paper/            # VLDB Demo 论文 LaTeX
-├── deploy/           # Docker 部署配置
-├── docs/             # 开发文档
-└── scripts/          # 脚本
+├── backend/              # Go 后端
+│   ├── config/           # 配置加载和结构定义
+│   ├── interfaces/       # 核心接口定义
+│   ├── bridge/           # 内部实现与接口桥接层
+│   ├── internal/         # 核心业务模块
+│   │   ├── lakebase/         # 湖基存储层 (rc_* 表)
+│   │   ├── agent/            # 自维持 Agent
+│   │   ├── grounding/        # Schema Linking
+│   │   ├── inference/        # ReAct 推理引擎
+│   │   ├── embedding/        # 向量嵌入
+│   │   ├── context/          # Rich Context 管理
+│   │   ├── adapter/          # 数据库适配器
+│   │   └── llm/              # LLM 客户端
+│   └── server/           # HTTP API + SSE
+│       ├── handlers/         # API 处理器
+│       ├── services/         # 业务服务层
+│       └── configs/          # 服务配置文件
+├── frontend/             # Vue3 + Vite + UnoCSS + Naive UI
+├── paper/                # VLDB Demo 论文 LaTeX
+├── deploy/               # Docker 部署配置
+└── docs/                 # 开发文档
 ```
 
 ## 快速命令

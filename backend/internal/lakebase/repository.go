@@ -31,7 +31,12 @@ type Repository interface {
 	DeleteDatasource(ctx context.Context, id int64) error
 	UpdateDatasourceLastSync(ctx context.Context, id int64) error
 
-	// Schema metadata operations
+	// Rich Context tables (rc_tables, rc_columns)
+	GetTablesByDatasource(ctx context.Context, dsID int64) ([]*TableInfo, error)
+	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*ColumnInfo, error)
+	GetColumnsByTable(ctx context.Context, dsID int64, tableName string) ([]*ColumnInfo, error)
+
+	// Schema metadata operations (legacy)
 	SaveSchemaMetadata(ctx context.Context, metas []*SchemaMetadata) error
 	GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*SchemaMetadata, error)
 	GetTableSchema(ctx context.Context, dsID int64, tableName string) ([]*SchemaMetadata, error)
@@ -202,7 +207,98 @@ func (r *MySQLRepository) UpdateDatasourceLastSync(ctx context.Context, id int64
 }
 
 // ===========================================
-// Schema metadata operations
+// Rich Context tables (rc_tables, rc_columns)
+// ===========================================
+
+func (r *MySQLRepository) GetTablesByDatasource(ctx context.Context, dsID int64) ([]*TableInfo, error) {
+	query := `
+		SELECT id, datasource_id, table_name, description, row_count, is_expired,
+		       source, confidence, created_at, updated_at
+		FROM rc_tables WHERE datasource_id = ?
+		ORDER BY table_name
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get tables: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []*TableInfo
+	for rows.Next() {
+		t := &TableInfo{}
+		if err := rows.Scan(
+			&t.ID, &t.DatasourceID, &t.TableName, &t.Description, &t.RowCount,
+			&t.IsExpired, &t.Source, &t.Confidence, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan table: %w", err)
+		}
+		tables = append(tables, t)
+	}
+	return tables, rows.Err()
+}
+
+func (r *MySQLRepository) GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*ColumnInfo, error) {
+	query := `
+		SELECT id, datasource_id, table_name, column_name, data_type, description,
+		       sample_values, synonyms, is_nullable, is_primary_key, is_foreign_key,
+		       is_expired, source, confidence, created_at, updated_at
+		FROM rc_columns WHERE datasource_id = ?
+		ORDER BY table_name, id
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get columns: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []*ColumnInfo
+	for rows.Next() {
+		c := &ColumnInfo{}
+		if err := rows.Scan(
+			&c.ID, &c.DatasourceID, &c.TableName, &c.ColumnName, &c.DataType,
+			&c.Description, &c.SampleValues, &c.Synonyms, &c.IsNullable,
+			&c.IsPrimaryKey, &c.IsForeignKey, &c.IsExpired, &c.Source,
+			&c.Confidence, &c.CreatedAt, &c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan column: %w", err)
+		}
+		columns = append(columns, c)
+	}
+	return columns, rows.Err()
+}
+
+func (r *MySQLRepository) GetColumnsByTable(ctx context.Context, dsID int64, tableName string) ([]*ColumnInfo, error) {
+	query := `
+		SELECT id, datasource_id, table_name, column_name, data_type, description,
+		       sample_values, synonyms, is_nullable, is_primary_key, is_foreign_key,
+		       is_expired, source, confidence, created_at, updated_at
+		FROM rc_columns WHERE datasource_id = ? AND table_name = ?
+		ORDER BY id
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get columns for table: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []*ColumnInfo
+	for rows.Next() {
+		c := &ColumnInfo{}
+		if err := rows.Scan(
+			&c.ID, &c.DatasourceID, &c.TableName, &c.ColumnName, &c.DataType,
+			&c.Description, &c.SampleValues, &c.Synonyms, &c.IsNullable,
+			&c.IsPrimaryKey, &c.IsForeignKey, &c.IsExpired, &c.Source,
+			&c.Confidence, &c.CreatedAt, &c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan column: %w", err)
+		}
+		columns = append(columns, c)
+	}
+	return columns, rows.Err()
+}
+
+// ===========================================
+// Schema metadata operations (legacy)
 // ===========================================
 
 func (r *MySQLRepository) SaveSchemaMetadata(ctx context.Context, metas []*SchemaMetadata) error {

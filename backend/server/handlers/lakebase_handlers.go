@@ -76,9 +76,14 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 		return
 	}
 
-	// Convert to safe response (hide passwords)
+	// Convert to safe response with table counts
 	result := make([]map[string]interface{}, len(datasources))
 	for i, ds := range datasources {
+		// Get table count for this datasource
+		tables, _ := h.lakebaseService.GetTablesByDatasource(ctx, ds.ID)
+		columns, _ := h.lakebaseService.GetColumnsByDatasource(ctx, ds.ID)
+		contexts, _ := h.lakebaseService.GetContextByDatasource(ctx, ds.ID)
+
 		result[i] = map[string]interface{}{
 			"id":            ds.ID,
 			"name":          ds.Name,
@@ -90,6 +95,9 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 			"last_sync_at":  ds.LastSyncAt,
 			"created_at":    ds.CreatedAt,
 			"updated_at":    ds.UpdatedAt,
+			"tables_count":  len(tables),
+			"columns_count": len(columns),
+			"context_count": len(contexts),
 		}
 	}
 
@@ -128,8 +136,11 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 		return
 	}
 
-	// Get schema for this datasource
-	schemas, _ := h.lakebaseService.GetSchemaByDatasource(ctx, id)
+	// Get tables from rc_tables
+	tableInfos, _ := h.lakebaseService.GetTablesByDatasource(ctx, id)
+
+	// Get columns from rc_columns
+	columnInfos, _ := h.lakebaseService.GetColumnsByDatasource(ctx, id)
 
 	// Get context for this datasource
 	contexts, _ := h.lakebaseService.GetContextByDatasource(ctx, id)
@@ -137,17 +148,26 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 	// Get embedding count
 	embeddingCount, _ := h.lakebaseService.CountEmbeddings(ctx, id)
 
-	// Build table summary
-	tableMap := make(map[string]int)
-	for _, s := range schemas {
-		tableMap[s.TableName]++
+	// Build column count per table
+	columnCountMap := make(map[string]int)
+	for _, c := range columnInfos {
+		columnCountMap[c.TableName]++
 	}
 
-	tables := make([]map[string]interface{}, 0, len(tableMap))
-	for tableName, colCount := range tableMap {
+	// Build table summary
+	tables := make([]map[string]interface{}, 0, len(tableInfos))
+	for _, t := range tableInfos {
+		desc := ""
+		if t.Description.Valid {
+			desc = t.Description.String
+		}
 		tables = append(tables, map[string]interface{}{
-			"name":         tableName,
-			"column_count": colCount,
+			"name":         t.TableName,
+			"description":  desc,
+			"row_count":    t.RowCount,
+			"column_count": columnCountMap[t.TableName],
+			"is_expired":   t.IsExpired,
+			"confidence":   t.Confidence,
 		})
 	}
 
@@ -165,8 +185,8 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			"updated_at":    ds.UpdatedAt,
 		},
 		"tables":           tables,
-		"tables_count":     len(tableMap),
-		"columns_count":    len(schemas),
+		"tables_count":     len(tableInfos),
+		"columns_count":    len(columnInfos),
 		"context_count":    len(contexts),
 		"embeddings_count": embeddingCount,
 	})

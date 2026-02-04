@@ -116,19 +116,20 @@ const mockEcommerceSchema: SchemaInfo = {
 
 // Transform lakebase datasource to Database type
 function transformDatasource(ds: any): Database {
+  const dbName = ds.database_name?.String || ds.database_name || ds.name
   return {
     id: String(ds.id),
     name: ds.name,
-    displayName: ds.description?.String || ds.name,
+    displayName: dbName,
     type: ds.db_type || 'mariadb',
-    host: ds.host?.String || 'localhost',
-    port: ds.port?.Int32 || 3306,
+    host: ds.host?.String || ds.host || 'localhost',
+    port: ds.port?.Int32 || ds.port || 3306,
     status: ds.status === 'active' ? 'connected' : 'disconnected',
-    tableCount: 0,
-    hasRichContext: true,
-    contextCount: 0,
+    tableCount: ds.tables_count || 0,
+    hasRichContext: (ds.context_count || 0) > 0,
+    contextCount: ds.context_count || 0,
     lastConnected: ds.updated_at,
-    description: ds.description?.String || '',
+    description: ds.description?.String || ds.description || '',
     tags: ['lakebase']
   }
 }

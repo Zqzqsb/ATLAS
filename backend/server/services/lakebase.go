@@ -220,7 +220,31 @@ func (s *LakebaseService) SaveSchemaMetadata(ctx context.Context, metas []*lakeb
 	return s.repo.SaveSchemaMetadata(ctx, metas)
 }
 
-// GetSchemaByDatasource retrieves all schema metadata for a datasource
+// GetTablesByDatasource retrieves all tables from rc_tables
+func (s *LakebaseService) GetTablesByDatasource(ctx context.Context, dsID int64) ([]*lakebase.TableInfo, error) {
+	if !s.connected {
+		return nil, fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.GetTablesByDatasource(ctx, dsID)
+}
+
+// GetColumnsByDatasource retrieves all columns from rc_columns
+func (s *LakebaseService) GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.ColumnInfo, error) {
+	if !s.connected {
+		return nil, fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.GetColumnsByDatasource(ctx, dsID)
+}
+
+// GetColumnsByTable retrieves columns for a specific table
+func (s *LakebaseService) GetColumnsByTable(ctx context.Context, dsID int64, tableName string) ([]*lakebase.ColumnInfo, error) {
+	if !s.connected {
+		return nil, fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.GetColumnsByTable(ctx, dsID, tableName)
+}
+
+// GetSchemaByDatasource retrieves all schema metadata for a datasource (legacy)
 func (s *LakebaseService) GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*lakebase.SchemaMetadata, error) {
 	if !s.connected {
 		return nil, fmt.Errorf("lakebase service: not connected")

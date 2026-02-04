@@ -108,6 +108,7 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 }
 
 // GetLakebaseDatasource returns details for a specific datasource
+// Supports both numeric ID and name as identifier
 func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -117,17 +118,27 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 	}
 
 	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid datasource ID",
-		})
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
+	var id int64
+	var err error
+
+	// Try parsing as numeric ID first, otherwise lookup by name
+	id, err = strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		// Not a number, try finding by name
+		dsObj, lookupErr := h.lakebaseService.GetDatasourceByName(ctx, idStr)
+		if lookupErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Datasource not found: " + idStr,
+			})
+			return
+		}
+		id = dsObj.ID
+	}
+
+	// Now fetch datasource by ID (ensures consistent data)
 	ds, err := h.lakebaseService.GetDatasource(ctx, id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{

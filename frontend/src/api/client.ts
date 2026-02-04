@@ -53,7 +53,7 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
   return response.data
 }
 
-// SSE Stream helper
+// SSE Stream helper - handles standard SSE format with event: and data: lines
 export function createSSEStream<T>(
   url: string,
   body: any,
@@ -81,6 +81,7 @@ export function createSSEStream<T>(
 
       const decoder = new TextDecoder()
       let buffer = ''
+      let currentEventType = 'message' // default SSE event type
 
       try {
         while (true) {
@@ -92,13 +93,24 @@ export function createSSEStream<T>(
           buffer = lines.pop() || ''
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            // Parse event type line
+            if (line.startsWith('event: ')) {
+              currentEventType = line.slice(7).trim()
+            }
+            // Parse data line
+            else if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
-                onEvent({ type: data.type, data: data.data || data })
+                onEvent({ type: currentEventType, data: data as T })
+                // Reset event type after emitting
+                currentEventType = 'message'
               } catch (e) {
                 // ignore parse errors
               }
+            }
+            // Empty line marks end of event block (SSE spec)
+            else if (line === '') {
+              currentEventType = 'message'
             }
           }
         }

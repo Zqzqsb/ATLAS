@@ -1,28 +1,50 @@
-# LUCID - Lake-base Unified Context-aware Intelligence for Data
+# LUCID - Lakebase-Unified Context-aware Intelligence for Data
+# VLDB 2025/2026 Demo Track
+#
+# Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb), 19020 (mysql), 19021 (postgres)
+
 .PHONY: all dev backend frontend paper clean help
+
+# ============== Quick Start ==============
+up:
+	docker compose -f deploy/docker-compose.yml up -d
+	@echo ""
+	@echo "LUCID is starting..."
+	@echo "  Frontend: http://localhost:19000"
+	@echo "  Backend:  http://localhost:19001"
+	@echo ""
+
+down:
+	docker compose -f deploy/docker-compose.yml down
+
+logs:
+	docker compose -f deploy/docker-compose.yml logs -f
 
 # ============== Development ==============
 dev:
-	docker-compose -f deploy/docker-compose.yml up
+	docker compose -f deploy/docker-compose.yml up
 
 dev-build:
-	docker-compose -f deploy/docker-compose.yml up --build
+	docker compose -f deploy/docker-compose.yml up --build
 
 backend-dev:
-	cd backend && go run ./server
+	cd backend && go run ./server -config configs/system.yaml
 
 frontend-dev:
-	cd frontend && pnpm dev
+	cd frontend && pnpm dev --port 19000
 
 # ============== Database ==============
 db-up:
-	docker-compose -f deploy/docker-compose.yml up mariadb -d
+	docker compose -f deploy/docker-compose.yml up mariadb -d
 
 db-down:
-	docker-compose -f deploy/docker-compose.yml down mariadb
+	docker compose -f deploy/docker-compose.yml down mariadb
 
 db-login:
-	mycli -h 127.0.0.1 -P 3310 -u root -pyour_strong_password
+	mycli -h 127.0.0.1 -P 19010 -u lucid -plucid2024 lucid
+
+db-login-demo:
+	mycli -h 127.0.0.1 -P 19010 -u lucid -plucid2024 demo_ecommerce
 
 # ============== Paper ==============
 paper:
@@ -48,44 +70,60 @@ build: build-backend build-frontend
 
 # ============== Docker ==============
 docker-build:
-	docker-compose -f deploy/docker-compose.yml build
+	docker compose -f deploy/docker-compose.yml build
 
-docker-up:
-	docker-compose -f deploy/docker-compose.yml up -d
+docker-up: up
 
-docker-down:
-	docker-compose -f deploy/docker-compose.yml down
+docker-down: down
 
-docker-logs:
-	docker-compose -f deploy/docker-compose.yml logs -f
+docker-logs: logs
+
+docker-clean:
+	docker compose -f deploy/docker-compose.yml down -v --rmi local
 
 # ============== Test ==============
 test-backend:
 	cd backend && go test ./...
 
+test-frontend:
+	cd frontend && pnpm vue-tsc --noEmit
+
+test: test-backend test-frontend
+
 # ============== Clean ==============
 clean:
-	cd paper && make clean
+	cd paper && make clean 2>/dev/null || true
 	rm -rf bin/
 	rm -rf frontend/dist/
 
 # ============== Help ==============
 help:
-	@echo "LUCID - Available Commands:"
+	@echo "LUCID - Lakebase-Unified Context-aware Intelligence for Data"
+	@echo ""
+	@echo "Quick Start:"
+	@echo "  make up             - Start all services (one command deploy)"
+	@echo "  make down           - Stop all services"
+	@echo "  make logs           - View service logs"
 	@echo ""
 	@echo "Development:"
-	@echo "  make dev            - Start full stack with Docker"
+	@echo "  make dev            - Start with Docker (foreground)"
 	@echo "  make backend-dev    - Run Go backend locally"
 	@echo "  make frontend-dev   - Run Vue frontend locally"
 	@echo ""
 	@echo "Database:"
-	@echo "  make db-up          - Start MariaDB container"
-	@echo "  make db-login       - Connect to MariaDB"
+	@echo "  make db-up          - Start database container"
+	@echo "  make db-login       - Connect to MariaDB (Lake-Base)"
+	@echo "  make db-login-demo  - Connect to Demo Database"
+	@echo ""
+	@echo "Build:"
+	@echo "  make build          - Build backend and frontend"
+	@echo "  make docker-build   - Build Docker images"
 	@echo ""
 	@echo "Paper:"
 	@echo "  make paper          - Build PDF"
 	@echo "  make paper-watch    - Auto-rebuild on changes"
 	@echo ""
-	@echo "Build:"
-	@echo "  make build          - Build all"
-	@echo "  make docker-build   - Build Docker images"
+	@echo "Ports:"
+	@echo "  19000 - Frontend (Web UI)"
+	@echo "  19001 - Backend (REST API)"
+	@echo "  19010 - MariaDB (Lake-Base + Demo Databases)"

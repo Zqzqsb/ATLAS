@@ -158,6 +158,11 @@ export interface ReActStep {
   step: number
   type: ReActStepType
   content: string
+  thought?: string
+  action?: string
+  actionInput?: any
+  observation?: string
+  phase?: 'schema_linking' | 'sql_generation'
   timestamp?: number
   metadata?: Record<string, any>
 }

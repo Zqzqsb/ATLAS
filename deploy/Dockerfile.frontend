@@ -1,8 +1,8 @@
-# ReActSQL Frontend Dockerfile
+# LUCID Frontend Dockerfile
 # Build Vue/Vite frontend and serve with Node.js SSR
 #
-# Build from system/ directory:
-#   docker build -f Dockerfile.frontend -t reactsql_frontend .
+# Build from project root:
+#   docker build -f deploy/Dockerfile.frontend -t lucid-frontend .
 
 # ============================================================
 # Stage 1: Build the frontend
@@ -16,13 +16,13 @@ RUN npm install -g pnpm
 WORKDIR /build
 
 # Copy package files first for better caching
-COPY web-new/package.json web-new/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
-COPY web-new/ ./
+COPY frontend/ ./
 
 # Build for production
 RUN pnpm build
@@ -38,14 +38,14 @@ WORKDIR /app
 COPY --from=builder /build/dist ./dist
 
 # Copy SSR server
-COPY web-new/server.js ./server.js
+COPY frontend/server.js ./server.js
 
 # Install only production dependencies for server
 RUN npm install express axios http-proxy-middleware
 
 # Environment variables
 ENV NODE_ENV=production
-ENV BACKEND_URL=http://backend:8080
+ENV BACKEND_URL=http://lucid-backend:19001
 ENV PORT=80
 
 # Expose port

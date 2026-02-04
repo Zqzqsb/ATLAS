@@ -1,33 +1,38 @@
-# ReActSQL Demo System Docker Compose
-# Self-contained stack: Frontend (Node.js SSR) + Backend (Go)
-# All build contexts are within /system directory
+# LUCID - Full Stack Docker Compose
+# Lakebase-Unified Context-aware Intelligence for Data
 #
-# Data Directory Setup:
-# Before starting, prepare the following data directories in system/data/:
-#   - data/contexts/     : Rich context JSON files
-#   - data/dbs/          : SQLite database files  
-#   - data/spider_data/  : Spider dataset (dev.json, etc.)
+# One-command deployment:
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# Access:
+#   Frontend: http://localhost:19000
+#   Backend API: http://localhost:19001
+#
+# Port allocation:
+#   19000 - Frontend (Web UI)
+#   19001 - Backend (REST API + SSE)
+#   19010 - MariaDB (Lake-Base + Demo Databases)
 
 services:
   # ============================================================
-  # Frontend - Node.js SSR Server (pre-fetches data server-side)
+  # Frontend - Vue3 + Vite + Naive UI
   # ============================================================
   frontend:
-    image: reactsql_frontend:latest
+    image: lucid-frontend:latest
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: reactsql_frontend
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    container_name: lucid-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-8081}:80"
+      - "${LUCID_FRONTEND_PORT:-19000}:80"
     environment:
-      - BACKEND_URL=http://backend:8090
+      - BACKEND_URL=http://lucid-backend:19001
     depends_on:
       backend:
         condition: service_healthy
     networks:
-      - reactsql_net
+      - lucid-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 30s
@@ -39,45 +44,78 @@ services:
   # Backend - Go API Server
   # ============================================================
   backend:
-    image: reactsql_backend:latest
+    image: lucid-backend:latest
     build:
-      context: .
-      dockerfile: Dockerfile.backend
-    container_name: reactsql_backend
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    container_name: lucid-backend
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
-      - "${BACKEND_PORT:-8082}:8090"
+      - "${LUCID_BACKEND_PORT:-19001}:19001"
     environment:
       - GIN_MODE=release
+      - SERVER_PORT=19001
       - LLM_CONFIG_PATH=/app/llm_config.json
+      - LLM_API_KEY=${LLM_API_KEY:-}
       - GODEBUG=madvdontneed=1
       - GOMAXPROCS=2
     volumes:
-      # Configuration files
-      - ./config/llm_config.json:/app/llm_config.json:ro
-      - ./config/system.yaml:/app/configs/system.yaml:ro
-      - ./config/lakebase.yaml:/app/config/lakebase.yaml:ro
-      - ./docker/demo_databases.json:/app/demo_databases.json:ro
-      # Data directories
-      - ./data/spider_data:/app/data/spider_data:ro
-      - ./data/contexts:/app/contexts:ro
-      - ./data/dbs:/app/dbs:ro
+      # Configuration (mount if exists)
+      - ../backend/server/configs:/app/configs:ro
+    depends_on:
+      mariadb:
+        condition: service_healthy
     networks:
-      - reactsql_net
-      - mariadb_net
+      - lucid-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8090/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:19001/health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
+  # ============================================================
+  # MariaDB - Lake-Base Storage + Demo Databases
+  # Single database instance for both lake-base and demonstrations
+  # ============================================================
+  mariadb:
+    image: mariadb:11.4
+    container_name: lucid-mariadb
+    restart: unless-stopped
+    ports:
+      - "${LUCID_MARIADB_PORT:-19010}:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: lucid_root_2024
+      MARIADB_DATABASE: lucid
+      MARIADB_USER: lucid
+      MARIADB_PASSWORD: lucid2024
+      TZ: UTC
+    volumes:
+      - lucid-mariadb-data:/var/lib/mysql
+      - ./init/mariadb:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    networks:
+      - lucid-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ============================================================
+# Volumes
+# ============================================================
+volumes:
+  lucid-mariadb-data:
+    name: lucid-mariadb-data
+
+# ============================================================
+# Networks
+# ============================================================
 networks:
-  reactsql_net:
+  lucid-network:
+    name: lucid-network
     driver: bridge
-    name: reactsql_demo_network
-  mariadb_net:
-    external: true
-    name: mariadb_default

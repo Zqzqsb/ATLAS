@@ -288,8 +288,8 @@ func (h *Handler) GetCatalogTemplate(c *gin.Context) {
 func (h *Handler) GetCatalogSchema(c *gin.Context) {
 	schema := map[string]interface{}{
 		"$schema":     "http://json-schema.org/draft-07/schema#",
-		"title":       "ReActSQL Catalog Schema",
-		"description": "Schema for ReActSQL database catalog files",
+		"title":       "LUCID Catalog Schema",
+		"description": "Schema for LUCID database catalog files",
 		"type":        "object",
 		"required":    []string{"version", "database", "tables"},
 		"properties": map[string]interface{}{

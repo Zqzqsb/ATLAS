@@ -1,117 +1,55 @@
-# ReActSQL System Configuration
+# LUCID System Configuration
+# Lakebase-Unified Context-aware Intelligence for Data
 
 server:
   host: "0.0.0.0"
-  port: 8081
+  port: 19001
   mode: "debug"  # debug | release
 
 # LLM configuration - loads from llm_config.json
 # Available models: deepseek_v3, deepseek_v3_2, qwen_max, qwen3_max, ali_deepseek_v3_2
 llm:
-  config_file: "llm_config.json"  # Path to LLM config file
-  default_model: "deepseek_v3"    # Default model to use (can override via LLM_DEFAULT_MODEL env var)
+  config_file: "llm_config.json"
+  default_model: "deepseek_v3"  # Override via LLM_DEFAULT_MODEL env var
 
-# Spider dataset with 20 standard databases
-# These are the core Spider benchmark databases for Rich Context demonstration
+# Lake-Base storage (MariaDB with VECTOR + HNSW)
+# All demo and production databases are in this single instance
+lakebase:
+  host: "lucid-mariadb"
+  port: 3306
+  user: "lucid"
+  password: "lucid2024"
+  database: "lucid"
+
+# Demo databases (all in MariaDB)
 databases:
-  # ============================================================
-  # Spider SQLite - 20 databases with sample questions
-  # ============================================================
+  # Spider SQLite compatibility layer (optional)
   - id: "spider_sqlite"
     name: "Spider (SQLite)"
     type: "sqlite"
     path: "./data/spider_data/database"
 
-# Demo databases - using non-standard ports to avoid conflicts
-# Start demo databases with: make demo-db-up
-  # ============================================================
-  # car_1 Database (Automotive)
-  # ============================================================
-  - id: "car_1_mysql"
-    name: "Car Database (MySQL)"
+  # E-commerce demo (MariaDB native)
+  - id: "ecommerce"
+    name: "E-Commerce Demo"
     type: "mysql"
-    host: "localhost"
-    port: 15001
-    user: "reactsql"
-    password: "reactsql123"
-    database: "car_1"
-    
-  - id: "car_1_postgres"
-    name: "Car Database (PostgreSQL)"
-    type: "postgres"
-    host: "localhost"
-    port: 15002
-    user: "reactsql"
-    password: "reactsql123"
-    database: "car_1"
-    ssl_mode: "disable"
+    host: "lucid-mariadb"
+    port: 3306
+    user: "lucid"
+    password: "lucid2024"
+    database: "demo_ecommerce"
 
-  # ============================================================
-  # flight_2 Database (Travel)
-  # ============================================================
-  - id: "flight_2_mysql"
-    name: "Flight Database (MySQL)"
+  # TPC-H benchmark (MariaDB native)
+  - id: "tpch"
+    name: "TPC-H Benchmark"
     type: "mysql"
-    host: "localhost"
-    port: 15011
-    user: "reactsql"
-    password: "reactsql123"
-    database: "flight_2"
-    
-  - id: "flight_2_postgres"
-    name: "Flight Database (PostgreSQL)"
-    type: "postgres"
-    host: "localhost"
-    port: 15012
-    user: "reactsql"
-    password: "reactsql123"
-    database: "flight_2"
-    ssl_mode: "disable"
-
-  # ============================================================
-  # college_2 Database (Education)
-  # ============================================================
-  - id: "college_2_mysql"
-    name: "College Database (MySQL)"
-    type: "mysql"
-    host: "localhost"
-    port: 15021
-    user: "reactsql"
-    password: "reactsql123"
-    database: "college_2"
-    
-  - id: "college_2_postgres"
-    name: "College Database (PostgreSQL)"
-    type: "postgres"
-    host: "localhost"
-    port: 15022
-    user: "reactsql"
-    password: "reactsql123"
-    database: "college_2"
-    ssl_mode: "disable"
-
-  # ============================================================
-  # employee_hire_evaluation Database (HR/Business)
-  # ============================================================
-  - id: "employee_mysql"
-    name: "Employee Database (MySQL)"
-    type: "mysql"
-    host: "localhost"
-    port: 15031
-    user: "reactsql"
-    password: "reactsql123"
-    database: "employee_hire_evaluation"
-    
-  - id: "employee_postgres"
-    name: "Employee Database (PostgreSQL)"
-    type: "postgres"
-    host: "localhost"
-    port: 15032
-    user: "reactsql"
-    password: "reactsql123"
-    database: "employee_hire_evaluation"
-    ssl_mode: "disable"
+    host: "lucid-mariadb"
+    port: 3306
+    user: "lucid"
+    password: "lucid2024"
+    database: "demo_tpch"
 
 react:
   max_iterations: 5
   enable_rich_context: true
+

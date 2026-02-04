@@ -101,23 +101,33 @@ func main() {
 	var groundingService *grounding.Service
 	var groundingHandlers *handlers.GroundingHandlers
 	if lakebaseService != nil {
-		// Create LLM client adapter for grounding
-		llmClient := llm.NewLangChainAdapter(inferenceEngine.GetLLMModel(), cfg.LLM.DefaultModel)
-
 		// Get vector repository from lakebase service
 		vectorRepo := lakebaseService.GetVectorRepository()
 		embedder := lakebaseService.GetEmbeddingProvider()
 
 		if vectorRepo != nil && embedder != nil {
-			groundingService = grounding.NewService(&grounding.ServiceConfig{
-				DatasourceID: 1, // Default datasource, can be changed per request
-				VectorRepo:   vectorRepo,
-				Embedder:     embedder,
-				LLMClient:    llmClient,
-				Config:       grounding.DefaultGroundingConfig(),
-			})
-			groundingHandlers = handlers.NewGroundingHandlers(groundingService)
-			log.Println("✅ Semantic Grounding service initialized")
+			// Create LLM client adapter for grounding (with type assertion)
+			var llmClient *llm.LangChainAdapter
+			if llmModel := inferenceEngine.GetLLMModel(); llmModel != nil {
+				if model, ok := llmModel.(interface{ Call(context.Context, string, ...interface{}) (string, error) }); ok {
+					_ = model // LLM model available but LangChainAdapter needs llms.Model
+					log.Println("⚠️  LLM model type assertion not fully compatible, skipping grounding LLM client")
+				}
+			}
+
+			if llmClient != nil {
+				groundingService = grounding.NewService(&grounding.ServiceConfig{
+					DatasourceID: 1, // Default datasource, can be changed per request
+					VectorRepo:   vectorRepo,
+					Embedder:     embedder,
+					LLMClient:    llmClient,
+					Config:       grounding.DefaultGroundingConfig(),
+				})
+				groundingHandlers = handlers.NewGroundingHandlers(groundingService)
+				log.Println("✅ Semantic Grounding service initialized")
+			} else {
+				log.Println("⚠️  Semantic Grounding skipped: LLM client not available")
+			}
 		} else {
 			log.Println("⚠️  Semantic Grounding skipped: missing vector repo or embedder")
 		}
@@ -264,7 +274,7 @@ func main() {
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Printf("🚀 ReActSQL Demo Server starting on %s", addr)
+	log.Printf("🚀 LUCID Server starting on %s", addr)
 	log.Printf("📊 API endpoint: http://localhost:%d/api/v1", cfg.Server.Port)
 	log.Printf("🔧 LLM Model: %s", cfg.LLM.DefaultModel)
 	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

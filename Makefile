@@ -3,7 +3,27 @@
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
-.PHONY: all dev backend frontend paper clean help demo-up demo-down demo-reset
+.PHONY: all clean-all dev backend frontend paper clean help demo-up demo-down demo-reset
+
+# ============== Idempotent Commands ==============
+all: clean-all
+	@echo "Building and starting LUCID..."
+	docker compose -f deploy/docker-compose.yml build
+	docker compose -f deploy/docker-compose.yml up -d mariadb
+	@echo "Waiting for MariaDB to initialize (30s)..."
+	@sleep 30
+	docker compose -f deploy/docker-compose.yml up -d
+	@echo ""
+	@echo "LUCID is ready!"
+	@echo "  Frontend: http://localhost:19000"
+	@echo "  Backend:  http://localhost:19001"
+	@echo "  MariaDB:  localhost:19010"
+
+clean-all:
+	@echo "Cleaning all LUCID resources..."
+	-docker compose -f deploy/docker-compose.yml down -v --rmi local
+	rm -rf bin/ frontend/dist/
+	@echo "Done."
 
 # ============== Demo (One-Command Start) ==============
 demo-up:
@@ -152,7 +172,11 @@ clean:
 help:
 	@echo "LUCID - Lakebase-Unified Context-aware Intelligence for Data"
 	@echo ""
-	@echo "🚀 Demo (Recommended for first-time users):"
+	@echo "Idempotent Commands:"
+	@echo "  make all            - Clean, build, and start everything"
+	@echo "  make clean-all      - Remove all containers, volumes, images"
+	@echo ""
+	@echo "Demo (Recommended for first-time users):"
 	@echo "  make demo-up        - Start complete demo system (one command)"
 	@echo "  make demo-down      - Stop and clean demo"
 	@echo "  make demo-reset     - Reset demo data"

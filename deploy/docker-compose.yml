@@ -60,8 +60,9 @@ services:
       - GODEBUG=madvdontneed=1
       - GOMAXPROCS=2
     volumes:
-      # Configuration (mount if exists)
+      # Configuration
       - ../backend/server/configs:/app/configs:ro
+      - ../llm_config.json:/app/llm_config.json:ro
     depends_on:
       mariadb:
         condition: service_healthy

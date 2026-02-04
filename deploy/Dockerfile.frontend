@@ -1,18 +1,17 @@
 # LUCID Frontend Dockerfile
-# Build Vue/Vite frontend and serve with Node.js SSR
+# Build Vue/Vite frontend with pnpm, serve with nginx
 #
 # Build from project root:
 #   docker build -f deploy/Dockerfile.frontend -t lucid-frontend .
 
 # ============================================================
-# Stage 1: Build the frontend
+# Stage 1: Build with pnpm + Vite
 # ============================================================
 FROM node:20-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm globally
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Set working directory
 WORKDIR /build
 
 # Copy package files first for better caching
@@ -28,25 +27,15 @@ COPY frontend/ ./
 RUN pnpm build
 
 # ============================================================
-# Stage 2: Node.js SSR runtime
+# Stage 2: Serve with nginx
 # ============================================================
-FROM node:20-alpine
+FROM nginx:alpine
 
-WORKDIR /app
+# Copy built assets
+COPY --from=builder /build/dist /usr/share/nginx/html
 
-# Copy built assets from builder
-COPY --from=builder /build/dist ./dist
-
-# Copy SSR server
-COPY frontend/server.js ./server.js
-
-# Install only production dependencies for server
-RUN npm install express axios http-proxy-middleware
-
-# Environment variables
-ENV NODE_ENV=production
-ENV BACKEND_URL=http://lucid-backend:19001
-ENV PORT=80
+# Copy nginx config
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port
 EXPOSE 80
@@ -55,5 +44,4 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
 
-# Start Node.js server
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]

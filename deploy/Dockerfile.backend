@@ -19,17 +19,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 
 # Copy go mod files first for better caching
-COPY go.mod go.sum ./
+COPY backend/go.mod backend/go.sum ./
 
 # Download dependencies
 RUN go mod download
 
-# Copy all source code (self-contained within system/)
-COPY internal/ ./internal/
-COPY bridge/ ./bridge/
-COPY config/ ./config/
-COPY interfaces/ ./interfaces/
-COPY server/ ./server/
+# Copy all source code
+COPY backend/internal/ ./internal/
+COPY backend/bridge/ ./bridge/
+COPY backend/config/ ./config/
+COPY backend/interfaces/ ./interfaces/
+COPY backend/server/ ./server/
 
 # Build the binary with CGO enabled for SQLite support
 # Output to /build/bin/server to avoid conflict with source directory ./server

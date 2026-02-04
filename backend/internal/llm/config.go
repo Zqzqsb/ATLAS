@@ -2,20 +2,22 @@ package llm
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"os"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-// ModelConfig LLM 模型配置
+// ModelConfig LLM model configuration
 type ModelConfig struct {
 	ModelName string `json:"model_name"`
 	Token     string `json:"token"`
 	BaseURL   string `json:"base_url"`
 }
 
-// ConfigFile 配置文件结构
+// ConfigFile configuration file structure
 type ConfigFile struct {
 	DeepSeekV3  ModelConfig `json:"deepseek_v3"`
 	DeepSeekV32 ModelConfig `json:"deepseek_v3_2"`
@@ -25,29 +27,46 @@ type ConfigFile struct {
 }
 
 var (
-	// 全局配置（从文件加载）
-	config *ConfigFile
+	// Global config (loaded from file or env)
+	config        *ConfigFile
+	configLoaded  bool
+	ErrNoLLMConfig = errors.New("LLM config not available")
 )
 
 func init() {
-	// 尝试加载配置文件
+	// Try to load config file (optional)
 	var err error
 	config, err = loadConfig()
 	if err != nil {
-		panic("Failed to load llm_config.json: " + err.Error() + ". Please create llm_config.json in the project root.")
+		log.Printf("[LLM] Config not found: %v. LLM features disabled until configured.", err)
+		config = nil
+		configLoaded = false
+	} else {
+		configLoaded = true
+		log.Printf("[LLM] Config loaded successfully")
 	}
 }
 
-// loadConfig 加载配置文件
+// IsConfigured returns true if LLM config is available
+func IsConfigured() bool {
+	return configLoaded && config != nil
+}
+
+// loadConfig loads config from file or environment
 func loadConfig() (*ConfigFile, error) {
-	// 尝试多个可能的配置文件路径
-	paths := []string{
+	// Check environment variable first
+	paths := []string{}
+	if envPath := os.Getenv("LLM_CONFIG_PATH"); envPath != "" {
+		paths = append(paths, envPath)
+	}
+	// Then try common paths
+	paths = append(paths,
 		"llm_config.json",
 		"../llm_config.json",
 		"../../llm_config.json",
 		"../../../llm_config.json",
 		"../../../../llm_config.json",
-	}
+	)
 
 	var lastErr error
 	for _, path := range paths {
@@ -70,24 +89,32 @@ func loadConfig() (*ConfigFile, error) {
 	return nil, lastErr
 }
 
-// GetConfig 获取当前配置
+// GetConfig returns config or nil if not configured
 func GetConfig() *ConfigFile {
-	if config == nil {
-		panic("LLM config not initialized. Please ensure llm_config.json exists.")
-	}
 	return config
 }
 
-// GetModel 根据标志获取模型配置
+// GetConfigOrError returns config or error if not configured
+func GetConfigOrError() (*ConfigFile, error) {
+	if !IsConfigured() {
+		return nil, ErrNoLLMConfig
+	}
+	return config, nil
+}
+
+// GetModel returns model config by flag, or empty config if not configured
 func GetModel(useV32 bool) ModelConfig {
 	cfg := GetConfig()
+	if cfg == nil {
+		return ModelConfig{}
+	}
 	if useV32 {
 		return cfg.DeepSeekV32
 	}
 	return cfg.DeepSeekV3
 }
 
-// GetModelName 获取模型显示名称
+// GetModelName returns model display name
 func GetModelName(useV32 bool) string {
 	if useV32 {
 		return "DeepSeek-V3.2"
@@ -104,13 +131,16 @@ func CreateLLM(config ModelConfig) (llms.Model, error) {
 	)
 }
 
-// CreateLLMWithFlag 根据标志创建 LLM 实例
+// CreateLLMWithFlag creates LLM instance by flag, returns error if not configured
 func CreateLLMWithFlag(useV32 bool) (llms.Model, error) {
+	if !IsConfigured() {
+		return nil, ErrNoLLMConfig
+	}
 	modelConfig := GetModel(useV32)
 	return CreateLLM(modelConfig)
 }
 
-// ModelType 模型类型
+// ModelType model type enum
 type ModelType string
 
 const (
@@ -121,9 +151,12 @@ const (
 	ModelAliDeepSeekV32 ModelType = "ali-deepseek-v3.2"
 )
 
-// GetModelByType 根据模型类型获取配置
+// GetModelByType returns model config by type, or empty config if not configured
 func GetModelByType(modelType ModelType) ModelConfig {
 	cfg := GetConfig()
+	if cfg == nil {
+		return ModelConfig{}
+	}
 	switch modelType {
 	case ModelDeepSeekV3:
 		return cfg.DeepSeekV3
@@ -140,7 +173,7 @@ func GetModelByType(modelType ModelType) ModelConfig {
 	}
 }
 
-// GetModelDisplayName 获取模型显示名称
+// GetModelDisplayName returns display name for model type
 func GetModelDisplayName(modelType ModelType) string {
 	switch modelType {
 	case ModelDeepSeekV3:
@@ -158,8 +191,11 @@ func GetModelDisplayName(modelType ModelType) string {
 	}
 }
 
-// CreateLLMByType 根据模型类型创建 LLM 实例
+// CreateLLMByType creates LLM instance by type, returns error if not configured
 func CreateLLMByType(modelType ModelType) (llms.Model, error) {
+	if !IsConfigured() {
+		return nil, ErrNoLLMConfig
+	}
 	modelConfig := GetModelByType(modelType)
 	return CreateLLM(modelConfig)
 }

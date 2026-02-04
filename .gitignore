@@ -44,10 +44,12 @@ tmp/
 .env.*.local
 
 # === Config with secrets ===
-config/llm_config.json
+llm_config.json
 
 # === OS ===
 .DS_Store
 Thumbs.db
 
-iterations
+# === Private ===
+iterations/
+paper/

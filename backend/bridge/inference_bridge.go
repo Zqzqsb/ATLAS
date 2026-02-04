@@ -46,6 +46,12 @@ func (e *InferenceEngineBridge) Execute(ctx context.Context, req *interfaces.Inf
 	if err != nil {
 		return nil, fmt.Errorf("failed to get adapter: %w", err)
 	}
+	defer dbAdapter.Close()
+
+	// Connect to database
+	if err := dbAdapter.Connect(ctx); err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
 
 	// Build inference config from request
 	config := &inference.Config{
@@ -89,6 +95,12 @@ func (e *InferenceEngineBridge) ExecuteStream(ctx context.Context, req *interfac
 	dbAdapter, err := e.getAdapter(req.DatabaseID)
 	if err != nil {
 		return fmt.Errorf("failed to get adapter: %w", err)
+	}
+	defer dbAdapter.Close()
+
+	// Connect to database
+	if err := dbAdapter.Connect(ctx); err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// Build inference config

@@ -303,6 +303,11 @@ func (e *InferenceEngineBridge) GetLLMModel() interface{} {
 	return e.llm
 }
 
+// GetLLMModelInterface implements LLMModelGetter interface for InferenceService
+func (e *InferenceEngineBridge) GetLLMModelInterface() interface{} {
+	return e.llm
+}
+
 // SetModelConfigs sets available model configurations
 func (e *InferenceEngineBridge) SetModelConfigs(configs map[string]interfaces.ModelInfo) {
 	e.modelConfigs = configs

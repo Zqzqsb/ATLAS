@@ -10,8 +10,10 @@ const message = useMessage()
 
 // Query input
 const question = ref('')
-const isExecuting = ref(false)
 const showExamples = ref(true)
+
+// Use store's isQuerying for execution state
+const isExecuting = computed(() => workspaceStore.isQuerying)
 
 // Query options
 const maxIterations = ref(5)
@@ -76,8 +78,6 @@ async function handleExecute() {
     message.warning('请输入问题')
     return
   }
-
-  isExecuting.value = true
   
   // Update query options
   workspaceStore.queryOptions.maxIterations = maxIterations.value
@@ -89,14 +89,11 @@ async function handleExecute() {
     await workspaceStore.executeQuery(question.value)
   } catch (e: any) {
     message.error(e.message || '执行失败')
-  } finally {
-    isExecuting.value = false
   }
 }
 
 function handleStop() {
   workspaceStore.abortCurrentQuery()
-  isExecuting.value = false
 }
 
 function useExample(q: string) {

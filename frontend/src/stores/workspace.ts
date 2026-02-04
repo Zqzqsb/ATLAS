@@ -222,18 +222,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           case 'action':
           case 'observation':
           case 'finish':
-            // ReAct step events
+            // ReAct step events - use step + phase as unique key
             if (event.data.step !== undefined) {
-              const existingIndex = reactSteps.value.findIndex(s => s.step === event.data.step)
+              const phase = event.data.phase || 'unknown'
+              const stepKey = `${phase}-${event.data.step}`
+              const existingIndex = reactSteps.value.findIndex(
+                s => `${s.phase || 'unknown'}-${s.step}` === stepKey
+              )
+              
+              // Create step data with unique ID
+              const stepData = {
+                ...event.data,
+                id: stepKey,
+                type: event.type as any
+              }
+              
               if (existingIndex >= 0) {
-                // Update existing step
+                // Update existing step (merge new data)
                 reactSteps.value[existingIndex] = {
                   ...reactSteps.value[existingIndex],
-                  ...event.data
+                  ...stepData
                 }
               } else {
                 // Add new step
-                reactSteps.value.push(event.data)
+                reactSteps.value.push(stepData)
               }
             }
             break

@@ -13,9 +13,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/tmc/langchaingo/llms"
 
 	"lucid/bridge"
 	"lucid/config"
+	"lucid/interfaces"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"
 	"lucid/server/handlers"
@@ -42,23 +44,43 @@ func main() {
 	// Initialize dependencies using bridge layer
 	// ========================================
 
-	// Create adapter factory (bridges system interfaces to internal adapters)
-	adapterFactory := bridge.AdapterFactory()
+	// Create adapter factory
+	adapterFactory := bridge.NewAdapterFactory()
+
+	// Register database configs from system config
+	for _, dbCfg := range cfg.Databases {
+		adapterFactory.RegisterConfig(dbCfg.ID, &interfaces.DBConfig{
+			Type:     dbCfg.Type,
+			Host:     dbCfg.Host,
+			Port:     dbCfg.Port,
+			Database: dbCfg.Database,
+			User:     dbCfg.User,
+			Password: dbCfg.Password,
+			FilePath: dbCfg.Path,
+		})
+	}
 
 	// Create database service with adapter factory
-	dbService := services.NewDatabaseService(cfg, adapterFactory)
+	dbService := services.NewDatabaseService(cfg, adapterFactory.Create)
 
-	// Create inference engine (bridges system interfaces to internal inference)
-	inferenceEngine, err := bridge.NewInferenceEngineBridge(cfg, adapterFactory)
+	// Initialize LLM (optional - may fail if config not found)
+	var llmModel llms.Model
+	llmModel, err = llm.CreateLLMWithFlag(false) // default model
 	if err != nil {
-		log.Fatalf("Failed to create inference engine: %v", err)
+		log.Printf("⚠️  LLM initialization failed: %v", err)
+		log.Println("   Inference features will be limited...")
+	} else {
+		log.Println("✅ LLM initialized successfully")
 	}
+
+	// Create inference engine
+	inferenceEngine := bridge.NewInferenceEngineBridge(llmModel, adapterFactory)
 
 	// Create rich context provider
 	richContextProvider := bridge.NewRichContextProviderBridge()
 
 	// Create field suggester
-	fieldSuggester := bridge.NewFieldSuggesterBridge(inferenceEngine.GetLLMModel(), adapterFactory, cfg)
+	fieldSuggester := bridge.NewFieldSuggesterBridge(inferenceEngine.GetLLMModel(), adapterFactory.Create, cfg)
 
 	// Create translator and set it for services
 	translator := bridge.NewTranslatorBridge(inferenceEngine.GetLLMModel())

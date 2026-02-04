@@ -89,6 +89,7 @@ type InferenceRequest struct {
 	UseReact         bool             `json:"use_react"`
 	MaxIterations    int              `json:"max_iterations"`
 	FieldDescription string           `json:"field_description"`
+	ContextFile      string           `json:"context_file,omitempty"`
 	GroundingResult  *GroundingResult `json:"grounding_result,omitempty"`
 }
 
@@ -101,12 +102,14 @@ type InferenceResult struct {
 
 // InferenceMetadata 推理元数据
 type InferenceMetadata struct {
-	SelectedTables     []string    `json:"selected_tables"`
-	Iterations         int         `json:"iterations"`
-	ReactTrace         []ReActStep `json:"react_trace"`
-	RichContextUpdated bool        `json:"rich_context_updated"`
-	LLMCalls           int         `json:"llm_calls"`
-	Model              string      `json:"model"`
+	SelectedTables     []string      `json:"selected_tables"`
+	Iterations         int           `json:"iterations"`
+	TotalTokens        int           `json:"total_tokens,omitempty"`
+	ExecutionTime      time.Duration `json:"execution_time,omitempty"`
+	ReactTrace         []ReActStep   `json:"react_trace"`
+	RichContextUpdated bool          `json:"rich_context_updated"`
+	LLMCalls           int           `json:"llm_calls"`
+	Model              string        `json:"model"`
 }
 
 // ModelInfo 模型信息

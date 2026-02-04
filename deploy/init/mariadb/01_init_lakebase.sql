@@ -1,5 +1,5 @@
 -- LUCID Lake-Base Storage Initialization
--- MariaDB 12+ with VECTOR support
+-- MariaDB 12 with VECTOR support
 --
 -- This script creates the rc_* (Rich Context) tables that store:
 -- - Database metadata
@@ -12,16 +12,20 @@
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_datasources (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    type ENUM('mysql', 'postgresql', 'sqlite') NOT NULL,
-    host VARCHAR(255),
-    port INT,
-    database_name VARCHAR(255),
-    description TEXT,
+    name VARCHAR(255) NOT NULL UNIQUE COMMENT 'Datasource identifier',
+    db_type ENUM('mysql', 'postgresql', 'sqlite', 'mariadb') NOT NULL DEFAULT 'mysql',
+    host VARCHAR(255) COMMENT 'Database host',
+    port INT DEFAULT 3306 COMMENT 'Database port',
+    db_name VARCHAR(255) COMMENT 'Database name',
+    username VARCHAR(100) COMMENT 'Connection username',
+    description TEXT COMMENT 'Human-readable description',
+    status ENUM('active', 'inactive', 'error') DEFAULT 'active',
+    last_sync_at TIMESTAMP NULL COMMENT 'Last schema sync time',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Registered data sources for LUCID system';
 
 -- ============================================================
 -- 2. Tables (table-level Rich Context)
@@ -30,36 +34,46 @@ CREATE TABLE IF NOT EXISTS rc_tables (
     id INT AUTO_INCREMENT PRIMARY KEY,
     datasource_id INT NOT NULL,
     table_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    row_count BIGINT DEFAULT 0,
+    description TEXT COMMENT 'Semantic description of the table',
+    row_count BIGINT DEFAULT 0 COMMENT 'Estimated row count',
+    is_expired TINYINT(1) DEFAULT 0 COMMENT 'Whether context needs refresh',
+    source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
+    confidence DECIMAL(3,2) DEFAULT 0.80 COMMENT 'Confidence score 0-1',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NULL DEFAULT NULL,
-    source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
     UNIQUE KEY uk_datasource_table (datasource_id, table_name),
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_expired (is_expired)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Table-level Rich Context';
 
 -- ============================================================
 -- 3. Columns (column-level Rich Context)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_columns (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    table_id INT NOT NULL,
+    datasource_id INT NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
     column_name VARCHAR(255) NOT NULL,
-    data_type VARCHAR(100),
-    description TEXT,
-    synonyms JSON,
-    examples JSON,
+    data_type VARCHAR(100) COMMENT 'Column data type',
+    description TEXT COMMENT 'Semantic description',
+    sample_values TEXT COMMENT 'Sample values (comma separated)',
+    synonyms TEXT COMMENT 'Alternative names (comma separated)',
+    value_mapping TEXT COMMENT 'Enum value meanings (JSON or text)',
+    is_nullable TINYINT(1) DEFAULT 1,
+    is_primary_key TINYINT(1) DEFAULT 0,
+    is_foreign_key TINYINT(1) DEFAULT 0,
+    is_expired TINYINT(1) DEFAULT 0,
+    source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
+    confidence DECIMAL(3,2) DEFAULT 0.80,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NULL DEFAULT NULL,
-    source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
-    UNIQUE KEY uk_table_column (table_id, column_name),
-    FOREIGN KEY (table_id) REFERENCES rc_tables(id) ON DELETE CASCADE,
-    INDEX idx_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    UNIQUE KEY uk_column (datasource_id, table_name, column_name),
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    INDEX idx_table (datasource_id, table_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Column-level Rich Context';
 
 -- ============================================================
 -- 4. Relations (table relationships / foreign keys)
@@ -71,13 +85,16 @@ CREATE TABLE IF NOT EXISTS rc_relations (
     from_column VARCHAR(255) NOT NULL,
     to_table VARCHAR(255) NOT NULL,
     to_column VARCHAR(255) NOT NULL,
-    relation_type ENUM('foreign_key', 'semantic', 'inferred') DEFAULT 'foreign_key',
-    description TEXT,
+    relation_type ENUM('one_to_one', 'one_to_many', 'many_to_one', 'many_to_many', 'foreign_key', 'inferred') DEFAULT 'foreign_key',
+    description TEXT COMMENT 'Relationship description',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_from_table (from_table),
-    INDEX idx_to_table (to_table)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    UNIQUE KEY uk_relation (datasource_id, from_table, from_column, to_table, to_column),
+    INDEX idx_from (datasource_id, from_table),
+    INDEX idx_to (datasource_id, to_table)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Table relationships and join paths';
 
 -- ============================================================
 -- 5. Terms (business terminology dictionary)
@@ -86,32 +103,38 @@ CREATE TABLE IF NOT EXISTS rc_terms (
     id INT AUTO_INCREMENT PRIMARY KEY,
     datasource_id INT NOT NULL,
     term VARCHAR(255) NOT NULL,
-    definition TEXT NOT NULL,
-    category VARCHAR(100),
+    definition TEXT NOT NULL COMMENT 'Term definition',
+    synonyms TEXT COMMENT 'Alternative terms (comma separated)',
+    examples TEXT COMMENT 'Usage examples',
+    category VARCHAR(100) COMMENT 'Term category',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_datasource_term (datasource_id, term),
+    UNIQUE KEY uk_term (datasource_id, term),
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_term (term)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_category (category),
+    FULLTEXT INDEX ft_term_def (term, definition)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Business terminology dictionary';
 
 -- ============================================================
 -- 6. Embeddings (vector embeddings with HNSW index)
 -- ============================================================
--- Note: Requires MariaDB 12+ with VECTOR support
+-- Note: Requires MariaDB 12 with VECTOR support
 -- Vector dimension: 1536 (OpenAI text-embedding-3-small)
 CREATE TABLE IF NOT EXISTS rc_embeddings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     datasource_id INT NOT NULL,
-    entity_type ENUM('table', 'column', 'term') NOT NULL,
-    entity_id INT NOT NULL,
-    text_content TEXT NOT NULL,
-    embedding VECTOR(1536) NOT NULL,
+    entity_type ENUM('table', 'column', 'term', 'query') NOT NULL,
+    entity_id INT NOT NULL COMMENT 'ID in the corresponding rc_* table',
+    text_content TEXT NOT NULL COMMENT 'Text that was embedded',
+    embedding VECTOR(1536) NOT NULL COMMENT 'Vector embedding',
+    model VARCHAR(100) DEFAULT 'text-embedding-3-small',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
     INDEX idx_entity (entity_type, entity_id),
     VECTOR INDEX idx_embedding_hnsw (embedding) DISTANCE=COSINE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Vector embeddings for semantic search';
 
 -- ============================================================
 -- 7. Change Log (audit trail for self-maintaining agent)
@@ -119,24 +142,22 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
 CREATE TABLE IF NOT EXISTS rc_change_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     datasource_id INT NOT NULL,
-    change_type ENUM('ddl_add_table', 'ddl_drop_table', 'ddl_alter_column', 'context_update', 'embedding_refresh') NOT NULL,
-    entity_type ENUM('table', 'column', 'relation', 'term') NOT NULL,
+    change_type VARCHAR(50) NOT NULL COMMENT 'Type of change: ddl_*, context_*, init, etc.',
+    entity_type VARCHAR(50) NOT NULL COMMENT 'table, column, relation, term, system',
     entity_name VARCHAR(255) NOT NULL,
     old_value TEXT,
     new_value TEXT,
-    reason TEXT,
+    reason TEXT COMMENT 'Reason for change',
+    changed_by VARCHAR(100) DEFAULT 'agent' COMMENT 'Who made the change',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(100) DEFAULT 'agent',
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_datasource_time (datasource_id, created_at),
-    INDEX idx_entity (entity_type, entity_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_time (datasource_id, created_at DESC),
+    INDEX idx_entity (entity_type, entity_name),
+    INDEX idx_type (change_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Change log for audit and self-maintenance';
 
 -- ============================================================
--- Demo: Insert a sample datasource
--- ============================================================
-INSERT IGNORE INTO rc_datasources (name, type, host, port, database_name, description) 
-VALUES ('demo_ecommerce', 'mysql', 'lucid-demo-mysql', 3306, 'ecommerce', 'E-commerce demo database');
-
 -- Success message
+-- ============================================================
 SELECT 'LUCID Lake-Base storage initialized successfully!' AS status;

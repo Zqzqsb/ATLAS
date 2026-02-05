@@ -129,13 +129,14 @@ async function handleAddDatabase(config: DatabaseConfig) {
 
             <!-- Add new card -->
             <div
-              class="h-[240px] rounded-lg bg-gray-50 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/30 transition-all group"
+              class="database-add-card rounded-xl bg-gradient-to-br from-gray-50 to-slate-100 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:from-primary-50 hover:to-blue-50 transition-all group"
               @click="showAddDialog = true"
             >
-              <div class="w-12 h-12 rounded-lg bg-white flex items-center justify-center mb-3 border border-gray-200 group-hover:border-primary-300 group-hover:bg-primary-50 transition-all">
+              <div class="w-14 h-14 rounded-xl bg-white flex items-center justify-center mb-4 border border-gray-200 shadow-sm group-hover:border-primary-300 group-hover:shadow-md transition-all">
                 <div class="i-carbon-add text-2xl text-gray-400 group-hover:text-primary-600 transition-colors" />
               </div>
-              <p class="text-gray-500 font-semibold group-hover:text-primary-600 transition-colors">Add New Database</p>
+              <p class="text-gray-600 font-semibold group-hover:text-primary-600 transition-colors">Add New Database</p>
+              <p class="text-xs text-gray-400 mt-1">Connect to MySQL, MariaDB, PostgreSQL</p>
             </div>
           </div>
         </div>
@@ -173,3 +174,9 @@ async function handleAddDatabase(config: DatabaseConfig) {
     />
   </div>
 </template>
+
+<style scoped>
+.database-add-card {
+  height: 246px; /* Match DatabaseCard height (240px + 6px for top bar) */
+}
+</style>

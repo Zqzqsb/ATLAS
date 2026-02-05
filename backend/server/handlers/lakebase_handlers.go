@@ -89,7 +89,19 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 		// Get table count for this datasource
 		tables, _ := h.lakebaseService.GetTablesByDatasource(ctx, ds.ID)
 		columns, _ := h.lakebaseService.GetColumnsByDatasource(ctx, ds.ID)
-		contexts, _ := h.lakebaseService.GetContextByDatasource(ctx, ds.ID)
+
+		// Count contexts from table and column descriptions (consistent with detail API)
+		contextCount := 0
+		for _, t := range tables {
+			if t.Description.Valid && t.Description.String != "" {
+				contextCount++
+			}
+		}
+		for _, c := range columns {
+			if c.Description.Valid && c.Description.String != "" {
+				contextCount++
+			}
+		}
 
 		result[i] = map[string]interface{}{
 			"id":            ds.ID,
@@ -104,7 +116,7 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 			"updated_at":    ds.UpdatedAt,
 			"tables_count":  len(tables),
 			"columns_count": len(columns),
-			"context_count": len(contexts),
+			"context_count": contextCount,
 		}
 	}
 

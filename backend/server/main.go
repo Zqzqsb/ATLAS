@@ -130,27 +130,27 @@ func main() {
 		embedder := lakebaseService.GetEmbeddingProvider()
 
 		if vectorRepo != nil && embedder != nil {
-			// Create LLM client adapter for grounding (with type assertion)
-			var llmClient *llm.LangChainAdapter
-			if llmModel := inferenceEngine.GetLLMModel(); llmModel != nil {
-				if model, ok := llmModel.(interface{ Call(context.Context, string, ...interface{}) (string, error) }); ok {
-					_ = model // LLM model available but LangChainAdapter needs llms.Model
-					log.Println("⚠️  LLM model type assertion not fully compatible, skipping grounding LLM client")
-				}
+			// Create LLM client adapter for grounding
+			var llmClient llm.Client
+			if llmModel != nil {
+				// Use LangChainAdapter to wrap langchaingo model
+				llmClient = llm.NewLangChainAdapter(llmModel, cfg.LLM.DefaultModel)
+				log.Println("✅ LLM client adapter created for Semantic Grounding")
 			}
 
+			// Create grounding service (works with or without LLM for coarse-only mode)
+			groundingService = grounding.NewService(&grounding.ServiceConfig{
+				DatasourceID: 1, // Default datasource, can be changed per request
+				VectorRepo:   vectorRepo,
+				Embedder:     embedder,
+				LLMClient:    llmClient, // Can be nil for coarse-only mode
+				Config:       grounding.DefaultGroundingConfig(),
+			})
+			groundingHandlers = handlers.NewGroundingHandlers(groundingService)
 			if llmClient != nil {
-				groundingService = grounding.NewService(&grounding.ServiceConfig{
-					DatasourceID: 1, // Default datasource, can be changed per request
-					VectorRepo:   vectorRepo,
-					Embedder:     embedder,
-					LLMClient:    llmClient,
-					Config:       grounding.DefaultGroundingConfig(),
-				})
-				groundingHandlers = handlers.NewGroundingHandlers(groundingService)
-				log.Println("✅ Semantic Grounding service initialized")
+				log.Println("✅ Semantic Grounding service initialized (full mode)")
 			} else {
-				log.Println("⚠️  Semantic Grounding skipped: LLM client not available")
+				log.Println("✅ Semantic Grounding service initialized (coarse-only mode)")
 			}
 		} else {
 			log.Println("⚠️  Semantic Grounding skipped: missing vector repo or embedder")

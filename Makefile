@@ -3,37 +3,52 @@
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
-.PHONY: all clean-all rebuild-all dev backend frontend paper clean help demo-up demo-down demo-reset
+.PHONY: rebuild clean-build dev backend frontend paper clean help demo-up demo-down demo-reset
 
-# ============== Idempotent Commands ==============
-all: clean-all
-	@echo "Building and starting LUCID..."
-	docker compose -f deploy/docker-compose.yml build
-	docker compose -f deploy/docker-compose.yml up -d mariadb
-	@echo "Waiting for MariaDB to initialize (30s)..."
-	@sleep 30
+# ============== Primary Commands ==============
+# Default target: idempotent build (first run or rebuild, preserves data)
+.DEFAULT_GOAL := rebuild
+
+rebuild:
+	@echo "🔄 Building LUCID (preserving data)..."
+	@# Stop and remove containers + images, keep volumes (data)
+	-docker compose -f deploy/docker-compose.yml down --rmi local
+	@# Clean local build artifacts
+	rm -rf bin/ frontend/dist/ frontend/node_modules/.tmp/ frontend/.vite-cache/
+	@# Rebuild from scratch with no cache
+	docker compose -f deploy/docker-compose.yml build --no-cache
+	@# Start services
 	docker compose -f deploy/docker-compose.yml up -d
 	@echo ""
-	@echo "LUCID is ready!"
+	@echo "✅ LUCID is ready!"
 	@echo "  Frontend: http://localhost:19000"
 	@echo "  Backend:  http://localhost:19001"
 	@echo "  MariaDB:  localhost:19010"
+	@echo ""
 
-rebuild-all:
-	@echo "🔄 Rebuilding all LUCID services..."
-	docker compose -f deploy/docker-compose.yml build
+clean-build:
+	@echo "🧹 Clean build (removing ALL data and cache)..."
+	@# Stop and remove everything including volumes
+	-docker compose -f deploy/docker-compose.yml down -v --rmi local
+	@# Clean local build artifacts
+	rm -rf bin/ frontend/dist/ frontend/node_modules/.tmp/ frontend/.vite-cache/
+	@# Clear Docker build cache
+	-docker builder prune -f
+	@echo "✅ Cleaned. Starting fresh build..."
+	@# Rebuild from scratch
+	docker compose -f deploy/docker-compose.yml build --no-cache
+	@# Start MariaDB first (needs init time)
+	docker compose -f deploy/docker-compose.yml up -d mariadb
+	@echo "⏳ Waiting for MariaDB to initialize (30s)..."
+	@sleep 30
+	@# Start all services
 	docker compose -f deploy/docker-compose.yml up -d
 	@echo ""
-	@echo "✅ All services rebuilt and restarted!"
+	@echo "✅ LUCID is ready (fresh install)!"
 	@echo "  Frontend: http://localhost:19000"
 	@echo "  Backend:  http://localhost:19001"
+	@echo "  MariaDB:  localhost:19010"
 	@echo ""
-
-clean-all:
-	@echo "Cleaning all LUCID resources..."
-	-docker compose -f deploy/docker-compose.yml down -v --rmi local
-	rm -rf bin/ frontend/dist/
-	@echo "Done."
 
 # ============== Demo (One-Command Start) ==============
 demo-up:
@@ -97,7 +112,7 @@ dev:
 	docker compose -f deploy/docker-compose.yml up
 
 dev-build:
-	docker compose -f deploy/docker-compose.yml up --build
+	docker compose -f deploy/docker-compose.yml up --build --no-cache
 
 backend-dev:
 	cd backend && go run ./server -config configs/system.yaml
@@ -152,7 +167,7 @@ build: build-backend build-frontend
 
 # ============== Docker ==============
 docker-build:
-	docker compose -f deploy/docker-compose.yml build
+	docker compose -f deploy/docker-compose.yml build --no-cache
 
 docker-up: up
 
@@ -160,8 +175,7 @@ docker-down: down
 
 docker-logs: logs
 
-docker-clean:
-	docker compose -f deploy/docker-compose.yml down -v --rmi local
+docker-clean: clean-build
 
 # ============== Test ==============
 test-backend:
@@ -182,40 +196,34 @@ clean:
 help:
 	@echo "LUCID - Lakebase-Unified Context-aware Intelligence for Data"
 	@echo ""
-	@echo "Idempotent Commands:"
-	@echo "  make all            - Clean, build, and start everything"
-	@echo "  make clean-all      - Remove all containers, volumes, images"
-	@echo "  make rebuild-all    - Rebuild and restart all services (quick)"
-	@echo ""
-	@echo "Demo (Recommended for first-time users):"
-	@echo "  make demo-up        - Start complete demo system (one command)"
-	@echo "  make demo-down      - Stop and clean demo"
-	@echo "  make demo-reset     - Reset demo data"
-	@echo "  make demo-logs      - View logs"
+	@echo "Primary Commands:"
+	@echo "  make               - Build/rebuild (idempotent, preserves data)"
+	@echo "  make rebuild       - Same as above"
+	@echo "  make clean-build   - Clean ALL (data + cache) and rebuild fresh"
 	@echo ""
 	@echo "Quick Start:"
-	@echo "  make up             - Start all services"
-	@echo "  make down           - Stop all services"
-	@echo "  make logs           - View service logs"
+	@echo "  make up            - Start all services"
+	@echo "  make down          - Stop all services"
+	@echo "  make logs          - View service logs"
 	@echo ""
 	@echo "Development:"
-	@echo "  make dev            - Start with Docker (foreground)"
-	@echo "  make backend-dev    - Run Go backend locally"
-	@echo "  make frontend-dev   - Run Vue frontend locally"
+	@echo "  make dev           - Start with Docker (foreground)"
+	@echo "  make backend-dev   - Run Go backend locally"
+	@echo "  make frontend-dev  - Run Vue frontend locally"
 	@echo ""
 	@echo "Database:"
-	@echo "  make db-up          - Start database container"
-	@echo "  make db-login       - Connect to Lake-Base (lucid)"
-	@echo "  make db-login-tvshow- Connect to demo database (spider_tvshow)"
-	@echo "  make db-check       - Show database status"
+	@echo "  make db-up         - Start database container"
+	@echo "  make db-login      - Connect to Lake-Base (lucid)"
+	@echo "  make db-login-tvshow - Connect to demo database"
+	@echo "  make db-check      - Show database status"
 	@echo ""
 	@echo "Build:"
-	@echo "  make build          - Build backend and frontend"
-	@echo "  make docker-build   - Build Docker images"
+	@echo "  make build         - Build backend and frontend locally"
+	@echo "  make docker-build  - Build Docker images"
 	@echo ""
 	@echo "Paper:"
-	@echo "  make paper          - Build PDF"
-	@echo "  make paper-watch    - Auto-rebuild on changes"
+	@echo "  make paper         - Build PDF"
+	@echo "  make paper-watch   - Auto-rebuild on changes"
 	@echo ""
 	@echo "Ports:"
 	@echo "  19000 - Frontend (Web UI)"

@@ -23,8 +23,8 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY frontend/ ./
 
-# Build for production
-RUN pnpm build
+# Clean any cached build artifacts and build for production
+RUN rm -rf node_modules/.tmp/ .vite-cache/ && pnpm build
 
 # ============================================================
 # Stage 2: Serve with nginx

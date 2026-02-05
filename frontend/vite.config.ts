@@ -13,6 +13,11 @@ export default defineConfig({
       '@': resolve(__dirname, 'src')
     }
   },
+  // Disable Vite cache to ensure fresh builds
+  cacheDir: '.vite-cache',
+  optimizeDeps: {
+    force: true  // Force re-optimization every time
+  },
   // Build output to web-new/dist (self-contained)
   build: {
     outDir: 'dist',

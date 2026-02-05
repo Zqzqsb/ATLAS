@@ -57,7 +57,7 @@ function goBack() {
 </script>
 
 <template>
-  <div class="workspace-page min-h-screen bg-gray-50">
+  <div class="workspace-page min-h-screen bg-gradient-to-br from-slate-100 via-gray-50 to-blue-50/50">
     <!-- Loading state -->
     <div v-if="workspaceStore.loadingSchema" class="flex items-center justify-center h-screen">
       <div class="text-center">
@@ -87,20 +87,20 @@ function goBack() {
 
     <!-- Workspace content -->
     <template v-else>
-      <!-- Database header -->
-      <div class="database-header bg-white border-b border-gray-200 px-8 py-6 sticky top-0 z-20">
+      <!-- Database header - modernized -->
+      <div class="database-header bg-gradient-to-r from-white via-white to-slate-50/80 border-b border-gray-200/80 px-8 py-5 sticky top-0 z-20 backdrop-blur-sm">
         <div class="max-w-[1800px] mx-auto">
-          <div class="flex items-center gap-6">
+          <div class="flex items-center gap-5">
             <button 
-              class="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center hover:bg-gray-200 hover:border-gray-300 transition-colors"
+              class="group w-11 h-11 rounded-xl bg-gradient-to-br from-gray-100 to-slate-200 flex items-center justify-center shadow-md hover:shadow-lg hover:from-primary-50 hover:to-blue-100 hover:-translate-y-0.5 transition-all duration-200"
               @click="goBack"
             >
-              <div class="i-carbon-arrow-left text-lg text-gray-600" />
+              <div class="i-carbon-arrow-left text-xl text-gray-600 group-hover:text-primary-600 transition-colors" />
             </button>
             
             <div class="flex items-center gap-4 flex-1">
-              <div class="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center border border-primary-100">
-                <div class="i-carbon-data-base text-2xl text-primary-600" />
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-blue-600 flex items-center justify-center shadow-lg shadow-primary-500/30">
+                <div class="i-carbon-data-base text-2xl text-white" />
               </div>
 
               <div>
@@ -108,20 +108,20 @@ function goBack() {
                   {{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}
                 </h1>
                 <div class="flex items-center gap-3 mt-1.5">
-                  <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wide">
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-gray-100 to-slate-200 text-gray-700 uppercase tracking-wide shadow-sm">
                     {{ workspaceStore.currentDatabase.type }}
                   </span>
-                  <span v-if="workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1">
-                    <div class="i-carbon-ibm-cloud-citrix-daas" />
+                  <span v-if="workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1.5">
+                    <div class="i-carbon-ibm-cloud-citrix-daas text-gray-400" />
                     {{ workspaceStore.currentDatabase.host }}
                   </span>
-                  <div class="w-1 h-1 rounded-full bg-gray-300"></div>
-                  <span class="text-sm font-medium text-gray-500">
+                  <div class="w-1.5 h-1.5 rounded-full bg-gray-300"></div>
+                  <span class="text-sm font-semibold text-gray-600">
                     {{ workspaceStore.currentDatabase.tableCount }} tables
                   </span>
                   <template v-if="workspaceStore.hasRichContext">
-                    <div class="w-1 h-1 rounded-full bg-gray-300"></div>
-                    <span class="text-sm font-bold text-primary-600 flex items-center gap-1">
+                    <div class="w-1.5 h-1.5 rounded-full bg-primary-400"></div>
+                    <span class="text-sm font-bold text-primary-600 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-50">
                       <div class="i-carbon-magic-wand" />
                       {{ workspaceStore.contexts.length }} contexts
                     </span>

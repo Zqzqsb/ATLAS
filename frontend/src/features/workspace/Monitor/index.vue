@@ -291,38 +291,21 @@ onMounted(async () => {
       
       <!-- Action buttons -->
       <div class="flex items-center gap-4 border-b border-gray-100 pb-8 mb-8">
-        <NButton 
-          type="primary" 
-          size="large" 
-          @click="runMaintenance" 
-          :disabled="!agentRunning"
-          class="!rounded-full shadow-lg shadow-primary-500/20 hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5 transition-all duration-300 font-bold"
-        >
+        <NButton type="primary" size="large" @click="runMaintenance" :disabled="!agentRunning">
           <template #icon>
             <div class="i-carbon-renew" />
           </template>
           Run Maintenance
         </NButton>
         
-        <NButton 
-          size="large" 
-          @click="refreshContext" 
-          :disabled="!agentRunning"
-          class="!rounded-full hover:-translate-y-0.5 transition-all duration-300 font-bold"
-        >
+        <NButton size="large" @click="refreshContext" :disabled="!agentRunning">
           <template #icon>
             <div class="i-carbon-reset" />
           </template>
           Refresh Expired Context
         </NButton>
         
-        <NButton 
-          type="warning" 
-          size="large" 
-          ghost 
-          @click="openDDLModal"
-          class="!rounded-full hover:-translate-y-0.5 transition-all duration-300 font-bold"
-        >
+        <NButton type="warning" size="large" ghost @click="openDDLModal">
           <template #icon>
             <div class="i-carbon-sql" />
           </template>
@@ -331,12 +314,7 @@ onMounted(async () => {
         
         <div class="flex-1"></div>
         
-        <NButton 
-          quaternary 
-          size="large" 
-          @click="fetchChangeLogs"
-          class="!rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700"
-        >
+        <NButton quaternary size="large" @click="fetchChangeLogs">
           <template #icon>
             <div class="i-carbon-refresh" />
           </template>

@@ -88,4 +88,54 @@ h3 { font-size: 1.25rem; line-height: 1.75rem; }
 
 .n-button {
   font-weight: 600 !important;
+  border-radius: 0.75rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.n-button--primary-type {
+  background: linear-gradient(135deg, #3b66f5 0%, #254adb 100%) !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(59, 102, 245, 0.3) !important;
+}
+
+.n-button--primary-type:hover:not(:disabled) {
+  background: linear-gradient(135deg, #254adb 0%, #1d3bbf 100%) !important;
+  box-shadow: 0 6px 20px rgba(59, 102, 245, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+.n-button--primary-type:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.n-button--secondary-type,
+.n-button--default-type {
+  border: 2px solid #e5e7eb !important;
+  background: white !important;
+}
+
+.n-button--secondary-type:hover:not(:disabled),
+.n-button--default-type:hover:not(:disabled) {
+  border-color: #d1d5db !important;
+  background: #f9fafb !important;
+}
+
+/* Form inputs */
+.n-input {
+  border-radius: 0.75rem !important;
+}
+
+.n-input:focus-within {
+  border-color: #3b66f5 !important;
+  box-shadow: 0 0 0 3px rgba(59, 102, 245, 0.15) !important;
+}
+
+.n-select .n-base-selection {
+  border-radius: 0.75rem !important;
+}
+
+/* Tags */
+.n-tag {
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
 }

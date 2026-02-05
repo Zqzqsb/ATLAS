@@ -238,7 +238,6 @@ async function handleGenerateComplete() {
           placeholder="搜索 Context..."
           clearable
           style="width: 240px"
-          round
         >
           <template #prefix>
             <div class="i-carbon-search text-gray-400" />
@@ -263,7 +262,7 @@ async function handleGenerateComplete() {
       </div>
 
       <div class="flex items-center gap-2">
-        <NButton round @click="workspaceStore.fetchContexts">
+        <NButton @click="workspaceStore.fetchContexts">
           <template #icon>
             <div class="i-carbon-refresh" />
           </template>
@@ -271,7 +270,6 @@ async function handleGenerateComplete() {
         </NButton>
         <NButton 
           type="info" 
-          round
           @click="openGenerateConsole"
         >
           <template #icon>
@@ -279,7 +277,7 @@ async function handleGenerateComplete() {
           </template>
           AI 自动生成
         </NButton>
-        <NButton type="primary" round class="shadow-md hover:shadow-lg transition-all" @click="openCreateDialog">
+        <NButton type="primary" @click="openCreateDialog">
           <template #icon>
             <div class="i-carbon-add" />
           </template>
@@ -300,7 +298,7 @@ async function handleGenerateComplete() {
       class="py-16"
     >
       <template #extra>
-        <NButton type="primary" round @click="openCreateDialog">
+        <NButton type="primary" @click="openCreateDialog">
           添加第一条 Context
         </NButton>
       </template>
@@ -310,15 +308,15 @@ async function handleGenerateComplete() {
     <div v-else class="context-tree">
       <!-- Expand/Collapse All -->
       <div class="flex gap-2 mb-4">
-        <NButton size="small" quaternary round @click="expandAll">
+        <NButton size="small" quaternary @click="expandAll">
           <template #icon><div class="i-carbon-expand-all" /></template>
           展开全部
         </NButton>
-        <NButton size="small" quaternary round @click="collapseAll">
+        <NButton size="small" quaternary @click="collapseAll">
           <template #icon><div class="i-carbon-collapse-all" /></template>
           折叠全部
         </NButton>
-        <span class="text-sm text-gray-500 ml-auto font-medium">
+        <span class="text-sm text-gray-500 ml-auto">
           {{ groupedContexts.length }} 个表，{{ filteredContexts.length }} 条 Context
         </span>
       </div>
@@ -331,34 +329,31 @@ async function handleGenerateComplete() {
       >
         <!-- Table Header -->
         <div 
-          class="table-header flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-200 shadow-sm cursor-pointer hover:border-primary-200 hover:shadow-md transition-all group"
+          class="table-header flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 cursor-pointer hover:from-blue-500/15 hover:to-cyan-500/15 transition-all"
           @click="toggleTable(group.tableName)"
         >
           <div 
             class="expand-icon transition-transform"
             :class="{ 'rotate-90': expandedTables.has(group.tableName) }"
           >
-            <div class="i-carbon-chevron-right text-gray-400 group-hover:text-primary-500" />
+            <div class="i-carbon-chevron-right text-blue-400" />
           </div>
           
-          <div class="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
-            <div class="i-carbon-data-table text-primary-600" />
-          </div>
+          <div class="i-carbon-data-table text-lg text-blue-400" />
           
-          <span class="font-bold text-gray-800 text-lg">{{ group.tableName }}</span>
+          <span class="font-semibold text-blue-300">{{ group.tableName }}</span>
           
-          <NTag size="small" :bordered="false" round class="ml-2 bg-gray-100 text-gray-600 font-bold">
+          <NTag size="small" :bordered="false" class="ml-2">
             {{ group.columnContexts.length + (group.tableContext ? 1 : 0) }} contexts
           </NTag>
 
-          <div class="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="ml-auto flex items-center gap-2">
             <NButton 
-              size="small" 
+              size="tiny" 
               quaternary 
-              circle
               @click.stop="openCreateDialogForTable(group.tableName)"
             >
-              <div class="i-carbon-add text-lg" />
+              <div class="i-carbon-add text-xs" />
             </NButton>
           </div>
         </div>
@@ -366,57 +361,57 @@ async function handleGenerateComplete() {
         <!-- Expanded Content -->
         <div 
           v-if="expandedTables.has(group.tableName)"
-          class="table-content ml-6 mt-3 pl-4 border-l-2 border-gray-100"
+          class="table-content ml-6 mt-2 border-l-2 border-blue-500/20 pl-4"
         >
           <!-- Table-level Context -->
           <div 
             v-if="group.tableContext" 
-            class="context-item p-4 mb-3 rounded-xl bg-amber-50 border border-amber-100 hover:shadow-sm transition-all"
+            class="context-item p-3 mb-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20"
           >
             <div class="flex items-center gap-2 mb-2">
-              <div class="i-carbon-document text-amber-500" />
-              <span class="text-sm font-bold text-amber-700">Table Description</span>
-              <NTag size="tiny" type="warning" round class="font-bold">{{ group.tableContext.type }}</NTag>
+              <div class="i-carbon-document text-yellow-400" />
+              <span class="text-sm font-medium text-yellow-300">Table Description</span>
+              <NTag size="tiny" type="warning">{{ group.tableContext.type }}</NTag>
               <div class="ml-auto flex gap-1">
-                <NButton size="tiny" quaternary circle @click="openEditDialog(group.tableContext!)">
-                  <div class="i-carbon-edit" />
+                <NButton size="tiny" quaternary @click="openEditDialog(group.tableContext!)">
+                  <div class="i-carbon-edit text-xs" />
                 </NButton>
-                <NButton size="tiny" quaternary type="error" circle @click="handleDelete(group.tableContext!)">
-                  <div class="i-carbon-trash-can" />
+                <NButton size="tiny" quaternary type="error" @click="handleDelete(group.tableContext!)">
+                  <div class="i-carbon-trash-can text-xs" />
                 </NButton>
               </div>
             </div>
-            <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ group.tableContext.content }}</p>
+            <p class="text-sm text-gray-300 leading-relaxed">{{ group.tableContext.content }}</p>
           </div>
 
           <!-- Column Contexts -->
           <div 
             v-for="colCtx in group.columnContexts" 
             :key="colCtx.id"
-            class="context-item p-4 mb-3 rounded-xl bg-white border border-gray-200 hover:border-primary-200 hover:shadow-sm transition-all"
+            class="context-item p-3 mb-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20"
           >
             <div class="flex items-center gap-2 mb-2">
-              <div class="i-carbon-column text-gray-400" />
-              <span class="text-sm font-bold text-gray-800">{{ colCtx.columnName }}</span>
-              <NTag size="tiny" type="success" round class="font-bold">{{ colCtx.type }}</NTag>
+              <div class="i-carbon-column text-emerald-400" />
+              <span class="text-sm font-medium text-emerald-300">{{ colCtx.columnName }}</span>
+              <NTag size="tiny" type="success">{{ colCtx.type }}</NTag>
               <div class="ml-auto flex gap-1">
-                <NButton size="tiny" quaternary circle @click="openEditDialog(colCtx)">
-                  <div class="i-carbon-edit" />
+                <NButton size="tiny" quaternary @click="openEditDialog(colCtx)">
+                  <div class="i-carbon-edit text-xs" />
                 </NButton>
-                <NButton size="tiny" quaternary type="error" circle @click="handleDelete(colCtx)">
-                  <div class="i-carbon-trash-can" />
+                <NButton size="tiny" quaternary type="error" @click="handleDelete(colCtx)">
+                  <div class="i-carbon-trash-can text-xs" />
                 </NButton>
               </div>
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed">{{ colCtx.content }}</p>
+            <p class="text-sm text-gray-300 leading-relaxed">{{ colCtx.content }}</p>
           </div>
 
           <!-- Empty columns hint -->
           <div 
             v-if="group.columnContexts.length === 0 && !group.tableContext"
-            class="text-sm text-gray-400 py-2 italic ml-2"
+            class="text-sm text-gray-500 py-2"
           >
-            No context defined for this table
+            暂无 Context
           </div>
         </div>
       </div>
@@ -428,7 +423,6 @@ async function handleGenerateComplete() {
       preset="card"
       :title="editingContext ? '编辑 Context' : '添加 Context'"
       style="width: 500px"
-      class="rounded-xl"
     >
       <NForm :model="editForm" label-placement="left" label-width="80">
         <NFormItem label="表名" required>
@@ -442,7 +436,6 @@ async function handleGenerateComplete() {
           <NInput
             v-model:value="editForm.columnName"
             placeholder="可选，不填则为表级 Context"
-            round
           />
         </NFormItem>
         <NFormItem label="类型" required>
@@ -457,15 +450,14 @@ async function handleGenerateComplete() {
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 6 }"
             placeholder="输入 Context 内容..."
-            class="rounded-lg"
           />
         </NFormItem>
       </NForm>
 
       <template #footer>
         <NSpace justify="end">
-          <NButton round @click="showEditDialog = false">取消</NButton>
-          <NButton type="primary" round @click="handleSave">保存</NButton>
+          <NButton @click="showEditDialog = false">取消</NButton>
+          <NButton type="primary" @click="handleSave">保存</NButton>
         </NSpace>
       </template>
     </NModal>

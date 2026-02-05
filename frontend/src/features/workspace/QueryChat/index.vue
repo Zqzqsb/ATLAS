@@ -247,7 +247,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <button
               v-for="example in exampleQuestions"
               :key="example"
-              class="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-all border border-gray-200 hover:border-primary-200 font-medium"
+              class="text-sm px-4 py-2 rounded-full bg-gradient-to-r from-gray-50 to-slate-100 text-gray-600 hover:from-primary-50 hover:to-blue-50 hover:text-primary-700 transition-all border border-gray-200 hover:border-primary-300 font-semibold hover:shadow-md hover:shadow-primary-100/50 hover:-translate-y-0.5"
               @click="useExample(example)"
             >
               {{ example }}
@@ -315,45 +315,36 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
       <!-- Action Buttons -->
       <div class="flex items-center gap-4 mt-8">
-        <NButton
-          type="primary"
-          size="large"
-          :loading="isExecuting"
-          :disabled="!question.trim()"
-          class="px-8 !rounded-full !font-bold !text-base shadow-lg shadow-primary-500/20 hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5 transition-all duration-300"
+        <button
+          :disabled="!question.trim() || isExecuting"
+          class="execute-btn flex items-center gap-3 px-8 py-3.5 rounded-xl text-white font-bold text-base transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          :class="isExecuting 
+            ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/30 animate-pulse' 
+            : 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700 shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 hover:-translate-y-0.5'"
           @click="handleExecute"
         >
-          <template #icon>
-            <div class="i-carbon-play-filled" />
-          </template>
-          Execute Query
-        </NButton>
+          <div v-if="isExecuting" class="i-carbon-circle-dash animate-spin text-lg" />
+          <div v-else class="i-carbon-play text-lg" />
+          {{ isExecuting ? 'Executing...' : 'Execute Query' }}
+        </button>
 
-        <NButton
+        <button
           v-if="isExecuting"
-          type="error"
-          size="large"
-          class="px-6 !rounded-full shadow-lg shadow-red-500/20"
+          class="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold text-base hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
           @click="handleStop"
         >
-          <template #icon>
-            <div class="i-carbon-stop-filled" />
-          </template>
+          <div class="i-carbon-stop text-lg" />
           Stop
-        </NButton>
+        </button>
 
-        <NButton
-          quaternary
-          size="large"
+        <button
           :disabled="isExecuting"
-          class="px-6 !rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+          class="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white text-gray-700 font-bold text-base border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 shadow-sm hover:shadow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           @click="handleClear"
         >
-          <template #icon>
-            <div class="i-carbon-clean" />
-          </template>
+          <div class="i-carbon-clean text-lg" />
           Clear
-        </NButton>
+        </button>
       </div>
     </div>
 

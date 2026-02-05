@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NTabs, NTab, NSpin, NEmpty, NButton } from 'naive-ui'
+import { NSpin, NEmpty, NButton } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatabaseStore } from '@/stores/database'
 import type { WorkspaceTab } from '@/types'
@@ -91,9 +91,12 @@ function goBack() {
       <div class="database-header bg-white border-b border-gray-200 px-8 py-6 sticky top-0 z-20">
         <div class="max-w-[1800px] mx-auto">
           <div class="flex items-center gap-6">
-            <NButton quaternary circle size="large" @click="goBack">
-              <div class="i-carbon-arrow-left text-2xl text-gray-400 hover:text-gray-700 transition-colors" />
-            </NButton>
+            <button 
+              class="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-slate-100 border border-gray-200 flex items-center justify-center hover:from-primary-50 hover:to-blue-100 hover:border-primary-200 hover:shadow-md transition-all duration-300 group"
+              @click="goBack"
+            >
+              <div class="i-carbon-arrow-left text-xl text-gray-400 group-hover:text-primary-600 transition-colors" />
+            </button>
             
             <div class="flex items-center gap-5 flex-1">
               <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-primary-50 to-blue-100 flex items-center justify-center border border-blue-100 shadow-sm">
@@ -131,25 +134,22 @@ function goBack() {
       </div>
 
       <!-- Tab navigation -->
-      <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
-        <div class="max-w-[1800px] mx-auto">
-          <NTabs
-            :value="workspaceStore.activeTab"
-            type="line"
-            animated
-            @update:value="handleTabChange"
-          >
-            <NTab
+      <div class="tab-navigation bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-gray-200 px-8 sticky top-[105px] z-10">
+        <div class="max-w-[1800px] mx-auto py-2">
+          <div class="flex gap-2">
+            <button
               v-for="tab in tabs"
               :key="tab.key"
-              :name="tab.key"
+              class="tab-btn flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-300"
+              :class="workspaceStore.activeTab === tab.key 
+                ? 'bg-gradient-to-r from-primary-500 to-blue-600 text-white shadow-lg shadow-primary-500/30' 
+                : 'text-gray-500 hover:text-gray-900 hover:bg-white hover:shadow-md'"
+              @click="handleTabChange(tab.key)"
             >
-              <div class="flex items-center gap-2 px-2 py-3">
-                <div :class="[tab.icon, 'text-lg']" />
-                <span class="font-bold text-sm">{{ tab.label }}</span>
-              </div>
-            </NTab>
-          </NTabs>
+              <div :class="[tab.icon, 'text-lg']" />
+              <span>{{ tab.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -169,25 +169,8 @@ function goBack() {
   min-height: calc(100vh - 200px);
 }
 
-.tab-navigation :deep(.n-tabs-nav) {
-  background: transparent;
-}
-
-.tab-navigation :deep(.n-tabs-tab) {
-  color: #6b7280; /* Gray 500 */
-}
-
-.tab-navigation :deep(.n-tabs-tab:hover) {
-  color: #374151; /* Gray 700 */
-}
-
-.tab-navigation :deep(.n-tabs-tab--active) {
-  color: #2563eb; /* Blue 600 */
-}
-
-.tab-navigation :deep(.n-tabs-bar) {
-  background: #2563eb; /* Blue 600 */
-  height: 3px;
-  border-radius: 3px 3px 0 0;
+.tab-btn {
+  min-width: 100px;
+  justify-content: center;
 }
 </style>

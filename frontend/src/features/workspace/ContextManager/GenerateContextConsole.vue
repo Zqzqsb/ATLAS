@@ -133,10 +133,10 @@ function getStatusIcon(status: string): string {
 
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'running': return 'text-blue-400'
-    case 'success': return 'text-green-400'
-    case 'error': return 'text-red-400'
-    default: return 'text-gray-500'
+    case 'running': return 'text-blue-600'
+    case 'success': return 'text-green-600'
+    case 'error': return 'text-red-600'
+    default: return 'text-gray-400'
   }
 }
 
@@ -349,7 +349,7 @@ onUnmounted(() => {
       <div v-if="!isRunning && !isComplete" class="config-section mb-6">
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label class="text-sm text-gray-400 mb-2 block">Worker Concurrency</label>
+            <label class="text-sm font-bold text-gray-700 mb-2 block">Worker Concurrency</label>
             <NInputNumber
               v-model:value="concurrency"
               :min="1"
@@ -360,14 +360,14 @@ onUnmounted(() => {
           <div class="flex items-end">
             <div class="flex items-center gap-2">
               <NSwitch v-model:value="forceRegenerate" size="small" />
-              <span class="text-sm text-gray-300">Force Regenerate</span>
+              <span class="text-sm font-medium text-gray-600">Force Regenerate</span>
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="text-sm text-gray-400 mb-2 block">Min Iterations</label>
+            <label class="text-sm font-bold text-gray-700 mb-2 block">Min Iterations</label>
             <NInputNumber
               v-model:value="minIterations"
               :min="1"
@@ -376,7 +376,7 @@ onUnmounted(() => {
             />
           </div>
           <div>
-            <label class="text-sm text-gray-400 mb-2 block">Max Iterations</label>
+            <label class="text-sm font-bold text-gray-700 mb-2 block">Max Iterations</label>
             <NInputNumber
               v-model:value="maxIterations"
               :min="1"
@@ -392,7 +392,7 @@ onUnmounted(() => {
         <NButton
           type="primary"
           size="large"
-          class="mt-4 w-full"
+          class="mt-4 w-full !rounded-full font-bold shadow-lg shadow-primary-500/20 hover:shadow-xl hover:-translate-y-0.5 transition-all"
           @click="startGeneration"
         >
           <template #icon>
@@ -406,22 +406,22 @@ onUnmounted(() => {
       <div v-else>
         <!-- Agent Status Cards -->
         <div class="agent-status-section mb-4">
-          <h4 class="text-sm text-gray-400 mb-3">Agent Status</h4>
+          <h4 class="text-sm font-bold text-gray-700 mb-3">Agent Status</h4>
           
           <!-- Coordinator -->
-          <div class="agent-card coordinator mb-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+          <div class="agent-card coordinator mb-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
                 <span class="text-lg">🎯</span>
-                <span class="font-medium text-yellow-300">Coordinator</span>
+                <span class="font-bold text-amber-700">Coordinator</span>
               </div>
-              <span :class="['text-sm', getStatusColor(coordinatorState.status)]">
+              <span :class="['text-sm font-bold', getStatusColor(coordinatorState.status)]">
                 {{ getStatusIcon(coordinatorState.status) }} {{ coordinatorState.status }}
               </span>
             </div>
             <NProgress
               :percentage="coordinatorState.progress"
-              :color="coordinatorState.status === 'success' ? '#22c55e' : '#eab308'"
+              :color="coordinatorState.status === 'success' ? '#22c55e' : '#f59e0b'"
               :height="6"
             />
           </div>
@@ -431,48 +431,48 @@ onUnmounted(() => {
             <div
               v-for="[id, state] in workerStates"
               :key="id"
-              class="worker-card p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30"
+              class="worker-card p-2 rounded-lg bg-blue-50 border border-blue-100"
             >
               <div class="flex items-center justify-between mb-1">
-                <span class="text-xs text-cyan-300 truncate">{{ state.table || id }}</span>
-                <span :class="['text-xs', getStatusColor(state.status)]">
+                <span class="text-xs font-bold text-blue-700 truncate">{{ state.table || id }}</span>
+                <span :class="['text-xs font-bold', getStatusColor(state.status)]">
                   {{ getStatusIcon(state.status) }}
                 </span>
               </div>
               <NProgress
                 :percentage="state.progress"
-                :color="state.status === 'success' ? '#22c55e' : '#06b6d4'"
+                :color="state.status === 'success' ? '#22c55e' : '#3b82f6'"
                 :height="4"
               />
-              <div class="text-xs text-gray-500 mt-1 truncate">{{ state.phase }}</div>
+              <div class="text-xs text-gray-500 mt-1 truncate font-medium">{{ state.phase }}</div>
             </div>
           </div>
         </div>
 
         <!-- Storage Stats -->
-        <div class="storage-section mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-          <h4 class="text-sm text-emerald-300 mb-2 flex items-center gap-2">
+        <div class="storage-section mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+          <h4 class="text-sm font-bold text-emerald-700 mb-2 flex items-center gap-2">
             <span>💾</span> Storage Activity
           </h4>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <div class="text-xs text-gray-400 mb-1">rc_tables</div>
+              <div class="text-xs font-medium text-gray-500 mb-1">rc_tables</div>
               <NProgress
                 :percentage="storageStats.tablesTotal ? (storageStats.tablesUpdated / storageStats.tablesTotal) * 100 : 0"
                 color="#10b981"
                 :height="8"
               >
-                <span class="text-xs">{{ storageStats.tablesUpdated }}/{{ storageStats.tablesTotal }}</span>
+                <span class="text-xs font-bold">{{ storageStats.tablesUpdated }}/{{ storageStats.tablesTotal }}</span>
               </NProgress>
             </div>
             <div>
-              <div class="text-xs text-gray-400 mb-1">rc_columns</div>
+              <div class="text-xs font-medium text-gray-500 mb-1">rc_columns</div>
               <NProgress
                 :percentage="storageStats.columnsTotal ? (storageStats.columnsUpdated / storageStats.columnsTotal) * 100 : 0"
                 color="#10b981"
                 :height="8"
               >
-                <span class="text-xs">{{ storageStats.columnsUpdated }}/{{ storageStats.columnsTotal }}</span>
+                <span class="text-xs font-bold">{{ storageStats.columnsUpdated }}/{{ storageStats.columnsTotal }}</span>
               </NProgress>
             </div>
           </div>
@@ -480,17 +480,17 @@ onUnmounted(() => {
 
         <!-- Console Output -->
         <div class="console-section">
-          <h4 class="text-sm text-gray-400 mb-2 flex items-center gap-2">
+          <h4 class="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
             <span>📋</span> Console Output
           </h4>
-          <div class="console-log-area h-48 overflow-y-auto bg-gray-900/80 rounded-lg p-3 font-mono text-xs">
+          <div class="console-log-area h-48 overflow-y-auto bg-gray-900 rounded-lg p-3 font-mono text-xs shadow-inner">
             <div
               v-for="log in logs"
               :key="log.id"
               class="log-entry py-0.5"
             >
               <span class="text-gray-500">[{{ log.timestamp }}]</span>
-              <span :class="['ml-2', getAgentColor(log.agent)]">{{ getAgentIcon(log.agent) }}</span>
+              <span :class="['ml-2 font-bold', getAgentColor(log.agent)]">{{ getAgentIcon(log.agent) }}</span>
               <span :class="['ml-1', getLogColor(log.type)]">{{ log.message }}</span>
             </div>
             <div v-if="isRunning" class="cursor-blink inline-block w-2 h-4 bg-cyan-400 ml-1 animate-pulse" />
@@ -498,7 +498,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Footer Stats -->
-        <div class="footer-stats mt-4 flex items-center justify-between text-sm text-gray-400">
+        <div class="footer-stats mt-4 flex items-center justify-between text-sm font-medium text-gray-500">
           <span>⏱️ Elapsed: {{ formattedElapsed }}</span>
           <span>📊 Tables: {{ storageStats.tablesUpdated }}/{{ storageStats.tablesTotal }}</span>
           <span>📝 Columns: {{ storageStats.columnsUpdated }}/{{ storageStats.columnsTotal }}</span>
@@ -508,10 +508,10 @@ onUnmounted(() => {
 
     <template #footer>
       <div class="flex justify-end gap-2">
-        <NButton v-if="isRunning" type="error" @click="handleClose">
+        <NButton v-if="isRunning" type="error" round @click="handleClose">
           Cancel
         </NButton>
-        <NButton v-else @click="handleClose">
+        <NButton v-else round @click="handleClose">
           Close
         </NButton>
       </div>
@@ -520,11 +520,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.generate-console-modal :deep(.n-card) {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
-  border: 1px solid rgba(100, 116, 139, 0.3);
-}
-
 .console-log-area::-webkit-scrollbar {
   width: 6px;
 }

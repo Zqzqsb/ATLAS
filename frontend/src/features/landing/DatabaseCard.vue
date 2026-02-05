@@ -62,10 +62,13 @@ function handleEnter() {
 
 <template>
   <div 
-    class="database-card group relative overflow-hidden rounded-xl cursor-pointer bg-white border border-gray-200 shadow-sm hover:shadow-lg hover:border-primary-200 hover:-translate-y-1 transition-all duration-300"
+    class="database-card group relative overflow-hidden rounded-xl cursor-pointer bg-gradient-to-br from-white to-gray-50/50 border border-gray-200 shadow-sm hover:shadow-xl hover:border-primary-200 hover:-translate-y-1 transition-all duration-300"
     :class="{ 'opacity-75 grayscale': database.status !== 'connected' }"
     @click="handleEnter"
   >
+    <!-- Top accent line -->
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent group-hover:via-primary-400 transition-colors opacity-50" />
+    
     <!-- Content -->
     <div class="p-6 flex flex-col h-full">
       <!-- Header with status -->
@@ -139,8 +142,10 @@ function handleEnter() {
           </span>
         </div>
         
-        <div v-if="database.status === 'connected'" class="text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center text-sm font-bold gap-1">
-          Open Workspace <div class="i-carbon-arrow-right" />
+        <div v-if="database.status === 'connected'" class="opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+          <NButton size="small" type="primary" secondary round class="!font-bold !text-xs">
+            Open Workspace <div class="i-carbon-arrow-right ml-1" />
+          </NButton>
         </div>
       </div>
     </div>

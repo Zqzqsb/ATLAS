@@ -320,11 +320,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           size="large"
           :loading="isExecuting"
           :disabled="!question.trim()"
-          class="px-8"
+          class="px-8 !rounded-full !font-bold !text-base shadow-lg shadow-primary-500/20 hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5 transition-all duration-300"
           @click="handleExecute"
         >
           <template #icon>
-            <div class="i-carbon-play" />
+            <div class="i-carbon-play-filled" />
           </template>
           Execute Query
         </NButton>
@@ -333,10 +333,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           v-if="isExecuting"
           type="error"
           size="large"
+          class="px-6 !rounded-full shadow-lg shadow-red-500/20"
           @click="handleStop"
         >
           <template #icon>
-            <div class="i-carbon-stop" />
+            <div class="i-carbon-stop-filled" />
           </template>
           Stop
         </NButton>
@@ -345,6 +346,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           quaternary
           size="large"
           :disabled="isExecuting"
+          class="px-6 !rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700"
           @click="handleClear"
         >
           <template #icon>

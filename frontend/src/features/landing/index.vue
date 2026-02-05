@@ -78,11 +78,11 @@ async function handleAddDatabase(config: DatabaseConfig) {
             <NButton 
               type="primary" 
               size="large"
-              class="shadow-sm font-bold"
+              class="shadow-lg shadow-primary-500/30 !rounded-full !font-bold px-6 hover:-translate-y-0.5 transition-transform"
               @click="showAddDialog = true"
             >
               <template #icon>
-                <div class="i-carbon-add" />
+                <div class="i-carbon-add text-lg" />
               </template>
               Connect Database
             </NButton>
@@ -126,13 +126,14 @@ async function handleAddDatabase(config: DatabaseConfig) {
 
             <!-- Add new card -->
             <div
-              class="h-[280px] rounded-xl bg-gray-50 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-white transition-all duration-300 group"
+              class="h-[280px] rounded-xl bg-gray-50/50 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/10 hover:shadow-lg transition-all duration-300 group relative overflow-hidden"
               @click="showAddDialog = true"
             >
-              <div class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-4 border border-gray-200 shadow-sm group-hover:scale-110 transition-transform duration-300">
+              <div class="absolute inset-0 bg-gradient-to-br from-transparent to-gray-100/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div class="relative z-10 w-16 h-16 rounded-full bg-white flex items-center justify-center mb-4 border border-gray-200 shadow-sm group-hover:scale-110 group-hover:shadow-md group-hover:border-primary-200 transition-all duration-300">
                 <div class="i-carbon-add text-3xl text-gray-400 group-hover:text-primary-600 transition-colors" />
               </div>
-              <p class="text-gray-500 font-bold group-hover:text-primary-600 transition-colors">Add New Database</p>
+              <p class="relative z-10 text-gray-500 font-bold group-hover:text-primary-600 transition-colors text-lg">Add New Database</p>
             </div>
           </div>
         </div>

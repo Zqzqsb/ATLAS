@@ -232,35 +232,33 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </div>
 
-        <!-- Example questions -->
-        <div v-if="showExamples" class="mt-4 space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Example Questions (Spider Benchmark)</span>
-            <button
-              class="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
-              @click="showExamples = false"
-            >
-              Hide Examples
-            </button>
-          </div>
-          <div class="flex flex-wrap gap-2">
+        <!-- Example questions - Collapsible -->
+        <div class="mt-4">
+          <button
+            class="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors group"
+            @click="showExamples = !showExamples"
+          >
+            <div 
+              class="i-carbon-chevron-right text-base transition-transform duration-200"
+              :class="{ 'rotate-90': showExamples }"
+            />
+            <span class="font-medium">Example Questions</span>
+            <span class="text-xs text-gray-400">(Spider Benchmark)</span>
+          </button>
+          
+          <div 
+            v-if="showExamples" 
+            class="mt-3 pl-6 flex flex-wrap gap-2"
+          >
             <button
               v-for="example in exampleQuestions"
               :key="example"
-              class="text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-600 hover:bg-primary-50 hover:text-primary-700 transition-colors border border-gray-200 hover:border-primary-300 font-medium"
+              class="text-sm px-3 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors font-medium"
               @click="useExample(example)"
             >
               {{ example }}
             </button>
           </div>
-        </div>
-        <div v-else class="mt-3">
-          <button
-            class="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
-            @click="showExamples = true"
-          >
-            Show Examples
-          </button>
         </div>
       </div>
 

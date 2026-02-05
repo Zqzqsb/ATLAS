@@ -133,26 +133,21 @@ function goBack() {
         </div>
       </div>
 
-      <!-- Tab navigation -->
+      <!-- Tab navigation - Segmented Control Style -->
       <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
-        <div class="max-w-[1800px] mx-auto">
-          <div class="flex">
+        <div class="max-w-[1800px] mx-auto py-3">
+          <div class="inline-flex p-1 bg-gray-100 rounded-lg">
             <button
               v-for="tab in tabs"
               :key="tab.key"
-              class="tab-btn relative flex items-center gap-2 px-6 py-4 font-semibold text-sm transition-colors"
+              class="relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
               :class="workspaceStore.activeTab === tab.key 
-                ? 'text-primary-600' 
-                : 'text-gray-500 hover:text-gray-900'"
+                ? 'bg-white text-gray-900 shadow-sm' 
+                : 'text-gray-600 hover:text-gray-900'"
               @click="handleTabChange(tab.key)"
             >
-              <div :class="[tab.icon, 'text-lg']" />
+              <div :class="[tab.icon, 'text-base']" />
               <span>{{ tab.label }}</span>
-              <!-- Active indicator -->
-              <div 
-                v-if="workspaceStore.activeTab === tab.key"
-                class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"
-              />
             </button>
           </div>
         </div>
@@ -172,9 +167,5 @@ function goBack() {
 <style scoped>
 .workspace-content {
   min-height: calc(100vh - 200px);
-}
-
-.tab-btn:hover {
-  background-color: #f9fafb;
 }
 </style>

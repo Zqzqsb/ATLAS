@@ -134,6 +134,9 @@ function transformDatasource(ds: any): Database {
   }
 }
 
+// Check if running in development mode for verbose logging
+const isDev = import.meta.env.DEV
+
 export const databaseApi = {
   /**
    * Get all connected databases from lakebase
@@ -148,8 +151,11 @@ export const databaseApi = {
       // Fallback to legacy databases API
       const legacyResponse = await client.get<Database[]>('/databases')
       return legacyResponse.data
-    } catch {
-      // Return mock data for demo
+    } catch (error) {
+      // Return mock data for demo (with dev warning)
+      if (isDev) {
+        console.warn('[API] database.list failed, using mock data:', error)
+      }
       return mockDatabases
     }
   },
@@ -161,7 +167,10 @@ export const databaseApi = {
     try {
       const response = await client.get<Database>(`/databases/${id}`)
       return response.data
-    } catch {
+    } catch (error) {
+      if (isDev) {
+        console.warn(`[API] database.get(${id}) failed, using mock data:`, error)
+      }
       return mockDatabases.find(db => db.id === id) || null
     }
   },
@@ -188,8 +197,11 @@ export const databaseApi = {
     try {
       const response = await client.post<{ success: boolean; message?: string }>(`/databases/${id}/test`)
       return response.data
-    } catch {
-      // Mock response
+    } catch (error) {
+      // Mock response (with dev warning)
+      if (isDev) {
+        console.warn(`[API] database.testConnection(${id}) failed, using mock:`, error)
+      }
       const db = mockDatabases.find(d => d.id === id)
       return {
         success: db?.status === 'connected',
@@ -205,8 +217,11 @@ export const databaseApi = {
     try {
       const response = await client.get<SchemaInfo>(`/databases/${id}/schema`)
       return response.data
-    } catch {
-      // Return mock schema
+    } catch (error) {
+      // Return mock schema (with dev warning)
+      if (isDev) {
+        console.warn(`[API] database.getSchema(${id}) failed, using mock:`, error)
+      }
       if (id === 'ecommerce') {
         return mockEcommerceSchema
       }
@@ -238,7 +253,10 @@ export const databaseApi = {
     try {
       const response = await client.get(`/databases/${id}/stats`)
       return response.data
-    } catch {
+    } catch (error) {
+      if (isDev) {
+        console.warn(`[API] database.getStats(${id}) failed, using mock:`, error)
+      }
       return {
         queryCount: 156,
         avgDuration: 1.2,

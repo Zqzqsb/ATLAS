@@ -137,7 +137,93 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
 COMMENT='Vector embeddings for semantic search';
 
 -- ============================================================
--- 7. Change Log (audit trail for self-maintaining agent)
+-- 7. Business Context (unified table/column context)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rc_business_context (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    datasource_id INT NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    column_name VARCHAR(255) NULL COMMENT 'NULL for table-level context',
+    context_type ENUM('description', 'example', 'constraint', 'synonym', 'value_mapping', 'business_rule', 'calculation') NOT NULL DEFAULT 'description',
+    content TEXT NOT NULL COMMENT 'The actual context content',
+    source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
+    confidence DECIMAL(3,2) DEFAULT 0.80 COMMENT 'Confidence score 0-1',
+    is_expired TINYINT(1) DEFAULT 0 COMMENT 'Whether context needs refresh',
+    expires_at TIMESTAMP NULL DEFAULT NULL,
+    version INT DEFAULT 1 COMMENT 'Version number for tracking updates',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) DEFAULT 'system',
+    updated_by VARCHAR(100) DEFAULT 'system',
+    update_reason TEXT COMMENT 'Reason for last update',
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    INDEX idx_table (datasource_id, table_name),
+    INDEX idx_column (datasource_id, table_name, column_name),
+    INDEX idx_type (context_type),
+    INDEX idx_expired (is_expired)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Unified business context for tables and columns';
+
+-- ============================================================
+-- 8. Schema Metadata (detailed table/column schema information)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rc_schema_metadata (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    datasource_id INT NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    column_name VARCHAR(255) NULL,
+    data_type VARCHAR(100),
+    is_nullable TINYINT(1) DEFAULT 1,
+    is_primary_key TINYINT(1) DEFAULT 0,
+    is_foreign_key TINYINT(1) DEFAULT 0,
+    foreign_key_ref VARCHAR(500),
+    default_value TEXT,
+    extra VARCHAR(255),
+    ordinal_position INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    INDEX idx_table (datasource_id, table_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Detailed schema metadata for tables and columns';
+
+-- ============================================================
+-- 9. Statistics (column statistics for query optimization)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rc_statistics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    datasource_id INT NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    column_name VARCHAR(255),
+    stat_type VARCHAR(50) NOT NULL,
+    stat_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    INDEX idx_table (datasource_id, table_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Column statistics for intelligent query optimization';
+
+-- ============================================================
+-- 10. Join Paths (pre-computed join paths between tables)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rc_join_paths (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    datasource_id INT NOT NULL,
+    from_table VARCHAR(255) NOT NULL,
+    to_table VARCHAR(255) NOT NULL,
+    join_columns TEXT NOT NULL,
+    join_type VARCHAR(50) DEFAULT 'INNER',
+    path_cost DECIMAL(5,2) DEFAULT 1.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    INDEX idx_from (datasource_id, from_table),
+    INDEX idx_to (datasource_id, to_table)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Pre-computed join paths for multi-table queries';
+
+-- ============================================================
+-- 11. Change Log (audit trail for self-maintaining agent)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_change_log (
     id INT AUTO_INCREMENT PRIMARY KEY,

@@ -325,93 +325,100 @@ async function handleGenerateComplete() {
       <div 
         v-for="group in groupedContexts" 
         :key="group.tableName"
-        class="table-group mb-4"
+        class="table-group mb-3"
       >
-        <!-- Table Header -->
+        <!-- Table Header - Modern Collapsible -->
         <div 
-          class="table-header flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 cursor-pointer hover:from-blue-500/15 hover:to-cyan-500/15 transition-all"
+          class="table-header flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 cursor-pointer hover:bg-gray-50 transition-all"
+          :class="expandedTables.has(group.tableName) ? 'rounded-t-lg border-b-0' : 'rounded-lg'"
           @click="toggleTable(group.tableName)"
         >
-          <div 
-            class="expand-icon transition-transform"
-            :class="{ 'rotate-90': expandedTables.has(group.tableName) }"
-          >
-            <div class="i-carbon-chevron-right text-blue-400" />
+          <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <div class="i-carbon-data-table text-lg text-blue-600" />
           </div>
           
-          <div class="i-carbon-data-table text-lg text-blue-400" />
+          <span class="font-semibold text-gray-900">{{ group.tableName }}</span>
           
-          <span class="font-semibold text-blue-300">{{ group.tableName }}</span>
-          
-          <NTag size="small" :bordered="false" class="ml-2">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
             {{ group.columnContexts.length + (group.tableContext ? 1 : 0) }} contexts
-          </NTag>
+          </span>
 
-          <div class="ml-auto flex items-center gap-2">
-            <NButton 
-              size="tiny" 
-              quaternary 
+          <div class="ml-auto flex items-center gap-3">
+            <button 
+              class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
               @click.stop="openCreateDialogForTable(group.tableName)"
             >
-              <div class="i-carbon-add text-xs" />
-            </NButton>
+              <div class="i-carbon-add text-sm text-gray-600" />
+            </button>
+            
+            <!-- Modern expand/collapse indicator -->
+            <div 
+              class="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center transition-transform duration-200"
+              :class="{ 'rotate-180': expandedTables.has(group.tableName) }"
+            >
+              <div class="i-carbon-chevron-down text-sm text-gray-500" />
+            </div>
           </div>
         </div>
 
-        <!-- Expanded Content -->
+        <!-- Expanded Content - Modern Panel -->
         <div 
           v-if="expandedTables.has(group.tableName)"
-          class="table-content ml-6 mt-2 border-l-2 border-blue-500/20 pl-4"
+          class="table-content bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg p-4"
         >
           <!-- Table-level Context -->
           <div 
             v-if="group.tableContext" 
-            class="context-item p-3 mb-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20"
+            class="context-item p-4 mb-3 rounded-lg bg-white border border-amber-200"
           >
             <div class="flex items-center gap-2 mb-2">
-              <div class="i-carbon-document text-yellow-400" />
-              <span class="text-sm font-medium text-yellow-300">Table Description</span>
-              <NTag size="tiny" type="warning">{{ group.tableContext.type }}</NTag>
+              <div class="w-6 h-6 rounded bg-amber-100 flex items-center justify-center">
+                <div class="i-carbon-document text-amber-600 text-sm" />
+              </div>
+              <span class="text-sm font-semibold text-gray-900">Table Description</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">{{ group.tableContext.type }}</span>
               <div class="ml-auto flex gap-1">
-                <NButton size="tiny" quaternary @click="openEditDialog(group.tableContext!)">
-                  <div class="i-carbon-edit text-xs" />
-                </NButton>
-                <NButton size="tiny" quaternary type="error" @click="handleDelete(group.tableContext!)">
-                  <div class="i-carbon-trash-can text-xs" />
-                </NButton>
+                <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(group.tableContext!)">
+                  <div class="i-carbon-edit text-sm text-gray-500" />
+                </button>
+                <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(group.tableContext!)">
+                  <div class="i-carbon-trash-can text-sm text-red-500" />
+                </button>
               </div>
             </div>
-            <p class="text-sm text-gray-300 leading-relaxed">{{ group.tableContext.content }}</p>
+            <p class="text-sm text-gray-600 leading-relaxed">{{ group.tableContext.content }}</p>
           </div>
 
           <!-- Column Contexts -->
           <div 
             v-for="colCtx in group.columnContexts" 
             :key="colCtx.id"
-            class="context-item p-3 mb-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20"
+            class="context-item p-4 mb-3 rounded-lg bg-white border border-emerald-200"
           >
             <div class="flex items-center gap-2 mb-2">
-              <div class="i-carbon-column text-emerald-400" />
-              <span class="text-sm font-medium text-emerald-300">{{ colCtx.columnName }}</span>
-              <NTag size="tiny" type="success">{{ colCtx.type }}</NTag>
+              <div class="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center">
+                <div class="i-carbon-column text-emerald-600 text-sm" />
+              </div>
+              <span class="text-sm font-semibold text-gray-900">{{ colCtx.columnName }}</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">{{ colCtx.type }}</span>
               <div class="ml-auto flex gap-1">
-                <NButton size="tiny" quaternary @click="openEditDialog(colCtx)">
-                  <div class="i-carbon-edit text-xs" />
-                </NButton>
-                <NButton size="tiny" quaternary type="error" @click="handleDelete(colCtx)">
-                  <div class="i-carbon-trash-can text-xs" />
-                </NButton>
+                <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(colCtx)">
+                  <div class="i-carbon-edit text-sm text-gray-500" />
+                </button>
+                <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(colCtx)">
+                  <div class="i-carbon-trash-can text-sm text-red-500" />
+                </button>
               </div>
             </div>
-            <p class="text-sm text-gray-300 leading-relaxed">{{ colCtx.content }}</p>
+            <p class="text-sm text-gray-600 leading-relaxed">{{ colCtx.content }}</p>
           </div>
 
           <!-- Empty columns hint -->
           <div 
             v-if="group.columnContexts.length === 0 && !group.tableContext"
-            class="text-sm text-gray-500 py-2"
+            class="text-sm text-gray-400 py-4 text-center"
           >
-            暂无 Context
+            暂无 Context，点击上方 + 按钮添加
           </div>
         </div>
       </div>

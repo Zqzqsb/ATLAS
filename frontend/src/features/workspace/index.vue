@@ -138,6 +138,7 @@ function goBack() {
         <div class="max-w-[1800px] mx-auto">
           <NTabs 
             type="line"
+            size="large"
             :value="workspaceStore.activeTab"
             @update:value="handleTabChange"
           >
@@ -148,9 +149,9 @@ function goBack() {
               :tab="tab.label"
             >
               <template #tab>
-                <div class="flex items-center gap-2">
-                  <div :class="[tab.icon, 'text-base']" />
-                  <span>{{ tab.label }}</span>
+                <div class="flex items-center gap-2.5 py-1">
+                  <div :class="[tab.icon, 'text-lg']" />
+                  <span class="text-base font-medium">{{ tab.label }}</span>
                 </div>
               </template>
             </NTabPane>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { NButton, NInput, NInputNumber, NSwitch, NSelect, useMessage } from 'naive-ui'
+import { NButton, NInput, NInputNumber, NSwitch, NSelect, NCollapse, NCollapseItem, useMessage } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import QueryResult from './QueryResult.vue'
 import RealtimeCard from './RealtimeCard.vue'
@@ -10,7 +10,6 @@ const message = useMessage()
 
 // Query input
 const question = ref('')
-const showExamples = ref(true)
 
 // Use store's isQuerying for execution state
 const isExecuting = computed(() => workspaceStore.isQuerying)
@@ -233,32 +232,27 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
 
         <!-- Example questions - Collapsible -->
-        <div class="mt-4">
-          <button
-            class="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors group"
-            @click="showExamples = !showExamples"
-          >
-            <div 
-              class="i-carbon-chevron-right text-base transition-transform duration-200"
-              :class="{ 'rotate-90': showExamples }"
-            />
-            <span class="font-medium">Example Questions</span>
-            <span class="text-xs text-gray-400">(Spider Benchmark)</span>
-          </button>
-          
-          <div 
-            v-if="showExamples" 
-            class="mt-3 pl-6 flex flex-wrap gap-2"
-          >
-            <button
-              v-for="example in exampleQuestions"
-              :key="example"
-              class="text-sm px-3 py-1.5 rounded-md bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors font-medium"
-              @click="useExample(example)"
-            >
-              {{ example }}
-            </button>
-          </div>
+        <div class="mt-6 example-collapse">
+          <NCollapse :default-expanded-names="['examples']" arrow-placement="left">
+            <NCollapseItem name="examples">
+              <template #header>
+                <div class="flex items-center gap-2">
+                  <span class="text-base font-semibold text-gray-700">Example Questions</span>
+                  <span class="text-sm text-gray-400 font-medium">(Spider Benchmark)</span>
+                </div>
+              </template>
+              <div class="flex flex-wrap gap-3 pt-2">
+                <button
+                  v-for="example in exampleQuestions"
+                  :key="example"
+                  class="text-base px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-all font-medium border border-gray-200 hover:border-primary-200 hover:shadow-sm"
+                  @click="useExample(example)"
+                >
+                  {{ example }}
+                </button>
+              </div>
+            </NCollapseItem>
+          </NCollapse>
         </div>
       </div>
 
@@ -598,6 +592,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 .query-input :deep(.n-input__textarea-el) {
   font-size: 1.125rem;
   line-height: 1.75rem;
+}
+
+.example-collapse :deep(.n-collapse-item__header) {
+  padding: 12px 0;
+}
+
+.example-collapse :deep(.n-collapse-item__content-inner) {
+  padding-top: 8px;
 }
 
 .react-step {

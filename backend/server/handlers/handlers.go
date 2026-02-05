@@ -280,6 +280,18 @@ type GroundingInfo struct {
 	Columns         []GroundedColumnInfo `json:"columns"`
 	JoinPaths       []JoinPathInfo       `json:"join_paths,omitempty"`
 	ExecutionTimeMs int64                `json:"execution_time_ms"`
+	ExecutionLogs   []ExecutionLogInfo   `json:"execution_logs,omitempty"` // SQL execution transparency
+	Reasoning       string               `json:"reasoning,omitempty"`       // LLM reasoning for fine selection
+	Mode            string               `json:"mode,omitempty"`            // "sequential", "parallel", "coarse_only"
+}
+
+// ExecutionLogInfo represents SQL execution log for frontend transparency
+type ExecutionLogInfo struct {
+	Phase       string `json:"phase"`        // "vector_search", "fine_selection"
+	SQL         string `json:"sql"`          // SQL query executed
+	ResultCount int    `json:"result_count"` // Number of results
+	DurationMs  int64  `json:"duration_ms"`  // Execution time in milliseconds
+	Summary     string `json:"summary"`      // Human-readable summary
 }
 
 // GroundedTableInfo represents a grounded table in response
@@ -413,6 +425,7 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 
 	info := &GroundingInfo{
 		ExecutionTimeMs: result.TotalDuration.Milliseconds(),
+		Mode:            result.Mode,
 	}
 
 	// Convert tables
@@ -443,6 +456,22 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 			ToColumn:   rel.ToColumn,
 			Reason:     rel.Type,
 		})
+	}
+
+	// Convert execution logs for transparency
+	for _, log := range result.ExecutionLogs {
+		info.ExecutionLogs = append(info.ExecutionLogs, ExecutionLogInfo{
+			Phase:       log.Phase,
+			SQL:         log.SQL,
+			ResultCount: log.ResultCount,
+			DurationMs:  log.Duration.Milliseconds(),
+			Summary:     log.Summary,
+		})
+	}
+
+	// Add LLM reasoning if available
+	if result.Context.Reasoning != "" {
+		info.Reasoning = result.Context.Reasoning
 	}
 
 	return info

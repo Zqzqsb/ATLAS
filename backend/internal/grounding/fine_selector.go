@@ -82,6 +82,7 @@ func (s *FineSelector) Select(ctx context.Context, req *SelectionRequest) (*Sele
 	groundedCtx.GroundingTime = time.Since(start)
 	groundedCtx.SignalsProbed = len(req.Signals)
 	groundedCtx.SignalsSelected = len(groundedCtx.Tables) + len(groundedCtx.Columns)
+	groundedCtx.Reasoning = reasoning // Store reasoning in context for transparency
 
 	return &SelectionResult{
 		Context:      groundedCtx,

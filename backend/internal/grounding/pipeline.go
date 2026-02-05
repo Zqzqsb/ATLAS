@@ -56,6 +56,18 @@ type GroundingResult struct {
 	SelectionDuration time.Duration
 	TotalDuration     time.Duration
 	Mode              string // "sequential", "parallel", "coarse_only"
+	// Execution logs for transparency
+	ExecutionLogs     []ExecutionLog `json:"execution_logs,omitempty"`
+}
+
+// ExecutionLog represents a SQL execution record for transparency
+type ExecutionLog struct {
+	Phase       string        `json:"phase"`        // "vector_search", "fine_selection"
+	SQL         string        `json:"sql"`          // The SQL query executed
+	Params      []interface{} `json:"params"`       // Query parameters
+	ResultCount int           `json:"result_count"` // Number of results
+	Duration    time.Duration `json:"duration"`     // Execution time
+	Summary     string        `json:"summary"`      // Human-readable summary
 }
 
 // Ground performs the complete semantic grounding process
@@ -76,6 +88,7 @@ func (p *Pipeline) Ground(ctx context.Context, req *GroundingRequest) (*Groundin
 		CoarseSignals:  coarseResult.Signals,
 		CoarseDuration: coarseResult.Duration,
 		Mode:           "sequential",
+		ExecutionLogs:  coarseResult.ExecutionLogs, // Pass through execution logs
 	}
 
 	// If skip fine selection, return coarse results directly
@@ -124,13 +137,14 @@ func (p *Pipeline) GroundParallel(ctx context.Context, req *GroundingRequest) (<
 			return
 		}
 
-		// Emit coarse result immediately
+		// Emit coarse result immediately with execution logs
 		resultCh <- &GroundingResult{
 			Context:        p.signalsToContext(coarseResult.Signals, req.Query),
 			CoarseSignals:  coarseResult.Signals,
 			CoarseDuration: coarseResult.Duration,
 			TotalDuration:  time.Since(start),
 			Mode:           "parallel_coarse",
+			ExecutionLogs:  coarseResult.ExecutionLogs,
 		}
 
 		if req.SkipFineSelection {
@@ -153,6 +167,7 @@ func (p *Pipeline) GroundParallel(ctx context.Context, req *GroundingRequest) (<
 			SelectionDuration: selectResult.Duration,
 			TotalDuration:     time.Since(start),
 			Mode:              "parallel_fine",
+			ExecutionLogs:     coarseResult.ExecutionLogs,
 		}
 	}()
 

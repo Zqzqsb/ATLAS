@@ -40,10 +40,11 @@ type RetrievalRequest struct {
 
 // RetrievalResult represents the coarse retrieval result
 type RetrievalResult struct {
-	Signals      []*RetrievalSignal
-	TotalProbed  int
-	Duration     time.Duration
-	QueryVector  []float32
+	Signals       []*RetrievalSignal
+	TotalProbed   int
+	Duration      time.Duration
+	QueryVector   []float32
+	ExecutionLogs []ExecutionLog // Logs for transparency
 }
 
 // Retrieve performs speculative parallel retrieval across all signal types
@@ -69,7 +70,11 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 
 	// Speculative parallel retrieval
 	var wg sync.WaitGroup
-	resultCh := make(chan []*RetrievalSignal, len(signalTypes))
+	type retrievalResultWithLog struct {
+		signals []*RetrievalSignal
+		log     ExecutionLog
+	}
+	resultCh := make(chan retrievalResultWithLog, len(signalTypes))
 	errCh := make(chan error, len(signalTypes))
 
 	for _, st := range signalTypes {
@@ -77,12 +82,28 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		go func(signalType SignalType) {
 			defer wg.Done()
 			
+			searchStart := time.Now()
 			signals, err := r.retrieveByType(ctx, req.DatasourceID, signalType, queryVector)
+			searchDuration := time.Since(searchStart)
+			
 			if err != nil {
 				errCh <- err
 				return
 			}
-			resultCh <- signals
+			
+			// Build execution log for transparency
+			entityType := mapSignalToEntityType(signalType)
+			log := ExecutionLog{
+				Phase: "vector_search",
+				SQL: fmt.Sprintf("SELECT id, entity_text, VEC_DISTANCE_COSINE(embedding, ?) AS distance FROM rc_embeddings WHERE datasource_id = %d AND entity_type = '%s' ORDER BY distance ASC LIMIT %d",
+					req.DatasourceID, entityType, r.config.ProbesPerType),
+				Params:      []interface{}{"[query_vector...]"},
+				ResultCount: len(signals),
+				Duration:    searchDuration,
+				Summary:     fmt.Sprintf("Vector search for %s: found %d results in %v", signalType, len(signals), searchDuration.Round(time.Millisecond)),
+			}
+			
+			resultCh <- retrievalResultWithLog{signals: signals, log: log}
 		}(st)
 	}
 
@@ -102,8 +123,10 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 
 	// Collect and merge results
 	var allSignals []*RetrievalSignal
-	for signals := range resultCh {
-		allSignals = append(allSignals, signals...)
+	var executionLogs []ExecutionLog
+	for result := range resultCh {
+		allSignals = append(allSignals, result.signals...)
+		executionLogs = append(executionLogs, result.log)
 	}
 
 	// Sort by score (descending)
@@ -117,10 +140,11 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 	}
 
 	return &RetrievalResult{
-		Signals:     allSignals,
-		TotalProbed: len(allSignals),
-		Duration:    time.Since(start),
-		QueryVector: queryVector,
+		Signals:       allSignals,
+		TotalProbed:   len(allSignals),
+		Duration:      time.Since(start),
+		QueryVector:   queryVector,
+		ExecutionLogs: executionLogs,
 	}, nil
 }
 

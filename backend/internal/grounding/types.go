@@ -69,6 +69,7 @@ type GroundedContext struct {
 	SignalsProbed  int       `json:"signals_probed"`
 	SignalsSelected int      `json:"signals_selected"`
 	Confidence     float32   `json:"confidence"`
+	Reasoning      string    `json:"reasoning,omitempty"` // LLM reasoning for fine selection
 }
 
 // TableContext represents grounded table information

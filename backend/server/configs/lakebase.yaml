@@ -12,7 +12,7 @@ lakebase:
   conn_max_lifetime: 300s
 
 embedding:
-  enabled: false
+  enabled: true
   model: text-embedding-3-small
   dimension: 1536
   batch_size: 100

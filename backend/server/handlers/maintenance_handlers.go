@@ -320,6 +320,18 @@ func (h *Handler) RunAgentMaintenance(c *gin.Context) {
 		return
 	}
 
+	// Auto-regenerate embeddings if context was updated
+	var embeddingsUpdated int
+	if result.ContextRefreshed > 0 || result.ContextCreated > 0 {
+		if h.lakebaseService != nil {
+			embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(reqCtx, dsID)
+			if embErr == nil && embResult != nil {
+				embeddingsUpdated = embResult.TotalEmbeddings
+				result.EmbeddingsUpdated = embeddingsUpdated
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Maintenance completed",
 		"result":  result,
@@ -363,11 +375,21 @@ func (h *Handler) TriggerContextRefresh(c *gin.Context) {
 		}
 	}
 
+	// Auto-regenerate embeddings after context refresh
+	var embeddingsUpdated int
+	if successCount > 0 && h.lakebaseService != nil {
+		embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(reqCtx, dsID)
+		if embErr == nil && embResult != nil {
+			embeddingsUpdated = embResult.TotalEmbeddings
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "Context refresh completed",
-		"total":         len(results),
-		"success_count": successCount,
-		"results":       results,
+		"message":            "Context refresh completed",
+		"total":              len(results),
+		"success_count":      successCount,
+		"embeddings_updated": embeddingsUpdated,
+		"results":            results,
 	})
 }
 
@@ -415,6 +437,16 @@ func (h *Handler) SimulateDDLChange(c *gin.Context) {
 
 	// Get the parsed change for response
 	change := agent.ParseDDLStatement(req.SQL)
+
+	// Auto-regenerate embeddings after DDL change processing
+	var embeddingsUpdated int
+	if (result.ContextRefreshed > 0 || result.ContextCreated > 0) && h.lakebaseService != nil {
+		embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(reqCtx, dsID)
+		if embErr == nil && embResult != nil {
+			embeddingsUpdated = embResult.TotalEmbeddings
+			result.EmbeddingsUpdated = embeddingsUpdated
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "DDL change processed",

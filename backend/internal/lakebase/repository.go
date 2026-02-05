@@ -55,6 +55,7 @@ type Repository interface {
 	MarkContextExpired(ctx context.Context, ids []int64, reason string) error
 	UpdateContextVersion(ctx context.Context, id int64, content json.RawMessage, updatedBy string, reason string) error
 	DeleteExpiredContext(ctx context.Context, dsID int64) error
+	PruneAllContext(ctx context.Context, dsID int64) error
 
 	// Change log operations
 	CreateChangeLog(ctx context.Context, log *ChangeLog) (int64, error)
@@ -295,6 +296,33 @@ func (r *MySQLRepository) GetColumnsByTable(ctx context.Context, dsID int64, tab
 		columns = append(columns, c)
 	}
 	return columns, rows.Err()
+}
+
+// GetTermsByDatasource retrieves all business terms for a datasource
+func (r *MySQLRepository) GetTermsByDatasource(ctx context.Context, dsID int64) ([]*TermInfo, error) {
+	query := `
+		SELECT id, datasource_id, term, definition, synonyms, examples, category, created_at, updated_at
+		FROM rc_terms WHERE datasource_id = ?
+		ORDER BY term
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get terms: %w", err)
+	}
+	defer rows.Close()
+
+	var terms []*TermInfo
+	for rows.Next() {
+		t := &TermInfo{}
+		if err := rows.Scan(
+			&t.ID, &t.DatasourceID, &t.Term, &t.Definition, &t.Synonyms,
+			&t.Examples, &t.Category, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan term: %w", err)
+		}
+		terms = append(terms, t)
+	}
+	return terms, rows.Err()
 }
 
 // UpdateTableDescription updates the description for a table
@@ -617,6 +645,48 @@ func (r *MySQLRepository) DeleteExpiredContext(ctx context.Context, dsID int64) 
 	query := `DELETE FROM rc_business_context WHERE datasource_id = ? AND is_expired = 1`
 	_, err := r.pool.ExecContext(ctx, query, dsID)
 	return err
+}
+
+// PruneAllContext clears all AI-generated rich context data for a datasource
+// This clears descriptions in rc_tables and rc_columns, and deletes rc_terms, rc_relations, rc_business_context, rc_change_log
+// It preserves the basic schema metadata (table names, column names, data types) for regeneration
+func (r *MySQLRepository) PruneAllContext(ctx context.Context, dsID int64) error {
+	// Use transaction to ensure atomicity
+	tx, err := r.pool.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Clear descriptions in rc_tables (keep schema metadata)
+	if _, err := tx.ExecContext(ctx, "UPDATE rc_tables SET description = NULL, updated_at = NOW() WHERE datasource_id = ?", dsID); err != nil {
+		return fmt.Errorf("lakebase: failed to clear rc_tables descriptions: %w", err)
+	}
+
+	// Clear descriptions in rc_columns (keep schema metadata)
+	if _, err := tx.ExecContext(ctx, "UPDATE rc_columns SET description = NULL, updated_at = NOW() WHERE datasource_id = ?", dsID); err != nil {
+		return fmt.Errorf("lakebase: failed to clear rc_columns descriptions: %w", err)
+	}
+
+	// Delete generated context data (these can be fully regenerated)
+	deleteTables := []string{
+		"rc_business_context",
+		"rc_change_log",
+		"rc_relations",
+		"rc_terms",
+	}
+
+	for _, table := range deleteTables {
+		query := fmt.Sprintf("DELETE FROM %s WHERE datasource_id = ?", table)
+		if _, err := tx.ExecContext(ctx, query, dsID); err != nil {
+			return fmt.Errorf("lakebase: failed to delete from %s: %w", table, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("lakebase: failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 func (r *MySQLRepository) queryBusinessContext(ctx context.Context, query string, args ...interface{}) ([]*BusinessContext, error) {

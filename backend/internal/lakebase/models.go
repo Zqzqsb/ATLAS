@@ -68,6 +68,19 @@ type ColumnInfo struct {
 	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
 }
 
+// TermInfo represents business terminology from rc_terms
+type TermInfo struct {
+	ID           int64          `json:"id" db:"id"`
+	DatasourceID int64          `json:"datasource_id" db:"datasource_id"`
+	Term         string         `json:"term" db:"term"`
+	Definition   string         `json:"definition" db:"definition"`
+	Synonyms     sql.NullString `json:"synonyms" db:"synonyms"`
+	Examples     sql.NullString `json:"examples" db:"examples"`
+	Category     sql.NullString `json:"category" db:"category"`
+	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
+}
+
 // SchemaMetadata represents schema structure metadata (legacy)
 type SchemaMetadata struct {
 	ID           int64     `json:"id" db:"id"`
@@ -148,6 +161,7 @@ const (
 	EntityTypeTable        EntityType = "table"
 	EntityTypeColumn       EntityType = "column"
 	EntityTypeContext      EntityType = "context"
+	EntityTypeTerm         EntityType = "term"
 	EntityTypeQuery        EntityType = "query"
 	EntityTypeRelationship EntityType = "relationship"
 )

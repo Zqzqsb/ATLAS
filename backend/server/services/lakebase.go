@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -244,6 +245,34 @@ func (s *LakebaseService) GetColumnsByTable(ctx context.Context, dsID int64, tab
 	return s.repo.GetColumnsByTable(ctx, dsID, tableName)
 }
 
+// GetTermsByDatasource retrieves all business terms for a datasource
+func (s *LakebaseService) GetTermsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.TermInfo, error) {
+	if !s.connected {
+		return nil, fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.GetTermsByDatasource(ctx, dsID)
+}
+
+// PruneAllContext deletes all rich context data for a datasource
+// This clears rc_tables, rc_columns, rc_terms, rc_relations, rc_business_context, rc_change_log
+func (s *LakebaseService) PruneAllContext(ctx context.Context, dsID int64) error {
+	if !s.connected {
+		return fmt.Errorf("lakebase service: not connected")
+	}
+
+	// First delete embeddings associated with this datasource
+	if err := s.vectorRepo.DeleteEmbeddingsByDatasource(ctx, dsID); err != nil {
+		return fmt.Errorf("failed to delete embeddings: %w", err)
+	}
+
+	// Then delete all rich context data
+	if err := s.repo.PruneAllContext(ctx, dsID); err != nil {
+		return fmt.Errorf("failed to prune context: %w", err)
+	}
+
+	return nil
+}
+
 // GetSchemaByDatasource retrieves all schema metadata for a datasource (legacy)
 func (s *LakebaseService) GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*lakebase.SchemaMetadata, error) {
 	if !s.connected {
@@ -370,77 +399,105 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		return nil, fmt.Errorf("embedding provider not configured")
 	}
 
+	log.Printf("[Embedding] Starting embedding generation for datasource %d using provider: %s", dsID, s.embeddingProvider.Name())
+
 	result := &EmbeddingGenerationResult{
 		DatasourceID: dsID,
 	}
 
-	// Get all tables for this datasource
-	tables, err := s.repo.GetTableNames(ctx, dsID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get table names: %w", err)
-	}
-
 	var embeddings []*lakebase.Embedding
 
-	// Generate embeddings for each table
-	for _, tableName := range tables {
-		// 1. Generate embedding for table description
-		schemas, _ := s.repo.GetTableSchema(ctx, dsID, tableName)
-		tableContexts, _ := s.repo.GetContextByTable(ctx, dsID, tableName)
+	// 1. Generate embeddings for tables from rc_tables
+	tables, err := s.repo.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %w", err)
+	}
 
-		// Build table description text
-		var tableDesc string
-		for _, bc := range tableContexts {
-			if bc.ContextType == lakebase.ContextTypeSemantic {
-				var content lakebase.SemanticContent
-				if err := json.Unmarshal(bc.Content, &content); err == nil {
-					tableDesc = content.Description
-					break
-				}
-			}
+	for _, table := range tables {
+		// Build embedding text from table description
+		var embText string
+		if table.Description.Valid && table.Description.String != "" {
+			embText = fmt.Sprintf("Table %s: %s", table.TableName, table.Description.String)
+		} else {
+			embText = fmt.Sprintf("Table %s", table.TableName)
 		}
 
-		if tableDesc == "" {
-			tableDesc = fmt.Sprintf("Table %s with %d columns", tableName, len(schemas))
-		}
-
-		// Generate table embedding
-		tableVector, err := s.embeddingProvider.Embed(ctx, tableDesc)
+		tableVector, err := s.embeddingProvider.Embed(ctx, embText)
 		if err == nil {
 			embeddings = append(embeddings, &lakebase.Embedding{
 				DatasourceID:   dsID,
 				EntityType:     lakebase.EntityTypeTable,
-				EntityID:       0, // Will be updated when we have table IDs
-				EntityText:     tableDesc,
+				EntityID:       table.ID,
+				EntityText:     embText,
 				Embedding:      tableVector,
 				EmbeddingModel: s.config.Embedding.Model,
 			})
 			result.TablesProcessed++
 		}
+	}
 
-		// 2. Generate embeddings for columns
-		for _, schema := range schemas {
-			colDesc := fmt.Sprintf("Column %s.%s (%s)", tableName, schema.ColumnName, schema.DataType)
-			if schema.Comment != "" {
-				colDesc += ": " + schema.Comment
+	// 2. Generate embeddings for columns from rc_columns
+	columns, err := s.repo.GetColumnsByDatasource(ctx, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	for _, col := range columns {
+		// Build embedding text from column info
+		var embText string
+		if col.Description.Valid && col.Description.String != "" {
+			embText = fmt.Sprintf("Column %s.%s (%s): %s", col.TableName, col.ColumnName, col.DataType.String, col.Description.String)
+		} else {
+			embText = fmt.Sprintf("Column %s.%s (%s)", col.TableName, col.ColumnName, col.DataType.String)
+		}
+
+		// Add sample values if available
+		if col.SampleValues.Valid && col.SampleValues.String != "" {
+			embText += fmt.Sprintf(". Sample values: %s", col.SampleValues.String)
+		}
+
+		colVector, err := s.embeddingProvider.Embed(ctx, embText)
+		if err == nil {
+			embeddings = append(embeddings, &lakebase.Embedding{
+				DatasourceID:   dsID,
+				EntityType:     lakebase.EntityTypeColumn,
+				EntityID:       col.ID,
+				EntityText:     embText,
+				Embedding:      colVector,
+				EmbeddingModel: s.config.Embedding.Model,
+			})
+			result.ColumnsProcessed++
+		}
+	}
+
+	// 3. Generate embeddings for business terms from rc_terms
+	terms, err := s.repo.GetTermsByDatasource(ctx, dsID)
+	if err == nil {
+		for _, term := range terms {
+			embText := fmt.Sprintf("Term '%s': %s", term.Term, term.Definition)
+			if term.Synonyms.Valid && term.Synonyms.String != "" {
+				embText += fmt.Sprintf(". Synonyms: %s", term.Synonyms.String)
 			}
 
-			colVector, err := s.embeddingProvider.Embed(ctx, colDesc)
+			termVector, err := s.embeddingProvider.Embed(ctx, embText)
 			if err == nil {
 				embeddings = append(embeddings, &lakebase.Embedding{
 					DatasourceID:   dsID,
-					EntityType:     lakebase.EntityTypeColumn,
-					EntityID:       schema.ID,
-					EntityText:     colDesc,
-					Embedding:      colVector,
+					EntityType:     lakebase.EntityTypeTerm,
+					EntityID:       term.ID,
+					EntityText:     embText,
+					Embedding:      termVector,
 					EmbeddingModel: s.config.Embedding.Model,
 				})
-				result.ColumnsProcessed++
+				result.ContextsProcessed++
 			}
 		}
+	}
 
-		// 3. Generate embeddings for business context
-		for _, bc := range tableContexts {
+	// 4. Generate embeddings for business context from rc_business_context (if any)
+	businessContexts, err := s.repo.GetContextByDatasource(ctx, dsID)
+	if err == nil {
+		for _, bc := range businessContexts {
 			var contextText string
 			switch bc.ContextType {
 			case lakebase.ContextTypeSemantic:
@@ -451,7 +508,12 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 			case lakebase.ContextTypeBusinessRule:
 				var content lakebase.BusinessRuleContent
 				if json.Unmarshal(bc.Content, &content) == nil {
-					contextText = fmt.Sprintf("Business rules for %s: %v", tableName, content.Rules)
+					contextText = fmt.Sprintf("Business rules: %v", content.Rules)
+				}
+			case lakebase.ContextTypeEnumMeaning:
+				var content lakebase.EnumMeaningContent
+				if json.Unmarshal(bc.Content, &content) == nil {
+					contextText = fmt.Sprintf("Enum values for %s.%s: %v", bc.TableName, bc.ColumnName.String, content.Values)
 				}
 			}
 
@@ -472,12 +534,24 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		}
 	}
 
-	// Save all embeddings
+	// Clear old embeddings and save new ones
+	log.Printf("[Embedding] Prepared %d embeddings (tables: %d, columns: %d, contexts: %d)",
+		len(embeddings), result.TablesProcessed, result.ColumnsProcessed, result.ContextsProcessed)
+
 	if len(embeddings) > 0 {
+		// Delete existing embeddings for this datasource first
+		if err := s.vectorRepo.DeleteEmbeddingsByDatasource(ctx, dsID); err != nil {
+			log.Printf("[Embedding] Warning: failed to delete old embeddings: %v", err)
+		}
+
 		if err := s.vectorRepo.SaveEmbeddingBatch(ctx, embeddings); err != nil {
+			log.Printf("[Embedding] Error: failed to save embeddings: %v", err)
 			return nil, fmt.Errorf("failed to save embeddings: %w", err)
 		}
 		result.TotalEmbeddings = len(embeddings)
+		log.Printf("[Embedding] Successfully saved %d embeddings for datasource %d", len(embeddings), dsID)
+	} else {
+		log.Printf("[Embedding] Warning: No embeddings to save for datasource %d", dsID)
 	}
 
 	return result, nil

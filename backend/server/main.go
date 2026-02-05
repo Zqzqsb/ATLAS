@@ -170,6 +170,18 @@ func main() {
 	}
 
 	// ========================================
+	// System Warmup (background)
+	// ========================================
+	warmupService := services.NewWarmupService(cfg, llmModel, lakebaseService, adapterFactory.Create)
+	go func() {
+		warmupCtx, warmupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer warmupCancel()
+		if err := warmupService.Warmup(warmupCtx); err != nil {
+			log.Printf("⚠️  Warmup failed: %v", err)
+		}
+	}()
+
+	// ========================================
 	// Create Gin router
 	// ========================================
 	r := gin.Default()
@@ -192,6 +204,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "ok",
 			"timestamp": time.Now().Unix(),
+			"warmup":    warmupService.GetWarmupStatus(),
 		})
 	})
 
@@ -274,6 +287,16 @@ func main() {
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
 		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContext)
 		api.POST("/lakebase/datasources/:id/generate-context/stream", h.GenerateRichContextStream)
+		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
+
+		// Agent Maintenance routes (VLDB Demo V3)
+		api.GET("/agent/status", h.GetAgentStatus)
+		api.POST("/agent/start", h.StartAgentService)
+		api.POST("/agent/stop", h.StopAgentService)
+		api.POST("/agent/maintenance/:datasource_id", h.RunAgentMaintenance)
+		api.POST("/agent/refresh/:datasource_id", h.TriggerContextRefresh)
+		api.POST("/agent/simulate-ddl/:datasource_id", h.SimulateDDLChange)
+		api.GET("/agent/logs/:datasource_id", h.GetAgentChangeLogs)
 
 		// Semantic Grounding routes (VLDB Demo V3)
 		if groundingHandlers != nil {

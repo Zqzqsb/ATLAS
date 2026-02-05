@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, ref, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NSpin, NEmpty, NButton } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -24,6 +24,28 @@ const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
   { key: 'monitor', label: '监控', icon: 'i-carbon-analytics' }
 ]
 
+// Sliding indicator state
+const tabRefs = ref<HTMLElement[]>([])
+const indicatorStyle = ref({ left: '0px', width: '0px' })
+
+const activeIndex = computed(() => 
+  tabs.findIndex(t => t.key === workspaceStore.activeTab)
+)
+
+function updateIndicator() {
+  const activeEl = tabRefs.value[activeIndex.value]
+  if (activeEl) {
+    indicatorStyle.value = {
+      left: `${activeEl.offsetLeft}px`,
+      width: `${activeEl.offsetWidth}px`
+    }
+  }
+}
+
+watch(activeIndex, () => {
+  nextTick(updateIndicator)
+})
+
 onMounted(async () => {
   // Ensure databases are loaded
   if (databaseStore.databases.length === 0) {
@@ -35,6 +57,9 @@ onMounted(async () => {
   if (dbId && dbId !== workspaceStore.currentDatabaseId) {
     await workspaceStore.selectDatabase(dbId)
   }
+  
+  // Initialize indicator position
+  nextTick(updateIndicator)
 })
 
 // Watch route changes
@@ -133,17 +158,24 @@ function goBack() {
         </div>
       </div>
 
-      <!-- Tab navigation - Segmented Control Style -->
+      <!-- Tab navigation with sliding indicator -->
       <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
         <div class="max-w-[1800px] mx-auto py-3">
-          <div class="inline-flex p-1 bg-gray-100 rounded-lg">
+          <div class="relative inline-flex p-1 bg-gray-100 rounded-lg">
+            <!-- Sliding indicator -->
+            <div 
+              class="absolute top-1 bottom-1 bg-white rounded-md shadow-sm transition-all duration-300 ease-out"
+              :style="indicatorStyle"
+            />
+            <!-- Tab buttons -->
             <button
-              v-for="tab in tabs"
+              v-for="(tab, index) in tabs"
               :key="tab.key"
-              class="relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
+              :ref="(el) => { if (el) tabRefs[index] = el as HTMLElement }"
+              class="relative z-10 flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors duration-200"
               :class="workspaceStore.activeTab === tab.key 
-                ? 'bg-white text-gray-900 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900'"
+                ? 'text-gray-900' 
+                : 'text-gray-500 hover:text-gray-700'"
               @click="handleTabChange(tab.key)"
             >
               <div :class="[tab.icon, 'text-base']" />

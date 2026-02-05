@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NDropdown, NSpace, NSwitch, NTooltip } from 'naive-ui'
-import { useAppStore } from '@/stores/app'
+import { NButton, NDropdown, NTooltip } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatabaseStore } from '@/stores/database'
 
 const router = useRouter()
 const route = useRoute()
-const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
 const databaseStore = useDatabaseStore()
 
@@ -40,81 +38,84 @@ function handleDatabaseSelect(key: string) {
 </script>
 
 <template>
-  <header class="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 flex items-center justify-between">
+  <header class="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 px-6 flex items-center justify-between transition-all">
     <!-- Left: Logo & Navigation -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-6">
       <!-- Logo -->
       <div 
-        class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+        class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
         @click="goHome"
       >
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <span class="text-white font-bold text-sm">LC</span>
+        <div class="w-9 h-9 rounded-lg bg-primary-600 shadow-md flex items-center justify-center">
+          <span class="text-white font-serif font-bold text-lg">L</span>
         </div>
-        <span class="font-semibold text-lg text-gray-800 dark:text-gray-100">LUCID</span>
+        <div class="flex flex-col leading-none">
+          <span class="font-bold text-xl text-gray-900 tracking-tight">LUCID</span>
+          <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Unified Intelligence</span>
+        </div>
       </div>
+
+      <!-- Divider -->
+      <div class="h-6 w-px bg-gray-200" v-if="isInWorkspace && currentDatabase"></div>
 
       <!-- Database indicator (when in workspace) -->
       <template v-if="isInWorkspace && currentDatabase">
-        <div class="flex items-center gap-2 text-sm">
-          <span class="text-gray-400">/</span>
-          <NDropdown 
-            :options="databaseOptions" 
-            trigger="click"
-            @select="handleDatabaseSelect"
-          >
-            <div class="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
-              <div 
-                class="w-2 h-2 rounded-full"
-                :class="currentDatabase.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
-              />
-              <span class="font-medium text-gray-700 dark:text-gray-200">
-                {{ currentDatabase.displayName || currentDatabase.name }}
-              </span>
-              <div class="i-carbon-chevron-down text-gray-400 text-xs" />
-            </div>
-          </NDropdown>
-        </div>
+        <NDropdown 
+          :options="databaseOptions" 
+          trigger="click"
+          @select="handleDatabaseSelect"
+        >
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors border border-transparent hover:border-gray-200">
+            <div 
+              class="w-2.5 h-2.5 rounded-full shadow-sm"
+              :class="currentDatabase.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
+            />
+            <span class="font-bold text-gray-700">
+              {{ currentDatabase.displayName || currentDatabase.name }}
+            </span>
+            <div class="i-carbon-chevron-down text-gray-400 text-xs stroke-2" />
+          </div>
+        </NDropdown>
       </template>
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-4">
       <!-- Demo Link -->
       <NButton 
         v-if="!route.path.startsWith('/demo')"
-        quaternary 
-        size="small"
+        secondary
+        strong
+        size="medium"
+        class="!font-bold"
         @click="goToDemo"
       >
         <template #icon>
           <div class="i-carbon-demo" />
         </template>
-        Demo
+        Live Demo
       </NButton>
 
-      <!-- Theme Toggle -->
-      <NTooltip>
-        <template #trigger>
-          <NButton quaternary circle size="small" @click="appStore.toggleDarkMode">
-            <div 
-              class="text-lg"
-              :class="appStore.isDarkMode ? 'i-carbon-sun' : 'i-carbon-moon'"
-            />
-          </NButton>
-        </template>
-        {{ appStore.isDarkMode ? '切换到亮色模式' : '切换到暗色模式' }}
-      </NTooltip>
+      <!-- Github / Settings -->
+      <div class="flex items-center gap-2 border-l border-gray-200 pl-4">
+        <NTooltip>
+          <template #trigger>
+            <NButton quaternary circle size="medium">
+              <div class="i-carbon-logo-github text-xl text-gray-600" />
+            </NButton>
+          </template>
+          View on GitHub
+        </NTooltip>
 
-      <!-- Settings -->
-      <NTooltip>
-        <template #trigger>
-          <NButton quaternary circle size="small">
-            <div class="i-carbon-settings text-lg" />
-          </NButton>
-        </template>
-        设置
-      </NTooltip>
+        <NTooltip>
+          <template #trigger>
+            <NButton quaternary circle size="medium">
+              <div class="i-carbon-settings text-xl text-gray-600" />
+            </NButton>
+          </template>
+          Settings
+        </NTooltip>
+      </div>
     </div>
   </header>
 </template>

@@ -28,19 +28,19 @@ const maxWidthClass = computed(() => {
 
 <template>
   <div 
-    class="min-h-[calc(100vh-3.5rem)] bg-gray-50 dark:bg-gray-950"
-    :class="{ 'p-6': padding }"
+    class="min-h-[calc(100vh-4rem)] bg-gray-50"
+    :class="{ 'p-8': padding }"
   >
     <div 
       :class="[maxWidthClass, { 'mx-auto': center }]"
-      class="w-full"
+      class="w-full transition-all duration-300 ease-in-out"
     >
       <!-- Page header -->
-      <header v-if="title" class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
+      <header v-if="title" class="mb-8 border-b border-gray-200 pb-6">
+        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
           {{ title }}
         </h1>
-        <p v-if="subtitle" class="mt-1 text-gray-500 dark:text-gray-400">
+        <p v-if="subtitle" class="mt-2 text-lg text-gray-500 font-medium max-w-3xl">
           {{ subtitle }}
         </p>
       </header>
@@ -49,12 +49,14 @@ const maxWidthClass = computed(() => {
       <slot name="header" />
 
       <!-- Main content -->
-      <main>
+      <main class="space-y-6">
         <slot />
       </main>
 
       <!-- Footer -->
-      <slot name="footer" />
+      <div class="mt-12 pt-6 border-t border-gray-200" v-if="$slots.footer">
+        <slot name="footer" />
+      </div>
     </div>
   </div>
 </template>

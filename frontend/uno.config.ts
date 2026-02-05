@@ -24,28 +24,29 @@ export default defineConfig({
     transformerVariantGroup()
   ],
   shortcuts: {
-    'btn': 'px-4 py-2 rounded-lg font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
-    'btn-primary': 'btn bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700',
-    'btn-secondary': 'btn bg-gray-100 text-gray-700 hover:bg-gray-200',
-    'btn-success': 'btn bg-green-500 text-white hover:bg-green-600',
-    'card': 'bg-white rounded-xl shadow-sm border border-gray-100',
-    'card-hover': 'card hover:shadow-md transition-shadow',
+    'btn': 'px-4 py-2 rounded-lg font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide',
+    'btn-primary': 'btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-sm hover:shadow',
+    'btn-secondary': 'btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm',
+    'btn-success': 'btn bg-green-600 text-white hover:bg-green-700 shadow-sm',
+    'card': 'bg-white rounded-xl border border-gray-200 shadow-sm transition-all',
+    'card-hover': 'card hover:shadow-md hover:border-gray-300',
     'flex-center': 'flex items-center justify-center',
     'flex-between': 'flex items-center justify-between',
   },
   theme: {
     colors: {
       primary: {
-        50: '#eff6ff',
-        100: '#dbeafe',
-        200: '#bfdbfe',
-        300: '#93c5fd',
-        400: '#60a5fa',
-        500: '#3b82f6',
-        600: '#2563eb',
-        700: '#1d4ed8',
-        800: '#1e40af',
-        900: '#1e3a8a'
+        50: '#f0f5ff',
+        100: '#e0ebff',
+        200: '#c2d6ff',
+        300: '#94b5ff',
+        400: '#5e8aff',
+        500: '#3b66f5', // Academic Blue
+        600: '#254adb',
+        700: '#1d3bbf',
+        800: '#1e329b',
+        900: '#1e2d7a',
+        950: '#141b4b',
       }
     }
   }

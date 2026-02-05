@@ -7,7 +7,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
   <NConfigProvider>
     <NMessageProvider>
       <NDialogProvider>
-        <div class="app min-h-screen bg-gray-50 dark:bg-gray-950">
+        <div class="app min-h-screen bg-gray-50 text-gray-700">
           <AppHeader />
           <RouterView />
         </div>

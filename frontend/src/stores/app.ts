@@ -4,7 +4,7 @@ import type { Toast } from '@/types'
 
 export const useAppStore = defineStore('app', () => {
   // Theme
-  const isDarkMode = ref(false)
+  const isDarkMode = ref(false) // Always false
   const locale = ref<'zh' | 'en'>('zh')
 
   // UI State
@@ -16,12 +16,13 @@ export const useAppStore = defineStore('app', () => {
   const globalLoadingText = ref('')
 
   // Computed
-  const theme = computed(() => isDarkMode.value ? 'dark' : 'light')
+  const theme = computed(() => 'light')
 
   // Actions
   function toggleDarkMode() {
-    isDarkMode.value = !isDarkMode.value
-    document.documentElement.classList.toggle('dark', isDarkMode.value)
+    // Disabled
+    isDarkMode.value = false
+    document.documentElement.classList.remove('dark')
   }
 
   function setLocale(newLocale: 'zh' | 'en') {

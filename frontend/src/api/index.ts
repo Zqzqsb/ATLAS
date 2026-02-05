@@ -4,6 +4,8 @@ export { createSSEStream } from './client'
 export { databaseApi } from './database'
 export { contextApi } from './context'
 export { queryApi } from './query'
+export { agentApi } from './agent'
+export type { AgentStatus, MaintenanceResult, ChangeLog, ChangeLogSummary, SchemaChange } from './agent'
 
 // Re-export demo APIs (preserved from original)
 import type {

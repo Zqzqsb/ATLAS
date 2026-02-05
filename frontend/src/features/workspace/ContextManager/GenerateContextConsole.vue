@@ -7,9 +7,17 @@ const props = defineProps<{
   databaseId: string
 }>()
 
+// Expose state for parent component
+defineExpose({
+  isRunning: computed(() => isRunning.value),
+  isComplete: computed(() => isComplete.value),
+  progress: computed(() => overallProgress.value)
+})
+
 const emit = defineEmits<{
   (e: 'update:show', value: boolean): void
   (e: 'complete'): void
+  (e: 'minimize'): void
 }>()
 
 const message = useMessage()
@@ -316,6 +324,26 @@ function handleEvent(eventType: string, data: any) {
   }
 }
 
+// Minimize to background (keep running)
+function handleMinimize() {
+  showModal.value = false
+  emit('minimize')
+  message.info('Task running in background. Click the indicator to view progress.')
+}
+
+// Cancel and close
+function handleCancel() {
+  // Abort fetch if running
+  if (isRunning.value) {
+    isRunning.value = false
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer)
+      elapsedTimer = null
+    }
+  }
+  showModal.value = false
+}
+
 function handleClose() {
   if (eventSource) {
     eventSource.close()
@@ -338,12 +366,23 @@ onUnmounted(() => {
   <NModal
     v-model:show="showModal"
     preset="card"
-    title="Rich Context Generation"
-    :closable="!isRunning"
+    :closable="true"
     :mask-closable="!isRunning"
+    :on-close="isRunning ? handleMinimize : undefined"
     style="width: 800px; max-width: 90vw;"
     class="generate-console-modal"
   >
+    <template #header>
+      <div class="flex items-center gap-2">
+        <span>Rich Context Generation</span>
+        <span v-if="isRunning" class="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400 animate-pulse">
+          Running
+        </span>
+        <span v-else-if="isComplete" class="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400">
+          Complete
+        </span>
+      </div>
+    </template>
     <div class="generate-console">
       <!-- Configuration (shown before start) -->
       <div v-if="!isRunning && !isComplete" class="config-section mb-6">
@@ -371,7 +410,7 @@ onUnmounted(() => {
             <NInputNumber
               v-model:value="minIterations"
               :min="1"
-              :max="5"
+              :max="maxIterations - 1"
               size="small"
             />
           </div>
@@ -379,14 +418,13 @@ onUnmounted(() => {
             <label class="text-sm text-gray-400 mb-2 block">Max Iterations</label>
             <NInputNumber
               v-model:value="maxIterations"
-              :min="1"
-              :max="10"
+              :min="minIterations + 1"
               size="small"
             />
           </div>
         </div>
         <p class="text-xs text-gray-500 mt-2 mb-4">
-          Iterations control the depth of context analysis. Higher values produce richer context but take longer.
+          Iterations control the depth of context analysis. Higher values produce richer context but take longer. (0 &lt; min &lt; max)
         </p>
         
         <NButton
@@ -507,13 +545,23 @@ onUnmounted(() => {
     </div>
 
     <template #footer>
-      <div class="flex justify-end gap-2">
-        <NButton v-if="isRunning" type="error" @click="handleClose">
-          Cancel
-        </NButton>
-        <NButton v-else @click="handleClose">
-          Close
-        </NButton>
+      <div class="flex justify-between">
+        <div>
+          <NButton v-if="isRunning" quaternary size="small" @click="handleMinimize">
+            <template #icon>
+              <span class="i-carbon-minimize" />
+            </template>
+            Minimize to Background
+          </NButton>
+        </div>
+        <div class="flex gap-2">
+          <NButton v-if="isRunning" type="error" @click="handleCancel">
+            Cancel
+          </NButton>
+          <NButton v-else @click="handleClose">
+            Close
+          </NButton>
+        </div>
       </div>
     </template>
   </NModal>

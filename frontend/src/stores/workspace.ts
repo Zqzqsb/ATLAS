@@ -64,6 +64,44 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // Abort controller for streaming
   let abortQuery: (() => void) | null = null
 
+  // Transform backend grounding result to frontend format
+  function transformGroundingResult(data: any): GroundingResult | null {
+    if (!data) return null
+    
+    return {
+      tables: (data.tables || []).map((t: any) => ({
+        name: t.name,
+        confidence: t.confidence || 0,
+        matchedTerms: t.reason ? [t.reason] : [],
+        contextUsed: []
+      })),
+      columns: (data.columns || []).map((c: any) => ({
+        table: c.table_name || c.table,
+        column: c.column_name || c.column,
+        confidence: c.confidence || 0,
+        matchedTerms: c.reason ? [c.reason] : [],
+        contextUsed: []
+      })),
+      joinPaths: (data.join_paths || []).map((jp: any) => ({
+        from: { table: jp.from_table, column: jp.from_column },
+        to: { table: jp.to_table, column: jp.to_column },
+        confidence: jp.confidence
+      })),
+      duration: data.execution_time_ms || 0,
+      // Execution logs for transparency
+      executionLogs: (data.execution_logs || []).map((log: any) => ({
+        phase: log.phase,
+        sql: log.sql,
+        result_count: log.result_count,
+        duration_ms: log.duration_ms,
+        summary: log.summary
+      })),
+      // LLM reasoning for fine selection
+      reasoning: data.reasoning || '',
+      mode: data.mode || ''
+    }
+  }
+
   // Computed
   const currentDatabase = computed<Database | null>(() => {
     if (!currentDatabaseId.value) return null
@@ -219,7 +257,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isQuerying.value = false
   }
 
-  async function executeQuery(question?: string) {
+  async function executeQuery(question?: string, fieldDescription?: string) {
     if (!currentDatabaseId.value || !currentDatabase.value) return
 
     const q = question || currentQuestion.value
@@ -239,7 +277,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         question: q,
         databaseId: currentDatabaseId.value,
         database: currentDatabaseId.value, // Use ID instead of name
-        options: queryOptions.value
+        options: queryOptions.value,
+        fieldDescription: fieldDescription
       },
       (event: { type: string; data: any }) => {
         console.log('SSE Event:', event.type, event.data) // Debug log
@@ -287,7 +326,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             break
           case 'grounding_complete':
             groundingStage.value = 'done'
-            groundingResult.value = event.data
+            // Transform backend format to frontend format
+            groundingResult.value = transformGroundingResult(event.data)
             break
           case 'context_retrieved':
             usedContexts.value = event.data.contexts || []

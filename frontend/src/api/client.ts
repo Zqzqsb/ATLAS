@@ -128,4 +128,7 @@ export function createSSEStream<T>(
   return () => controller.abort()
 }
 
+// Named export for use in API modules
+export const apiClient = client
+
 export default client

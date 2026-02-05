@@ -13,19 +13,24 @@ import {
   NFormItem,
   NSpace,
   NProgress,
+  NPopconfirm,
   useMessage
 } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { databaseApi } from '@/api/database'
 import type { RichContext, ContextType } from '@/types'
 import GenerateContextConsole from './GenerateContextConsole.vue'
 
 const workspaceStore = useWorkspaceStore()
 const message = useMessage()
+const isPruning = ref(false)
 
 const searchKeyword = ref('')
 const filterTable = ref<string | null>(null)
 const filterType = ref<ContextType | null>(null)
 const showGenerateConsole = ref(false)
+const generateConsoleRef = ref<any>(null)
+const hasBackgroundTask = ref(false)
 
 // Edit dialog
 const showEditDialog = ref(false)
@@ -222,9 +227,46 @@ function openGenerateConsole() {
 
 // Handle generation complete
 async function handleGenerateComplete() {
+  hasBackgroundTask.value = false
   // Refresh contexts and schema
   await workspaceStore.fetchContexts()
   await workspaceStore.fetchSchema()
+}
+
+// Handle minimize to background
+function handleMinimize() {
+  hasBackgroundTask.value = true
+}
+
+// Resume viewing background task
+function resumeBackgroundTask() {
+  showGenerateConsole.value = true
+}
+
+// Handle prune all context
+async function handlePruneAll() {
+  const lakebaseId = workspaceStore.currentDatabase?.metadata?.lakebaseId
+  if (!lakebaseId) {
+    message.warning('无法获取数据源 ID')
+    return
+  }
+
+  isPruning.value = true
+  try {
+    const result = await databaseApi.pruneContext(lakebaseId)
+    if (result.success) {
+      message.success(result.message || '已清除所有 Rich Context')
+      // Refresh contexts and schema
+      await workspaceStore.fetchContexts()
+      await workspaceStore.fetchSchema()
+    } else {
+      message.error(result.message || '清除失败')
+    }
+  } catch (e: any) {
+    message.error(`清除失败: ${e.message}`)
+  } finally {
+    isPruning.value = false
+  }
 }
 </script>
 
@@ -268,6 +310,28 @@ async function handleGenerateComplete() {
           </template>
           刷新
         </NButton>
+        <NPopconfirm
+          @positive-click="handlePruneAll"
+          positive-text="确认清除"
+          negative-text="取消"
+        >
+          <template #trigger>
+            <NButton 
+              type="error" 
+              :loading="isPruning"
+              :disabled="filteredContexts.length === 0"
+            >
+              <template #icon>
+                <div class="i-carbon-trash-can" />
+              </template>
+              清除全部
+            </NButton>
+          </template>
+          <div class="max-w-xs">
+            <p class="font-semibold mb-2">确定要清除所有 Rich Context 吗？</p>
+            <p class="text-sm text-gray-500">此操作将删除所有表描述、列描述、业务术语及其向量嵌入，不可恢复。</p>
+          </div>
+        </NPopconfirm>
         <NButton 
           type="info" 
           @click="openGenerateConsole"
@@ -469,11 +533,31 @@ async function handleGenerateComplete() {
       </template>
     </NModal>
 
+    <!-- Background Task Indicator -->
+    <div
+      v-if="hasBackgroundTask && !showGenerateConsole"
+      class="fixed bottom-6 right-6 z-50"
+    >
+      <NButton
+        type="info"
+        round
+        @click="resumeBackgroundTask"
+        class="shadow-lg animate-pulse"
+      >
+        <template #icon>
+          <div class="i-carbon-in-progress" />
+        </template>
+        Context Generation Running...
+      </NButton>
+    </div>
+
     <!-- Generate Context Console -->
     <GenerateContextConsole
+      ref="generateConsoleRef"
       v-model:show="showGenerateConsole"
       :database-id="workspaceStore.currentDatabaseId || ''"
       @complete="handleGenerateComplete"
+      @minimize="handleMinimize"
     />
   </div>
 </template>

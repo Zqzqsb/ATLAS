@@ -33,7 +33,11 @@ const erDiagramCode = computed(() => {
     code += `    ${table.name} {\n`
     for (const col of table.columns.slice(0, 8)) { // Limit columns for readability
       const pkMark = col.isPrimaryKey ? 'PK' : col.isForeignKey ? 'FK' : ''
-      const colType = (col.type || 'VARCHAR').replace(/[()]/g, '').substring(0, 10)
+      // Clean data type: remove parentheses, commas, and special chars for Mermaid compatibility
+      const colType = (col.type || 'VARCHAR')
+        .replace(/[(),]/g, '')  // Remove parentheses and commas
+        .replace(/\s+/g, '_')   // Replace spaces with underscore
+        .substring(0, 12)
       code += `        ${colType} ${col.name}${pkMark ? ' ' + pkMark : ''}\n`
     }
     if (table.columns.length > 8) {

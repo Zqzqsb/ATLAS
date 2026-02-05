@@ -130,7 +130,10 @@ function transformDatasource(ds: any): Database {
     contextCount: ds.context_count || 0,
     lastConnected: ds.updated_at,
     description: ds.description?.String || ds.description || '',
-    tags: ['lakebase']
+    tags: ['lakebase'],
+    metadata: {
+      lakebaseId: ds.id // Numeric ID for lakebase API calls
+    }
   }
 }
 
@@ -264,5 +267,16 @@ export const databaseApi = {
         contextUsageRate: 0.75
       }
     }
+  },
+
+  /**
+   * Prune all rich context for a datasource
+   * @param datasourceId - The lakebase datasource ID (numeric)
+   */
+  pruneContext: async (datasourceId: number): Promise<{ success: boolean; message: string }> => {
+    const response = await client.delete<{ success: boolean; message: string; datasource: string }>(
+      `/lakebase/datasources/${datasourceId}/prune`
+    )
+    return response.data
   }
 }

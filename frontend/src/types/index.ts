@@ -131,6 +131,18 @@ export interface GroundingResult {
   duration: number
   stage1Duration?: number
   stage2Duration?: number
+  executionLogs?: ExecutionLog[] // SQL execution transparency
+  reasoning?: string              // LLM reasoning for fine selection
+  mode?: string                   // "sequential", "parallel", "coarse_only"
+}
+
+// ExecutionLog for grounding transparency
+export interface ExecutionLog {
+  phase: string        // "vector_search", "fine_selection"
+  sql: string          // SQL query executed
+  result_count: number // Number of results
+  duration_ms: number  // Execution time in milliseconds
+  summary: string      // Human-readable summary
 }
 
 export interface GroundingTable {
@@ -182,6 +194,7 @@ export interface Text2SQLRequest {
   databaseId: string
   database: string
   options: Text2SQLOptions
+  fieldDescription?: string // Optional field alignment description
 }
 
 export interface Text2SQLOptions {

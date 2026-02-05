@@ -1,10 +1,30 @@
-import { createSSEStream } from './client'
+import { createSSEStream, apiClient } from './client'
 import type {
   Text2SQLRequest,
   Text2SQLResult,
   QueryRecord,
   ExecutionResult
 } from '@/types'
+
+// Field suggestion types
+export interface SuggestedField {
+  name: string
+  description: string
+  selected: boolean
+  source: string
+}
+
+export interface SuggestFieldsRequest {
+  question: string
+  databaseId: string
+  database: string
+  language?: string
+}
+
+export interface SuggestFieldsResponse {
+  suggested_fields: SuggestedField[]
+  analysis_note: string
+}
 
 export const queryApi = {
   /**
@@ -22,6 +42,7 @@ export const queryApi = {
         question: request.question,
         database_id: request.databaseId,
         database: request.database,
+        field_description: request.fieldDescription || '',
         options: {
           use_rich_context: request.options.useRichContext,
           use_react: request.options.useReact,
@@ -112,5 +133,18 @@ export const queryApi = {
   deleteFromHistory: async (queryId: string): Promise<void> => {
     // Mock API call
     await new Promise(r => setTimeout(r, 200))
+  },
+
+  /**
+   * Suggest output fields based on question and schema
+   */
+  suggestFields: async (request: SuggestFieldsRequest): Promise<SuggestFieldsResponse> => {
+    const response = await apiClient.post<SuggestFieldsResponse>('/text2sql/suggest-fields', {
+      question: request.question,
+      database_id: request.databaseId,
+      database: request.database,
+      language: request.language || 'Chinese'
+    })
+    return response.data
   }
 }

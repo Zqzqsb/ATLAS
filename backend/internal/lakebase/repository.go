@@ -920,5 +920,34 @@ func NewSemanticContent(description string, synonyms, businessTerms []string) (j
 	return json.Marshal(content)
 }
 
+// GetRelationsByDatasource retrieves all relations for a datasource
+func (r *MySQLRepository) GetRelationsByDatasource(ctx context.Context, dsID int64) ([]*Relation, error) {
+	query := `
+		SELECT id, datasource_id, from_table, from_column, to_table, to_column, 
+		       relation_type, description, created_at, updated_at
+		FROM rc_relations WHERE datasource_id = ?
+		ORDER BY from_table, to_table
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to query relations: %w", err)
+	}
+	defer rows.Close()
+
+	var relations []*Relation
+	for rows.Next() {
+		var rel Relation
+		if err := rows.Scan(
+			&rel.ID, &rel.DatasourceID, &rel.FromTable, &rel.FromColumn,
+			&rel.ToTable, &rel.ToColumn, &rel.RelationType, &rel.Description,
+			&rel.CreatedAt, &rel.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan relation: %w", err)
+		}
+		relations = append(relations, &rel)
+	}
+	return relations, nil
+}
+
 // Ensure MySQLRepository implements Repository interface
 var _ Repository = (*MySQLRepository)(nil)

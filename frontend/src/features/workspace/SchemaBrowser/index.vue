@@ -1,13 +1,89 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NTree, NInput, NEmpty, NSpin, NTag, NScrollbar } from 'naive-ui'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { NTree, NInput, NEmpty, NSpin, NTag, NScrollbar, NTabs, NTabPane } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { TableInfo, ColumnInfo } from '@/types'
+import mermaid from 'mermaid'
 
 const workspaceStore = useWorkspaceStore()
 
 const searchKeyword = ref('')
 const selectedTable = ref<TableInfo | null>(null)
+const activePane = ref('tree')
+
+// Initialize mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  er: {
+    useMaxWidth: true,
+    layoutDirection: 'TB'
+  }
+})
+
+// Generate Mermaid ER diagram code
+const erDiagramCode = computed(() => {
+  if (!workspaceStore.schemaCache?.tables?.length) return ''
+  
+  let code = 'erDiagram\n'
+  
+  // Add tables with their columns
+  for (const table of workspaceStore.schemaCache.tables) {
+    code += `    ${table.name} {\n`
+    for (const col of table.columns.slice(0, 8)) { // Limit columns for readability
+      const pkMark = col.isPrimaryKey ? 'PK' : col.isForeignKey ? 'FK' : ''
+      const colType = (col.type || 'VARCHAR').replace(/[()]/g, '').substring(0, 10)
+      code += `        ${colType} ${col.name}${pkMark ? ' ' + pkMark : ''}\n`
+    }
+    if (table.columns.length > 8) {
+      code += `        ... ${table.columns.length - 8}_more\n`
+    }
+    code += `    }\n`
+  }
+  
+  // Add relationships
+  for (const rel of workspaceStore.relations) {
+    const relSymbol = rel.relationType === 'many_to_one' ? '}o--||' : 
+                      rel.relationType === 'one_to_many' ? '||--o{' :
+                      rel.relationType === 'many_to_many' ? '}o--o{' : '||--||'
+    code += `    ${rel.fromTable} ${relSymbol} ${rel.toTable} : "${rel.fromColumn}"\n`
+  }
+  
+  return code
+})
+
+// Render ER diagram
+const erDiagramSvg = ref('')
+const erError = ref('')
+
+async function renderERDiagram() {
+  if (!erDiagramCode.value) {
+    erDiagramSvg.value = ''
+    return
+  }
+  
+  try {
+    erError.value = ''
+    const { svg } = await mermaid.render('er-diagram', erDiagramCode.value)
+    erDiagramSvg.value = svg
+  } catch (e: any) {
+    erError.value = e.message
+    console.error('Mermaid render error:', e)
+  }
+}
+
+watch(erDiagramCode, () => {
+  if (activePane.value === 'er') {
+    nextTick(renderERDiagram)
+  }
+})
+
+watch(activePane, (pane) => {
+  if (pane === 'er' && !erDiagramSvg.value) {
+    nextTick(renderERDiagram)
+  }
+})
 
 // Build tree data for NTree
 const treeData = computed(() => {
@@ -80,18 +156,36 @@ const tableContexts = computed(() => {
         </NInput>
       </div>
 
-      <div class="flex-1 overflow-auto">
-        <NSpin v-if="workspaceStore.loadingSchema" class="mt-8" />
-        <NEmpty v-else-if="treeData.length === 0" description="暂无数据" class="mt-8" />
-        <NTree
-          v-else
-          :data="treeData"
-          block-line
-          selectable
-          expand-on-click
-          @update:selected-keys="handleSelect"
-        />
-      </div>
+      <!-- Tabs: Tree / ER Diagram -->
+      <NTabs v-model:value="activePane" type="segment" size="small" class="px-4 pt-2">
+        <NTabPane name="tree" tab="表列表">
+          <div class="overflow-auto" style="height: calc(100vh - 240px);">
+            <NSpin v-if="workspaceStore.loadingSchema" class="mt-8" />
+            <NEmpty v-else-if="treeData.length === 0" description="暂无数据" class="mt-8" />
+            <NTree
+              v-else
+              :data="treeData"
+              block-line
+              selectable
+              expand-on-click
+              @update:selected-keys="handleSelect"
+            />
+          </div>
+        </NTabPane>
+        <NTabPane name="er" tab="ER 图">
+          <div class="overflow-auto p-2" style="height: calc(100vh - 240px);">
+            <NSpin v-if="!erDiagramSvg && !erError" class="mt-8" />
+            <div v-else-if="erError" class="text-red-400 text-sm p-4">
+              {{ erError }}
+            </div>
+            <div 
+              v-else 
+              class="er-diagram-container"
+              v-html="erDiagramSvg"
+            />
+          </div>
+        </NTabPane>
+      </NTabs>
     </div>
 
     <!-- Right: Table detail -->

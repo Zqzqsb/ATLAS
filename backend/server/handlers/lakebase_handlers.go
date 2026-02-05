@@ -160,6 +160,9 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 	// Get columns from rc_columns
 	columnInfos, _ := h.lakebaseService.GetColumnsByDatasource(ctx, id)
 
+	// Get relations from rc_relations
+	relationInfos, _ := h.lakebaseService.GetRelationsByDatasource(ctx, id)
+
 	// Get embedding count
 	embeddingCount, _ := h.lakebaseService.CountEmbeddings(ctx, id)
 
@@ -259,11 +262,34 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 		"tables":           tables,
 		"columns":          columns,
 		"contexts":         contextList,
+		"relations":        buildRelationsList(relationInfos),
 		"tables_count":     len(tableInfos),
 		"columns_count":    len(columnInfos),
 		"context_count":    len(contextList),
+		"relations_count":  len(relationInfos),
 		"embeddings_count": embeddingCount,
 	})
+}
+
+// buildRelationsList converts relations to response format
+func buildRelationsList(relations []*lakebase.Relation) []map[string]interface{} {
+	result := make([]map[string]interface{}, 0, len(relations))
+	for _, rel := range relations {
+		desc := ""
+		if rel.Description.Valid {
+			desc = rel.Description.String
+		}
+		result = append(result, map[string]interface{}{
+			"id":            rel.ID,
+			"from_table":    rel.FromTable,
+			"from_column":   rel.FromColumn,
+			"to_table":      rel.ToTable,
+			"to_column":     rel.ToColumn,
+			"relation_type": rel.RelationType,
+			"description":   desc,
+		})
+	}
+	return result
 }
 
 // GetLakebaseTableContext returns context for a specific table

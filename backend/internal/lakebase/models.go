@@ -127,6 +127,20 @@ type BusinessContext struct {
 	UpdateReason string          `json:"update_reason" db:"update_reason"`
 }
 
+// Relation represents table relationship from rc_relations
+type Relation struct {
+	ID           int64          `json:"id" db:"id"`
+	DatasourceID int64          `json:"datasource_id" db:"datasource_id"`
+	FromTable    string         `json:"from_table" db:"from_table"`
+	FromColumn   string         `json:"from_column" db:"from_column"`
+	ToTable      string         `json:"to_table" db:"to_table"`
+	ToColumn     string         `json:"to_column" db:"to_column"`
+	RelationType string         `json:"relation_type" db:"relation_type"`
+	Description  sql.NullString `json:"description" db:"description"`
+	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
+}
+
 // EntityType represents the type of entity for embeddings
 type EntityType string
 

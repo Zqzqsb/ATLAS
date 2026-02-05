@@ -23,6 +23,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeTab = ref<WorkspaceTab>('query')
   const schemaCache = ref<SchemaInfo | null>(null)
   const contexts = ref<RichContext[]>([])
+  const relations = ref<Array<{
+    id: number
+    fromTable: string
+    fromColumn: string
+    toTable: string
+    toColumn: string
+    relationType: string
+    description: string
+  }>>([])
   const queryHistory = ref<QueryRecord[]>([])
 
   // Loading states
@@ -117,15 +126,33 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           databaseName: currentDatabase.value.name,
           tables: data.tables.map((t: any) => ({
             name: t.table_name,
-            comment: t.description || '',
+            description: t.description || '',
+            rowCount: t.row_count,
+            hasContext: !!t.description,
             columns: data.columns
               .filter((c: any) => c.table_name === t.table_name)
               .map((c: any) => ({
                 name: c.column_name,
                 type: c.data_type || 'VARCHAR',
-                nullable: true,
+                isPrimaryKey: c.is_pk,
+                isForeignKey: c.is_fk,
+                isNullable: c.is_nullable,
+                hasContext: !!c.description,
                 comment: c.description || ''
               }))
+          }))
+        }
+        
+        // Save relations
+        if (data.relations) {
+          relations.value = data.relations.map((r: any) => ({
+            id: r.id,
+            fromTable: r.from_table,
+            fromColumn: r.from_column,
+            toTable: r.to_table,
+            toColumn: r.to_column,
+            relationType: r.relation_type,
+            description: r.description || ''
           }))
         }
       }
@@ -373,6 +400,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     activeTab,
     schemaCache,
     contexts,
+    relations,
     queryHistory,
     loadingSchema,
     loadingContexts,

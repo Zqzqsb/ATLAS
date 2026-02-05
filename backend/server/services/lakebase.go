@@ -313,6 +313,18 @@ func (s *LakebaseService) MarkContextExpired(ctx context.Context, ids []int64, r
 }
 
 // ===========================================
+// Relation Operations
+// ===========================================
+
+// GetRelationsByDatasource retrieves all relations for a datasource
+func (s *LakebaseService) GetRelationsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.Relation, error) {
+	if !s.connected {
+		return nil, fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.GetRelationsByDatasource(ctx, dsID)
+}
+
+// ===========================================
 // Vector/Embedding Operations
 // ===========================================
 

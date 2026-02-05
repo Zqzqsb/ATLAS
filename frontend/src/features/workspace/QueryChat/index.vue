@@ -247,7 +247,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <button
               v-for="example in exampleQuestions"
               :key="example"
-              class="text-sm px-4 py-2 rounded-full bg-gradient-to-r from-gray-50 to-slate-100 text-gray-600 hover:from-primary-50 hover:to-blue-50 hover:text-primary-700 transition-all border border-gray-200 hover:border-primary-300 font-semibold hover:shadow-md hover:shadow-primary-100/50 hover:-translate-y-0.5"
+              class="text-sm px-3 py-1.5 rounded-md bg-gray-50 text-gray-600 hover:bg-primary-50 hover:text-primary-700 transition-colors border border-gray-200 hover:border-primary-300 font-medium"
               @click="useExample(example)"
             >
               {{ example }}

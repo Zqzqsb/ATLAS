@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NDropdown, NTooltip } from 'naive-ui'
+import { NButton, NDropdown } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useDatabaseStore } from '@/stores/database'
 
@@ -95,27 +95,6 @@ function handleDatabaseSelect(key: string) {
         </template>
         Live Demo
       </NButton>
-
-      <!-- Github / Settings -->
-      <div class="flex items-center gap-2 border-l border-gray-200 pl-4">
-        <NTooltip>
-          <template #trigger>
-            <NButton quaternary circle size="medium">
-              <div class="i-carbon-logo-github text-xl text-gray-600" />
-            </NButton>
-          </template>
-          View on GitHub
-        </NTooltip>
-
-        <NTooltip>
-          <template #trigger>
-            <NButton quaternary circle size="medium">
-              <div class="i-carbon-settings text-xl text-gray-600" />
-            </NButton>
-          </template>
-          Settings
-        </NTooltip>
-      </div>
     </div>
   </header>
 </template>

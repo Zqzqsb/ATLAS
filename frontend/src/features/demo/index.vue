@@ -17,30 +17,25 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 h-16 transition-all">
-      <div class="max-w-7xl mx-auto px-6 h-full flex-between">
-        <div class="flex items-center gap-4">
-          <div class="w-8 h-8 rounded-lg bg-primary-600 shadow-sm flex items-center justify-center">
-            <span class="text-white font-serif font-bold text-lg">L</span>
-          </div>
-          <div class="flex flex-col">
-            <h1 class="text-xl font-bold text-gray-900 leading-none">LUCID</h1>
-            <span class="text-xs text-gray-500 font-bold uppercase tracking-wider mt-0.5">Live Demo Environment</span>
-          </div>
+    <!-- Page Title -->
+    <div class="bg-white border-b border-gray-200 px-6 py-6">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Live Demo</h1>
+          <p class="text-sm text-gray-500 mt-1">Interactive demonstration of LUCID capabilities</p>
         </div>
-        <div class="flex items-center gap-6 text-sm font-medium text-gray-600">
-          <div class="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200">
-            <span class="i-carbon-cube text-primary-600 text-lg" />
-            <span class="font-bold text-gray-700">MariaDB 12 Vector</span>
+        <div class="flex items-center gap-4 text-sm">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg border border-gray-200">
+            <span class="i-carbon-cube text-primary-600" />
+            <span class="font-semibold text-gray-700">MariaDB 12</span>
           </div>
-          <div class="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200">
-            <span class="i-carbon-model-alt text-purple-600 text-lg" />
-            <span class="font-bold text-gray-700">OpenAI GPT-4o</span>
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg border border-gray-200">
+            <span class="i-carbon-model-alt text-purple-600" />
+            <span class="font-semibold text-gray-700">GPT-4o</span>
           </div>
         </div>
       </div>
-    </header>
+    </div>
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-6 py-8">

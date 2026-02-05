@@ -62,33 +62,30 @@ function handleEnter() {
 
 <template>
   <div 
-    class="database-card group relative overflow-hidden rounded-2xl cursor-pointer bg-white border border-gray-200 shadow-sm hover:shadow-xl hover:shadow-primary-100/50 hover:border-primary-300 hover:-translate-y-1 transition-all duration-300"
+    class="database-card group relative overflow-hidden rounded-lg cursor-pointer bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-primary-300 transition-all duration-200"
     :class="{ 'opacity-75 grayscale': database.status !== 'connected' }"
     @click="handleEnter"
   >
-    <!-- Decorative gradient top bar -->
-    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-400 via-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-    
     <!-- Content -->
-    <div class="p-6 flex flex-col h-full">
+    <div class="p-5 flex flex-col h-full">
       <!-- Header with status -->
-      <div class="flex items-start justify-between mb-6">
-        <div class="flex items-center gap-4">
+      <div class="flex items-start justify-between mb-4">
+        <div class="flex items-center gap-3">
           <!-- Type icon -->
           <div 
-            class="w-14 h-14 rounded-xl flex items-center justify-center border shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:shadow-md"
+            class="w-12 h-12 rounded-lg flex items-center justify-center border"
             :class="iconBgClass"
           >
-            <div :class="typeIcon" class="text-3xl" />
+            <div :class="typeIcon" class="text-2xl" />
           </div>
           
           <div>
-            <h3 class="font-bold text-lg text-gray-900 leading-tight group-hover:text-primary-600 transition-colors">
+            <h3 class="font-bold text-base text-gray-900 leading-tight group-hover:text-primary-600 transition-colors">
               {{ database.displayName || database.name }}
             </h3>
-            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mt-1">
-              {{ database.type }}
-              <span v-if="database.host" class="text-gray-300 font-normal ml-1"> {{ database.host }}</span>
+            <p class="text-xs text-gray-500 mt-0.5">
+              {{ database.type.toUpperCase() }}
+              <span v-if="database.host" class="text-gray-400 ml-1">· {{ database.host }}</span>
             </p>
           </div>
         </div>
@@ -97,9 +94,8 @@ function handleEnter() {
         <NTag 
           :type="statusColor" 
           size="small" 
-          round
           :bordered="false"
-          class="font-bold"
+          class="font-medium"
         >
           <template #icon>
             <div 
@@ -116,34 +112,34 @@ function handleEnter() {
       </div>
 
       <!-- Stats bar -->
-      <div class="grid grid-cols-2 gap-3 mb-6">
-        <div class="p-3 rounded-xl bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 flex flex-col items-center group-hover:from-blue-50 group-hover:to-indigo-50 group-hover:border-blue-200 transition-all duration-300">
-          <div class="text-xs font-bold text-gray-400 uppercase mb-1 tracking-wide">Tables</div>
-          <div class="text-2xl font-extrabold text-gray-900">{{ database.tableCount }}</div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="p-3 rounded-lg bg-gray-50 border border-gray-100 text-center">
+          <div class="text-xs font-medium text-gray-500 mb-1">Tables</div>
+          <div class="text-xl font-bold text-gray-900">{{ database.tableCount }}</div>
         </div>
         
-        <div class="p-3 rounded-xl bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 flex flex-col items-center group-hover:from-primary-50 group-hover:to-blue-50 group-hover:border-primary-200 transition-all duration-300">
-          <div class="text-xs font-bold text-gray-400 uppercase mb-1 tracking-wide">Context</div>
-          <div class="text-2xl font-extrabold" :class="database.hasRichContext ? 'text-primary-600' : 'text-gray-900'">
+        <div class="p-3 rounded-lg bg-gray-50 border border-gray-100 text-center">
+          <div class="text-xs font-medium text-gray-500 mb-1">Context</div>
+          <div class="text-xl font-bold" :class="database.contextCount > 0 ? 'text-primary-600' : 'text-gray-400'">
             {{ database.contextCount }}
           </div>
         </div>
       </div>
 
-      <!-- Footer / Tags -->
+      <!-- Footer -->
       <div class="mt-auto flex items-center justify-between">
-        <div v-if="database.tags?.length" class="flex flex-wrap gap-2">
+        <div v-if="database.tags?.length" class="flex flex-wrap gap-1.5">
           <span 
             v-for="tag in database.tags" 
             :key="tag"
-            class="px-2.5 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-gray-100 to-slate-100 text-gray-600 border border-gray-200"
+            class="px-2 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600"
           >
             {{ tag }}
           </span>
         </div>
         
-        <div v-if="database.status === 'connected'" class="ml-auto flex items-center gap-2 px-4 py-2 rounded-full bg-primary-50 text-primary-600 opacity-0 group-hover:opacity-100 transition-all duration-300 text-sm font-bold border border-primary-200">
-          Open Workspace <div class="i-carbon-arrow-right" />
+        <div v-if="database.status === 'connected'" class="ml-auto text-primary-600 text-sm font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          Open <div class="i-carbon-arrow-right" />
         </div>
       </div>
     </div>
@@ -152,6 +148,6 @@ function handleEnter() {
 
 <style scoped>
 .database-card {
-  height: 280px;
+  height: 240px;
 }
 </style>

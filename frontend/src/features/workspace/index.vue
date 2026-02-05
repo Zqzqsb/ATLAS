@@ -92,15 +92,15 @@ function goBack() {
         <div class="max-w-[1800px] mx-auto">
           <div class="flex items-center gap-6">
             <button 
-              class="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-slate-100 border border-gray-200 flex items-center justify-center hover:from-primary-50 hover:to-blue-100 hover:border-primary-200 hover:shadow-md transition-all duration-300 group"
+              class="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center hover:bg-gray-200 hover:border-gray-300 transition-colors"
               @click="goBack"
             >
-              <div class="i-carbon-arrow-left text-xl text-gray-400 group-hover:text-primary-600 transition-colors" />
+              <div class="i-carbon-arrow-left text-lg text-gray-600" />
             </button>
             
-            <div class="flex items-center gap-5 flex-1">
-              <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-primary-50 to-blue-100 flex items-center justify-center border border-blue-100 shadow-sm">
-                <div class="i-carbon-data-base text-3xl text-primary-600" />
+            <div class="flex items-center gap-4 flex-1">
+              <div class="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center border border-primary-100">
+                <div class="i-carbon-data-base text-2xl text-primary-600" />
               </div>
 
               <div>
@@ -134,20 +134,25 @@ function goBack() {
       </div>
 
       <!-- Tab navigation -->
-      <div class="tab-navigation bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-gray-200 px-8 sticky top-[105px] z-10">
-        <div class="max-w-[1800px] mx-auto py-2">
-          <div class="flex gap-2">
+      <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
+        <div class="max-w-[1800px] mx-auto">
+          <div class="flex">
             <button
               v-for="tab in tabs"
               :key="tab.key"
-              class="tab-btn flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-300"
+              class="tab-btn relative flex items-center gap-2 px-6 py-4 font-semibold text-sm transition-colors"
               :class="workspaceStore.activeTab === tab.key 
-                ? 'bg-gradient-to-r from-primary-500 to-blue-600 text-white shadow-lg shadow-primary-500/30' 
-                : 'text-gray-500 hover:text-gray-900 hover:bg-white hover:shadow-md'"
+                ? 'text-primary-600' 
+                : 'text-gray-500 hover:text-gray-900'"
               @click="handleTabChange(tab.key)"
             >
               <div :class="[tab.icon, 'text-lg']" />
               <span>{{ tab.label }}</span>
+              <!-- Active indicator -->
+              <div 
+                v-if="workspaceStore.activeTab === tab.key"
+                class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"
+              />
             </button>
           </div>
         </div>
@@ -169,8 +174,7 @@ function goBack() {
   min-height: calc(100vh - 200px);
 }
 
-.tab-btn {
-  min-width: 100px;
-  justify-content: center;
+.tab-btn:hover {
+  background-color: #f9fafb;
 }
 </style>

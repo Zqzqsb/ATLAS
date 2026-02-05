@@ -62,16 +62,12 @@ async function handleAddDatabase(config: DatabaseConfig) {
           <p class="text-xl text-gray-600 font-medium max-w-3xl mx-auto mb-3">
             Lakebase-Unified Context-aware Intelligence for Data
           </p>
-          <div class="flex items-center justify-center gap-3 text-sm font-bold uppercase tracking-wider">
-            <span class="px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 border border-blue-200 hover:shadow-md hover:from-blue-100 hover:to-indigo-100 transition-all cursor-default">
-              Agent Self-Maintaining
-            </span>
-            <span class="px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-600 border border-emerald-200 hover:shadow-md hover:from-emerald-100 hover:to-teal-100 transition-all cursor-default">
-              Vector Grounding
-            </span>
-            <span class="px-4 py-1.5 rounded-full bg-gradient-to-r from-violet-50 to-purple-50 text-violet-600 border border-violet-200 hover:shadow-md hover:from-violet-100 hover:to-purple-100 transition-all cursor-default">
-              ReAct Reasoning
-            </span>
+          <div class="flex items-center justify-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <span>Agent Self-Maintaining</span>
+            <span class="w-1 h-1 rounded-full bg-gray-300" />
+            <span>Vector Grounding</span>
+            <span class="w-1 h-1 rounded-full bg-gray-300" />
+            <span>ReAct Reasoning</span>
           </div>
         </div>
 
@@ -133,67 +129,38 @@ async function handleAddDatabase(config: DatabaseConfig) {
 
             <!-- Add new card -->
             <div
-              class="h-[280px] rounded-2xl bg-gradient-to-br from-slate-50 to-gray-100 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:from-primary-50 hover:to-blue-50 hover:shadow-lg hover:shadow-primary-100/50 transition-all duration-300 group"
+              class="h-[240px] rounded-lg bg-gray-50 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-primary-50/30 transition-all group"
               @click="showAddDialog = true"
             >
-              <div class="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-4 border border-gray-200 shadow-sm group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-primary-500 group-hover:to-blue-600 group-hover:border-transparent group-hover:shadow-lg group-hover:shadow-primary-500/30 transition-all duration-300">
-                <div class="i-carbon-add text-3xl text-gray-400 group-hover:text-white transition-colors" />
+              <div class="w-12 h-12 rounded-lg bg-white flex items-center justify-center mb-3 border border-gray-200 group-hover:border-primary-300 group-hover:bg-primary-50 transition-all">
+                <div class="i-carbon-add text-2xl text-gray-400 group-hover:text-primary-600 transition-colors" />
               </div>
-              <p class="text-gray-500 font-bold group-hover:text-primary-600 transition-colors text-lg">Add New Database</p>
-              <p class="text-gray-400 text-sm mt-1 group-hover:text-primary-500 transition-colors">Click to connect</p>
+              <p class="text-gray-500 font-semibold group-hover:text-primary-600 transition-colors">Add New Database</p>
             </div>
           </div>
         </div>
 
         <!-- Quick Links -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="flex items-center justify-center gap-4">
           <RouterLink 
             to="/demo"
-            class="quick-link-card p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 group block"
+            class="flex items-center gap-3 px-5 py-3 rounded-lg bg-white border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all group"
           >
-            <div class="flex items-center gap-4 mb-4">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform duration-300">
-                <div class="i-carbon-play text-2xl" />
-              </div>
-              <div>
-                <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Live Demo</h3>
-                <p class="text-xs text-blue-500 font-medium">Interactive preview</p>
-              </div>
+            <div class="w-10 h-10 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center group-hover:bg-primary-100 transition-colors">
+              <div class="i-carbon-play text-xl" />
             </div>
-            <p class="text-sm text-gray-600 font-medium leading-relaxed">Explore LUCID capabilities with interactive demonstrations</p>
+            <span class="font-semibold text-gray-700 group-hover:text-primary-600 transition-colors">Live Demo</span>
           </RouterLink>
 
           <a 
-            href="#"
-            class="quick-link-card p-6 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:-translate-y-1 transition-all duration-300 group block"
-          >
-            <div class="flex items-center gap-4 mb-4">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform duration-300">
-                <div class="i-carbon-document text-2xl" />
-              </div>
-              <div>
-                <h3 class="text-lg font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">Documentation</h3>
-                <p class="text-xs text-emerald-500 font-medium">API & guides</p>
-              </div>
-            </div>
-            <p class="text-sm text-gray-600 font-medium leading-relaxed">Read detailed guides and comprehensive API references</p>
-          </a>
-
-          <a 
-            href="https://github.com/lucid-sql/lucid"
+            href="https://github.com/zqzqsb/lucid"
             target="_blank"
-            class="quick-link-card p-6 rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-100 hover:border-violet-300 hover:shadow-xl hover:shadow-violet-100/50 hover:-translate-y-1 transition-all duration-300 group block"
+            class="flex items-center gap-3 px-5 py-3 rounded-lg bg-white border border-gray-200 hover:border-gray-400 hover:shadow-md transition-all group"
           >
-            <div class="flex items-center gap-4 mb-4">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-110 transition-transform duration-300">
-                <div class="i-carbon-logo-github text-2xl" />
-              </div>
-              <div>
-                <h3 class="text-lg font-bold text-gray-900 group-hover:text-violet-600 transition-colors">GitHub</h3>
-                <p class="text-xs text-violet-500 font-medium">Open source</p>
-              </div>
+            <div class="w-10 h-10 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+              <div class="i-carbon-logo-github text-xl" />
             </div>
-            <p class="text-sm text-gray-600 font-medium leading-relaxed">View source code and contribute to the project</p>
+            <span class="font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">GitHub</span>
           </a>
         </div>
       </div>

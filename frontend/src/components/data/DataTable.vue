@@ -38,7 +38,7 @@ const tableData = computed(() =>
 </script>
 
 <template>
-  <div class="data-table rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <div class="data-table rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
     <NScrollbar :style="{ maxHeight }">
       <NDataTable
         v-if="data.length > 0"
@@ -50,31 +50,37 @@ const tableData = computed(() =>
         size="small"
         flex-height
       />
-      <NEmpty v-else description="暂无数据" class="py-8" />
+      <NEmpty v-else description="暂无数据" class="py-12" />
     </NScrollbar>
     
     <!-- Footer with row count -->
     <div 
       v-if="data.length > 0" 
-      class="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500"
+      class="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs font-medium text-gray-500 flex justify-end"
     >
-      共 {{ data.length }} 行
+      Total {{ data.length }} rows
     </div>
   </div>
 </template>
 
 <style scoped>
 .data-table :deep(.n-data-table) {
-  --n-th-padding: 8px 12px;
-  --n-td-padding: 6px 12px;
+  --n-th-padding: 10px 16px;
+  --n-td-padding: 8px 16px;
 }
 
 .data-table :deep(.n-data-table-th) {
   background: #f9fafb;
-  font-weight: 600;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.dark .data-table :deep(.n-data-table-th) {
-  background: #1f2937;
+.data-table :deep(.n-data-table-td) {
+  color: #4b5563;
+  font-size: 0.875rem;
 }
 </style>

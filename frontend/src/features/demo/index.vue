@@ -1,69 +1,80 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NTabs, NTab, NTabPane } from 'naive-ui'
 import { useDemoStore } from '@/stores/demo'
+import ScenarioTabs from '@/components/demo/ScenarioTabs.vue'
+import ContextComparison from '@/components/demo/ContextComparison.vue'
+import SelfMaintainDemo from '@/components/demo/SelfMaintainDemo.vue'
+import BenchmarkDemo from '@/components/demo/BenchmarkDemo.vue'
+import LakebaseArchitecture from '@/components/demo/LakebaseArchitecture.vue'
 
-// Demo components
-import ArchitectureShowcase from './ArchitectureShowcase.vue'
-import ContextComparison from './ContextComparison.vue'
-import SelfMaintainDemo from './SelfMaintainDemo.vue'
-
-const demoStore = useDemoStore()
-
-type DemoTab = 'architecture' | 'comparison' | 'selfmaintain'
-const activeTab = ref<DemoTab>('architecture')
-
-const tabs: { key: DemoTab; label: string; icon: string }[] = [
-  { key: 'architecture', label: '架构展示', icon: 'i-carbon-diagram' },
-  { key: 'comparison', label: 'Context 对比', icon: 'i-carbon-compare' },
-  { key: 'selfmaintain', label: '自维持演示', icon: 'i-carbon-recycle' }
-]
+const store = useDemoStore()
 
 onMounted(() => {
-  demoStore.loadComparisonCases()
-  demoStore.loadMaintenanceLogs()
+  store.loadComparisonCases()
+  store.loadMaintenanceLogs()
 })
 </script>
 
 <template>
-  <div class="demo-page min-h-screen bg-gray-50 dark:bg-gray-950">
-    <!-- Hero header -->
-    <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-12 px-6">
-      <div class="max-w-6xl mx-auto">
-        <h1 class="text-3xl font-bold mb-2">LUCID Demo</h1>
-        <p class="text-blue-100 text-lg">
-          湖仓一体的智能 Text-to-SQL 系统核心能力演示
-        </p>
+  <div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 h-16 transition-all">
+      <div class="max-w-7xl mx-auto px-6 h-full flex-between">
+        <div class="flex items-center gap-4">
+          <div class="w-8 h-8 rounded-lg bg-primary-600 shadow-sm flex items-center justify-center">
+            <span class="text-white font-serif font-bold text-lg">L</span>
+          </div>
+          <div class="flex flex-col">
+            <h1 class="text-xl font-bold text-gray-900 leading-none">LUCID</h1>
+            <span class="text-xs text-gray-500 font-bold uppercase tracking-wider mt-0.5">Live Demo Environment</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-6 text-sm font-medium text-gray-600">
+          <div class="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200">
+            <span class="i-carbon-cube text-primary-600 text-lg" />
+            <span class="font-bold text-gray-700">MariaDB 12 Vector</span>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200">
+            <span class="i-carbon-model-alt text-purple-600 text-lg" />
+            <span class="font-bold text-gray-700">OpenAI GPT-4o</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Tab navigation -->
-    <div class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-      <div class="max-w-6xl mx-auto px-6">
-        <NTabs
-          v-model:value="activeTab"
-          type="line"
-          animated
-        >
-          <NTab
-            v-for="tab in tabs"
-            :key="tab.key"
-            :name="tab.key"
-          >
-            <div class="flex items-center gap-2">
-              <div :class="tab.icon" />
-              <span>{{ tab.label }}</span>
-            </div>
-          </NTab>
-        </NTabs>
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+      <!-- Scenario Tabs -->
+      <ScenarioTabs 
+        v-model="store.currentScenario" 
+        class="mb-8"
+      />
+
+      <!-- Content Grid -->
+      <div class="grid grid-cols-12 gap-8">
+        <!-- Left: Main Demo Area -->
+        <div class="col-span-8">
+          <!-- Context Comparison (Core) -->
+          <ContextComparison 
+            v-if="store.currentScenario === 'comparison'"
+          />
+
+          <!-- Self-Maintain Demo -->
+          <SelfMaintainDemo 
+            v-else-if="store.currentScenario === 'selfmaintain'"
+          />
+
+          <!-- Benchmark Demo -->
+          <BenchmarkDemo 
+            v-else
+          />
+        </div>
+
+        <!-- Right: Architecture & Info -->
+        <div class="col-span-4">
+          <LakebaseArchitecture />
+        </div>
       </div>
-    </div>
-
-    <!-- Tab content -->
-    <div class="max-w-6xl mx-auto px-6 py-8">
-      <ArchitectureShowcase v-if="activeTab === 'architecture'" />
-      <ContextComparison v-else-if="activeTab === 'comparison'" />
-      <SelfMaintainDemo v-else-if="activeTab === 'selfmaintain'" />
-    </div>
+    </main>
   </div>
 </template>

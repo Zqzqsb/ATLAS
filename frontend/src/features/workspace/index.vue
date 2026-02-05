@@ -57,24 +57,24 @@ function goBack() {
 </script>
 
 <template>
-  <div class="workspace-page min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-950">
+  <div class="workspace-page min-h-screen bg-gray-50">
     <!-- Loading state -->
     <div v-if="workspaceStore.loadingSchema" class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
-          <div class="i-carbon-data-base text-3xl text-blue-400 animate-pulse" />
+        <div class="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+          <div class="i-carbon-data-base text-3xl text-primary-600 animate-pulse" />
         </div>
-        <p class="text-gray-400">Loading database schema...</p>
+        <p class="text-gray-500 font-medium">Loading database schema...</p>
       </div>
     </div>
 
     <!-- Database not found -->
     <div v-else-if="!workspaceStore.currentDatabase" class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <div class="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4 border border-white/10">
-          <div class="i-carbon-warning text-3xl text-red-400" />
+        <div class="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <div class="i-carbon-warning text-3xl text-red-500" />
         </div>
-        <p class="text-xl text-white mb-2">Database not found</p>
+        <p class="text-xl text-gray-900 font-bold mb-2">Database not found</p>
         <p class="text-gray-500 mb-6">The database may not exist or is not connected</p>
         <NButton type="primary" @click="goBack">
           <template #icon>
@@ -88,36 +88,41 @@ function goBack() {
     <!-- Workspace content -->
     <template v-else>
       <!-- Database header -->
-      <div class="database-header bg-gradient-to-r from-gray-900/95 to-gray-800/95 backdrop-blur-md border-b border-white/10 px-6 py-5">
+      <div class="database-header bg-white border-b border-gray-200 px-8 py-6 sticky top-0 z-20">
         <div class="max-w-[1800px] mx-auto">
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-6">
             <NButton quaternary circle size="large" @click="goBack">
-              <div class="i-carbon-arrow-left text-xl text-gray-400 hover:text-white transition-colors" />
+              <div class="i-carbon-arrow-left text-2xl text-gray-400 hover:text-gray-700 transition-colors" />
             </NButton>
             
-            <div class="flex items-center gap-4 flex-1">
-              <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border border-blue-500/30 shadow-lg shadow-blue-500/20">
-                <div class="i-carbon-data-base text-2xl text-blue-400" />
+            <div class="flex items-center gap-5 flex-1">
+              <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-primary-50 to-blue-100 flex items-center justify-center border border-blue-100 shadow-sm">
+                <div class="i-carbon-data-base text-3xl text-primary-600" />
               </div>
 
               <div>
-                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                <h1 class="text-2xl font-bold text-gray-900 leading-tight">
                   {{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}
                 </h1>
-                <div class="flex items-center gap-3 mt-1">
-                  <span class="px-2 py-0.5 rounded text-xs bg-white/10 text-gray-400 border border-white/20">
-                    {{ workspaceStore.currentDatabase.type.toUpperCase() }}
+                <div class="flex items-center gap-3 mt-1.5">
+                  <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-wide">
+                    {{ workspaceStore.currentDatabase.type }}
                   </span>
-                  <span v-if="workspaceStore.currentDatabase.host" class="text-sm text-gray-500">
+                  <span v-if="workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1">
+                    <div class="i-carbon-ibm-cloud-citrix-daas" />
                     {{ workspaceStore.currentDatabase.host }}
                   </span>
-                  <span class="text-sm text-gray-400">
+                  <div class="w-1 h-1 rounded-full bg-gray-300"></div>
+                  <span class="text-sm font-medium text-gray-500">
                     {{ workspaceStore.currentDatabase.tableCount }} tables
                   </span>
-                  <span v-if="workspaceStore.hasRichContext" class="text-sm text-blue-400 flex items-center gap-1">
-                    <div class="i-carbon-magic-wand text-sm" />
-                    {{ workspaceStore.contexts.length }} contexts
-                  </span>
+                  <template v-if="workspaceStore.hasRichContext">
+                    <div class="w-1 h-1 rounded-full bg-gray-300"></div>
+                    <span class="text-sm font-bold text-primary-600 flex items-center gap-1">
+                      <div class="i-carbon-magic-wand" />
+                      {{ workspaceStore.contexts.length }} contexts
+                    </span>
+                  </template>
                 </div>
               </div>
             </div>
@@ -126,7 +131,7 @@ function goBack() {
       </div>
 
       <!-- Tab navigation -->
-      <div class="tab-navigation bg-gray-900/50 backdrop-blur-md border-b border-white/10 px-6">
+      <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
         <div class="max-w-[1800px] mx-auto">
           <NTabs
             :value="workspaceStore.activeTab"
@@ -139,9 +144,9 @@ function goBack() {
               :key="tab.key"
               :name="tab.key"
             >
-              <div class="flex items-center gap-2 px-2 py-1">
+              <div class="flex items-center gap-2 px-2 py-3">
                 <div :class="[tab.icon, 'text-lg']" />
-                <span class="font-medium">{{ tab.label }}</span>
+                <span class="font-bold text-sm">{{ tab.label }}</span>
               </div>
             </NTab>
           </NTabs>
@@ -149,7 +154,7 @@ function goBack() {
       </div>
 
       <!-- Tab content -->
-      <div class="workspace-content max-w-[1800px] mx-auto">
+      <div class="workspace-content max-w-[1800px] mx-auto p-8">
         <QueryChat v-if="workspaceStore.activeTab === 'query'" />
         <SchemaBrowser v-else-if="workspaceStore.activeTab === 'schema'" />
         <ContextManager v-else-if="workspaceStore.activeTab === 'context'" />
@@ -161,11 +166,7 @@ function goBack() {
 
 <style scoped>
 .workspace-content {
-  min-height: calc(100vh - 180px);
-}
-
-.database-header {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  min-height: calc(100vh - 200px);
 }
 
 .tab-navigation :deep(.n-tabs-nav) {
@@ -173,18 +174,20 @@ function goBack() {
 }
 
 .tab-navigation :deep(.n-tabs-tab) {
-  color: rgba(255, 255, 255, 0.6);
+  color: #6b7280; /* Gray 500 */
 }
 
 .tab-navigation :deep(.n-tabs-tab:hover) {
-  color: rgba(255, 255, 255, 0.9);
+  color: #374151; /* Gray 700 */
 }
 
 .tab-navigation :deep(.n-tabs-tab--active) {
-  color: white;
+  color: #2563eb; /* Blue 600 */
 }
 
 .tab-navigation :deep(.n-tabs-bar) {
-  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+  background: #2563eb; /* Blue 600 */
+  height: 3px;
+  border-radius: 3px 3px 0 0;
 }
 </style>

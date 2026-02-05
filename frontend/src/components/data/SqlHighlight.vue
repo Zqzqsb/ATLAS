@@ -36,13 +36,13 @@ const formattedCode = computed(() => {
 </script>
 
 <template>
-  <div class="sql-highlight rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+  <div class="sql-highlight rounded-lg overflow-hidden border border-gray-200 bg-gray-50/50">
     <NScrollbar :style="{ maxHeight }">
       <NCode
         :code="formattedCode"
         :language="language"
         :show-line-numbers="showLineNumbers"
-        class="text-sm"
+        class="text-sm font-mono"
       />
     </NScrollbar>
   </div>
@@ -50,12 +50,19 @@ const formattedCode = computed(() => {
 
 <style scoped>
 .sql-highlight :deep(.n-code) {
-  background: #1e1e1e;
+  background: transparent;
   padding: 1rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', monospace;
+  font-size: 0.875rem;
 }
 
 .sql-highlight :deep(.n-code__line-numbers) {
   padding-right: 1rem;
-  color: #6b7280;
+  color: #9ca3af;
+  background: transparent;
+}
+
+.sql-highlight :deep(pre) {
+  color: #374151; /* Gray 700 */
 }
 </style>

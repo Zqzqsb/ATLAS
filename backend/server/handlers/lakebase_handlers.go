@@ -13,7 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
+	"lucid/interfaces"
 	"lucid/internal/lakebase"
+	"lucid/server/services"
 )
 
 // ===========================================
@@ -662,13 +664,21 @@ Output only the description text, no JSON or formatting.`,
 		}
 	}
 
+	// Auto-generate embeddings for all context (one-stop pipeline)
+	var embeddingsGenerated int
+	embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(ctx, dsID)
+	if embErr == nil && embResult != nil {
+		embeddingsGenerated = embResult.TotalEmbeddings
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":         true,
-		"datasource_id":   dsID,
-		"tables_updated":  tablesUpdated,
-		"columns_updated": columnsUpdated,
-		"total_tables":    len(tables),
-		"total_columns":   len(columns),
+		"success":              true,
+		"datasource_id":        dsID,
+		"tables_updated":       tablesUpdated,
+		"columns_updated":      columnsUpdated,
+		"total_tables":         len(tables),
+		"total_columns":        len(columns),
+		"embeddings_generated": embeddingsGenerated,
 	})
 }
 
@@ -729,27 +739,41 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	if req.MinIterations < 1 {
 		req.MinIterations = 1
 	}
-	if req.MaxIterations < req.MinIterations {
-		req.MaxIterations = req.MinIterations
+	if req.MaxIterations <= req.MinIterations {
+		req.MaxIterations = req.MinIterations + 1
 	}
-	if req.MaxIterations > 10 {
-		req.MaxIterations = 10
-	}
+	// No upper limit on iterations - let users set as needed for large databases
 
 	// Resolve datasource ID
 	idStr := c.Param("id")
 	ctx := c.Request.Context()
 
 	var dsID int64
+	var ds *lakebase.Datasource
 	var err error
 	dsID, err = strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		ds, lookupErr := h.lakebaseService.GetDatasourceByName(ctx, idStr)
-		if lookupErr != nil {
+		ds, err = h.lakebaseService.GetDatasourceByName(ctx, idStr)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
 			return
 		}
 		dsID = ds.ID
+	} else {
+		ds, err = h.lakebaseService.GetDatasource(ctx, dsID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
+			return
+		}
+	}
+
+	// Try to get business database adapter for data quality checks
+	var businessDB interfaces.DBAdapter
+	if h.dbService != nil && ds.Name != "" {
+		// Use datasource name to get the adapter (matches config.databases[].id)
+		if adp, adpErr := h.dbService.GetAdapter(ds.Name); adpErr == nil {
+			businessDB = adp
+		}
 	}
 
 	// Get tables and columns
@@ -827,7 +851,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		Message: "Discovery complete",
 	})
 
-	// Phase 2: Worker Agents - Process tables with concurrency control
+	// Phase 2: Worker Agents - Process tables with concurrency control (Multi-phase ReAct Exploration)
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, req.Concurrency)
 
@@ -867,67 +891,85 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 				Data:    map[string]interface{}{"column_count": len(cols)},
 			})
 
-			// Phase: Rich Context generation
+			// Phase: Multi-phase Rich Context Exploration using ContextWorker
 			if needsTableUpdate {
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   wID,
-					Table:   tbl.TableName,
-					Phase:   "rich_context",
-					Message: "Generating description via LLM...",
-				})
+				// Create ContextWorker for multi-phase exploration
+				worker := services.NewContextWorker(
+					wID,
+					tbl.TableName,
+					dsID,
+					model,
+					nil, // lakebaseRepo not needed for now
+					businessDB,
+					services.WorkerConfig{
+						MinIterations: req.MinIterations,
+						MaxIterations: req.MaxIterations,
+						Force:         req.Force,
+					},
+					func(event services.WorkerEvent) {
+						// Forward worker events to SSE stream
+						sendEvent("agent_step", GenerateContextEvent{
+							Agent:   wID,
+							Table:   tbl.TableName,
+							Phase:   event.Phase,
+							Message: event.Message,
+							Data: map[string]interface{}{
+								"worker_event_type": event.Type,
+								"sql":               event.SQL,
+								"result":            event.Result,
+								"context_key":       event.ContextKey,
+								"context_value":     event.ContextValue,
+								"extra":             event.Data,
+							},
+						})
+					},
+				)
 
-				// Build column list
-				colNames := make([]string, len(cols))
-				for j, col := range cols {
-					colNames[j] = col.ColumnName
-				}
-				colList := strings.Join(colNames, ", ")
-
-				// Generate table description
-				prompt := fmt.Sprintf(`Analyze this database table and provide a concise description.
-
-Table: %s
-Columns: %s
-Row Count: %d
-
-Generate a one-sentence description of what this table stores and its business purpose.
-Output only the description text, no JSON or formatting.`, tbl.TableName, colList, tbl.RowCount)
-
-				response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
-				if err != nil {
+				// Execute multi-phase exploration
+				description, workerErr := worker.Execute(ctx, cols)
+				if workerErr != nil {
 					sendEvent("agent_step", GenerateContextEvent{
 						Agent:   wID,
 						Table:   tbl.TableName,
 						Phase:   "rich_context",
 						Status:  "error",
-						Message: fmt.Sprintf("LLM error: %v", err),
+						Message: fmt.Sprintf("Worker error: %v", workerErr),
 					})
-				} else {
-					description := strings.TrimSpace(response)
-					if description != "" {
-						// Save to database
-						sendEvent("agent_step", GenerateContextEvent{
+				} else if description != "" {
+					// Send LLM response for transparency
+					sendEvent("agent_step", GenerateContextEvent{
+						Agent:   wID,
+						Table:   tbl.TableName,
+						Phase:   "rich_context",
+						Status:  "success",
+						Message: "Multi-phase analysis complete",
+						Data: map[string]interface{}{
+							"llm_response": description,
+						},
+					})
+
+					// Save to database
+					sendEvent("agent_step", GenerateContextEvent{
+						Agent:   wID,
+						Table:   tbl.TableName,
+						Phase:   "storage",
+						Message: "Saving to rc_tables...",
+					})
+
+					err = h.lakebaseService.UpdateTableDescription(ctx, dsID, tbl.TableName, description, "llm", 0.85)
+					if err == nil {
+						mu.Lock()
+						tablesUpdated++
+						mu.Unlock()
+
+						sendEvent("storage", GenerateContextEvent{
 							Agent:   wID,
 							Table:   tbl.TableName,
 							Phase:   "storage",
-							Message: "Saving to rc_tables...",
+							Status:  "success",
+							Message: fmt.Sprintf("Saved table: %s", tbl.TableName),
+							Data:    map[string]interface{}{"target": "rc_tables", "description": description},
 						})
-
-						err = h.lakebaseService.UpdateTableDescription(ctx, dsID, tbl.TableName, description, "llm", 0.85)
-						if err == nil {
-							mu.Lock()
-							tablesUpdated++
-							mu.Unlock()
-
-							sendEvent("storage", GenerateContextEvent{
-								Agent:   wID,
-								Table:   tbl.TableName,
-								Phase:   "storage",
-								Status:  "success",
-								Message: fmt.Sprintf("Saved table: %s", tbl.TableName),
-								Data:    map[string]interface{}{"target": "rc_tables", "description": description},
-							})
-						}
 					}
 				}
 			} else {
@@ -939,24 +981,48 @@ Output only the description text, no JSON or formatting.`, tbl.TableName, colLis
 				})
 			}
 
-			// Process columns
+			// Process columns (still uses direct LLM for simplicity)
 			for _, col := range cols {
 				needsColUpdate := req.Force || !col.Description.Valid || col.Description.String == ""
 				if !needsColUpdate {
 					continue
 				}
 
-				prompt := fmt.Sprintf(`Analyze this database column and provide a concise description.
+				// Determine column role
+				colRole := "regular column"
+				if col.IsPrimaryKey {
+					colRole = "primary key"
+				} else if col.IsForeignKey {
+					colRole = "foreign key"
+				}
 
-Table: %s
-Column: %s
-Data Type: %s
-Is Primary Key: %v
-Is Foreign Key: %v
+				// Build sample values hint if available
+				sampleHint := ""
+				if col.SampleValues.Valid && col.SampleValues.String != "" {
+					sampleHint = fmt.Sprintf("\nSample Values: %s", col.SampleValues.String)
+				}
 
-Generate a one-sentence description. Output only the description text.`,
+				// Enhanced prompt with rich context exploration
+				prompt := fmt.Sprintf(`Analyze this database column and generate a description.
+
+## Column: %s.%s
+## Data Type: %s
+## Role: %s%s
+
+## Your Task:
+Generate a 1-sentence description that captures:
+1. **Semantic Meaning**: What does this column represent in business terms?
+2. **Data Characteristics**: Any notable patterns, constraints, or quality considerations
+
+## Rich Context Dimensions (what we look for):
+- For TEXT columns: potential whitespace issues, type mismatches (storing numbers as text)
+- For FK columns: relationship semantics, potential orphan records
+- For enum-like columns: value distribution and meanings
+- For numeric columns: units, ranges, NULL semantics
+
+Output ONLY the description text.`,
 					tbl.TableName, col.ColumnName,
-					col.DataType.String, col.IsPrimaryKey, col.IsForeignKey)
+					col.DataType.String, colRole, sampleHint)
 
 				response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
 				if err != nil {
@@ -977,7 +1043,7 @@ Generate a one-sentence description. Output only the description text.`,
 							Phase:   "storage",
 							Status:  "success",
 							Message: fmt.Sprintf("Saved column: %s.%s", tbl.TableName, col.ColumnName),
-							Data:    map[string]interface{}{"target": "rc_columns", "column": col.ColumnName},
+							Data:    map[string]interface{}{"target": "rc_columns", "column": col.ColumnName, "description": description},
 						})
 					}
 				}
@@ -996,21 +1062,111 @@ Generate a one-sentence description. Output only the description text.`,
 	// Wait for all workers
 	wg.Wait()
 
+	// Phase 3: Generate embeddings for all context (one-stop pipeline)
+	sendEvent("agent_start", GenerateContextEvent{
+		Agent:   "embedding",
+		Phase:   "embedding",
+		Status:  "running",
+		Message: "Generating embeddings for semantic search...",
+	})
+
+	var embeddingsGenerated int
+	embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(ctx, dsID)
+	if embErr != nil {
+		sendEvent("agent_done", GenerateContextEvent{
+			Agent:   "embedding",
+			Phase:   "embedding",
+			Status:  "error",
+			Message: fmt.Sprintf("Embedding error: %v", embErr),
+		})
+	} else if embResult != nil {
+		embeddingsGenerated = embResult.TotalEmbeddings
+		sendEvent("storage", GenerateContextEvent{
+			Agent:   "embedding",
+			Phase:   "embedding",
+			Status:  "success",
+			Message: fmt.Sprintf("Saved %d embeddings to rc_embeddings", embeddingsGenerated),
+			Data: map[string]interface{}{
+				"tables_embedded":   embResult.TablesProcessed,
+				"columns_embedded":  embResult.ColumnsProcessed,
+				"contexts_embedded": embResult.ContextsProcessed,
+				"total_embeddings":  embeddingsGenerated,
+			},
+		})
+		sendEvent("agent_done", GenerateContextEvent{
+			Agent:   "embedding",
+			Phase:   "embedding",
+			Status:  "success",
+			Message: "Embeddings generated successfully",
+		})
+	}
+
 	// Complete
 	duration := time.Since(startTime)
 	sendEvent("complete", GenerateContextEvent{
 		Status:  "success",
 		Message: "Generation complete",
 		Data: map[string]interface{}{
-			"tables_updated":  tablesUpdated,
-			"columns_updated": columnsUpdated,
-			"total_tables":    len(tables),
-			"total_columns":   len(columns),
-			"duration_ms":     duration.Milliseconds(),
+			"tables_updated":       tablesUpdated,
+			"columns_updated":      columnsUpdated,
+			"total_tables":         len(tables),
+			"total_columns":        len(columns),
+			"embeddings_generated": embeddingsGenerated,
+			"duration_ms":          duration.Milliseconds(),
 		},
 	})
 
 	// Close event channel and wait for sender to finish
 	close(eventChan)
 	<-done
+}
+
+// ===========================================
+// Prune Context API
+// ===========================================
+
+// PruneContext deletes all rich context data for a datasource
+// DELETE /api/lakebase/datasources/:id/prune
+func (h *Handler) PruneContext(c *gin.Context) {
+	if h.lakebaseService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Lake-base service not configured",
+		})
+		return
+	}
+
+	dsIDStr := c.Param("id")
+	dsID, err := strconv.ParseInt(dsIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid datasource ID",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	// Verify datasource exists
+	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Datasource not found",
+		})
+		return
+	}
+
+	// Prune all context
+	if err := h.lakebaseService.PruneAllContext(ctx, dsID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to prune context: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    fmt.Sprintf("All rich context pruned for datasource '%s'", ds.Name),
+		"datasource": ds.Name,
+	})
 }

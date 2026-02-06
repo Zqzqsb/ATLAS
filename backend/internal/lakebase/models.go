@@ -48,24 +48,31 @@ type TableInfo struct {
 	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
 }
 
+// ForeignKeyRef represents foreign key reference information
+type ForeignKeyRef struct {
+	RefTableName  string `json:"ref_table_name"`
+	RefColumnName string `json:"ref_column_name"`
+}
+
 // ColumnInfo represents column-level Rich Context from rc_columns
 type ColumnInfo struct {
-	ID           int64          `json:"id" db:"id"`
-	DatasourceID int64          `json:"datasource_id" db:"datasource_id"`
-	TableName    string         `json:"table_name" db:"table_name"`
-	ColumnName   string         `json:"column_name" db:"column_name"`
-	DataType     sql.NullString `json:"data_type" db:"data_type"`
-	Description  sql.NullString `json:"description" db:"description"`
-	SampleValues sql.NullString `json:"sample_values" db:"sample_values"`
-	Synonyms     sql.NullString `json:"synonyms" db:"synonyms"`
-	IsNullable   bool           `json:"is_nullable" db:"is_nullable"`
-	IsPrimaryKey bool           `json:"is_primary_key" db:"is_primary_key"`
-	IsForeignKey bool           `json:"is_foreign_key" db:"is_foreign_key"`
-	IsExpired    bool           `json:"is_expired" db:"is_expired"`
-	Source       string         `json:"source" db:"source"`
-	Confidence   float64        `json:"confidence" db:"confidence"`
-	CreatedAt    time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
+	ID             int64          `json:"id" db:"id"`
+	DatasourceID   int64          `json:"datasource_id" db:"datasource_id"`
+	TableName      string         `json:"table_name" db:"table_name"`
+	ColumnName     string         `json:"column_name" db:"column_name"`
+	DataType       sql.NullString `json:"data_type" db:"data_type"`
+	Description    sql.NullString `json:"description" db:"description"`
+	SampleValues   sql.NullString `json:"sample_values" db:"sample_values"`
+	Synonyms       sql.NullString `json:"synonyms" db:"synonyms"`
+	IsNullable     bool           `json:"is_nullable" db:"is_nullable"`
+	IsPrimaryKey   bool           `json:"is_primary_key" db:"is_primary_key"`
+	IsForeignKey   bool           `json:"is_foreign_key" db:"is_foreign_key"`
+	ForeignKeyInfo *ForeignKeyRef `json:"foreign_key_info,omitempty"` // Populated from rc_relations
+	IsExpired      bool           `json:"is_expired" db:"is_expired"`
+	Source         string         `json:"source" db:"source"`
+	Confidence     float64        `json:"confidence" db:"confidence"`
+	CreatedAt      time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at" db:"updated_at"`
 }
 
 // TermInfo represents business terminology from rc_terms

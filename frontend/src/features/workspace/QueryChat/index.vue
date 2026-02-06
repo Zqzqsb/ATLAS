@@ -86,27 +86,45 @@ const modelOptions = [
   { label: 'GPT-4', value: 'gpt4' }
 ]
 
-// Example questions for spider_tvshow database
+// Example questions for different Spider databases
 const exampleQuestions = computed(() => {
-  const dbName = workspaceStore.currentDatabase?.name || ''
+  const dbName = workspaceStore.currentDatabase?.name?.toLowerCase() || ''
   
-  if (dbName === 'spider_tvshow') {
+  // TV Show database
+  if (dbName.includes('tvshow') || dbName.includes('tv_show')) {
     return [
-      'List all TV channels with their countries',
-      'Which TV channel has the highest package price?',
-      'Show all cartoons and their corresponding TV channels',
-      'How many TV series are broadcasted in each country?',
-      'Find all channels that offer High Definition TV',
-      'List all cartoons directed by Ben Jones'
+      '查询所有电视频道',
+      '哪个频道的套餐价格最高？',
+      '列出所有动画片及其播出频道',
+      '统计每个国家的频道数量'
+    ]
+  }
+  
+  // Flight database
+  if (dbName.includes('flight')) {
+    return [
+      '查询所有航空公司',
+      '从洛杉矶出发的航班有哪些？',
+      '列出所有机场及其所在城市',
+      '哪个航空公司的航班最多？'
+    ]
+  }
+  
+  // WTA Tennis database
+  if (dbName.includes('wta')) {
+    return [
+      '查询所有球员信息',
+      '哪位球员赢得的比赛最多？',
+      '列出2016年的所有比赛',
+      '按国家统计球员数量'
     ]
   }
   
   // Default examples
   return [
-    '查询所有电视频道',
-    '查找收视率最高的节目',
-    '统计每个国家的频道数量',
-    '查询所有动画片及其播出频道'
+    '查询所有数据表',
+    '统计每个表的记录数',
+    '查找包含特定关键字的数据'
   ]
 })
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { NButton, NSpin, useMessage } from 'naive-ui'
 import { useDatabaseStore } from '@/stores/database'
 import DatabaseCard from './DatabaseCard.vue'
+import SpiderDatasetCard from './SpiderDatasetCard.vue'
 import AddDatabaseDialog from './AddDatabaseDialog.vue'
 import type { DatabaseConfig } from '@/types'
 
@@ -11,6 +12,27 @@ const databaseStore = useDatabaseStore()
 const message = useMessage()
 
 const showAddDialog = ref(false)
+
+// Spider 库名称模式
+const SPIDER_PATTERNS = ['tvshow', 'tv_show', 'spider_tvshow', 'lucid_flight', 'flight', 'lucid_wta', 'wta']
+
+// 判断是否是 Spider 库
+function isSpiderDatabase(name: string): boolean {
+  const lowerName = name.toLowerCase()
+  return SPIDER_PATTERNS.some(pattern => lowerName.includes(pattern))
+}
+
+// 分离 Spider 库和其他库
+const spiderDatabases = computed(() => 
+  databaseStore.databases.filter(db => isSpiderDatabase(db.name))
+)
+
+const otherDatabases = computed(() => 
+  databaseStore.databases.filter(db => !isSpiderDatabase(db.name))
+)
+
+// 是否显示 Spider Dataset 卡片
+const showSpiderCard = computed(() => spiderDatabases.value.length > 0)
 
 onMounted(async () => {
   await databaseStore.fetchDatabases()
@@ -113,8 +135,15 @@ async function handleAddDatabase(config: DatabaseConfig) {
             v-else
             class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
           >
+            <!-- Spider Dataset Card (合并显示) -->
+            <SpiderDatasetCard 
+              v-if="showSpiderCard"
+              :databases="spiderDatabases"
+            />
+            
+            <!-- Other database cards -->
             <DatabaseCard
-              v-for="db in databaseStore.databases"
+              v-for="db in otherDatabases"
               :key="db.id"
               :database="db"
               @test="handleTestConnection"
@@ -176,6 +205,6 @@ async function handleAddDatabase(config: DatabaseConfig) {
 
 <style scoped>
 .database-add-card {
-  height: 260px; /* Match DatabaseCard height */
+  min-height: 260px;
 }
 </style>

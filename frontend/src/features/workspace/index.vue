@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NTabs, NTabPane, NButton } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -23,6 +23,65 @@ const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
   { key: 'context', label: 'Context', icon: 'i-carbon-document' },
   { key: 'monitor', label: '监控', icon: 'i-carbon-analytics' }
 ]
+
+// Spider 库名称模式
+const SPIDER_PATTERNS = ['tvshow', 'tv_show', 'spider_tvshow', 'lucid_flight', 'flight', 'lucid_wta', 'wta']
+
+// 判断是否是 Spider 库
+function isSpiderDatabase(name: string): boolean {
+  const lowerName = name.toLowerCase()
+  return SPIDER_PATTERNS.some(pattern => lowerName.includes(pattern))
+}
+
+// 当前是否在 Spider 模式
+const isSpiderMode = computed(() => {
+  return workspaceStore.currentDatabase && isSpiderDatabase(workspaceStore.currentDatabase.name)
+})
+
+// Spider 场景列表
+const spiderScenarios = computed(() => {
+  if (!isSpiderMode.value) return []
+  
+  // 获取所有 Spider 库
+  return databaseStore.databases
+    .filter(db => isSpiderDatabase(db.name))
+    .map(db => ({
+      id: db.id,
+      name: getScenarioName(db.name),
+      icon: getScenarioIcon(db.name),
+      tag: getScenarioTag(db.name),
+      dbName: db.name
+    }))
+})
+
+// 当前选中的 Spider 场景
+const currentScenarioId = computed(() => workspaceStore.currentDatabaseId)
+
+function getScenarioName(dbName: string): string {
+  if (dbName.includes('tvshow') || dbName.includes('tv_show')) return 'TV Show'
+  if (dbName.includes('flight')) return 'Flight'
+  if (dbName.includes('wta')) return 'WTA Tennis'
+  return dbName
+}
+
+function getScenarioIcon(dbName: string): string {
+  if (dbName.includes('tvshow') || dbName.includes('tv_show')) return '📺'
+  if (dbName.includes('flight')) return '✈️'
+  if (dbName.includes('wta')) return '🎾'
+  return '📊'
+}
+
+function getScenarioTag(_dbName: string): string {
+  // 所有 Spider 库都是脏库场景，不做区分
+  return ''
+}
+
+// 切换 Spider 场景
+function switchSpiderScenario(scenarioId: string) {
+  if (scenarioId !== workspaceStore.currentDatabaseId) {
+    router.push(`/workspace/${scenarioId}`)
+  }
+}
 
 onMounted(async () => {
   // Ensure databases are loaded
@@ -99,19 +158,55 @@ function goBack() {
             </button>
             
             <div class="flex items-center gap-4 flex-1">
-              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-blue-600 flex items-center justify-center shadow-lg shadow-primary-500/30">
-                <div class="i-carbon-data-base text-2xl text-white" />
+              <!-- Spider 模式显示特殊图标 -->
+              <div 
+                class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                :class="isSpiderMode 
+                  ? 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/30' 
+                  : 'bg-gradient-to-br from-primary-500 to-blue-600 shadow-primary-500/30'"
+              >
+                <span v-if="isSpiderMode" class="text-2xl">🕷️</span>
+                <div v-else class="i-carbon-data-base text-2xl text-white" />
               </div>
 
-              <div>
-                <h1 class="text-2xl font-bold text-gray-900 leading-tight">
-                  {{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}
-                </h1>
+              <div class="flex-1">
+                <div class="flex items-center gap-4">
+                  <h1 class="text-2xl font-bold text-gray-900 leading-tight">
+                    <template v-if="isSpiderMode">
+                      Spider Dataset
+                    </template>
+                    <template v-else>
+                      {{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}
+                    </template>
+                  </h1>
+                  
+                  <!-- Spider 场景切换 - 放在标题旁边 -->
+                  <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-2">
+                    <button
+                      v-for="scenario in spiderScenarios"
+                      :key="scenario.id"
+                      class="scenario-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200"
+                      :class="scenario.id === currentScenarioId 
+                        ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-600'"
+                      @click="switchSpiderScenario(scenario.id)"
+                    >
+                      <span>{{ scenario.icon }}</span>
+                      <span>{{ scenario.name }}</span>
+                    </button>
+                  </div>
+                </div>
+                
                 <div class="flex items-center gap-3 mt-1.5">
-                  <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-gray-100 to-slate-200 text-gray-700 uppercase tracking-wide shadow-sm">
-                    {{ workspaceStore.currentDatabase.type }}
+                  <span 
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide shadow-sm"
+                    :class="isSpiderMode 
+                      ? 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700' 
+                      : 'bg-gradient-to-r from-gray-100 to-slate-200 text-gray-700'"
+                  >
+                    {{ isSpiderMode ? 'Text-to-SQL Benchmark' : workspaceStore.currentDatabase.type }}
                   </span>
-                  <span v-if="workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1.5">
+                  <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1.5">
                     <div class="i-carbon-ibm-cloud-citrix-daas text-gray-400" />
                     {{ workspaceStore.currentDatabase.host }}
                   </span>

@@ -151,6 +151,6 @@ function handleEnter() {
 
 <style scoped>
 .database-card {
-  height: 260px;
+  min-height: 280px;
 }
 </style>

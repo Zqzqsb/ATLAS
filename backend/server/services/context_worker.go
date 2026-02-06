@@ -190,10 +190,24 @@ func (w *ContextWorker) checkDataQuality(ctx context.Context, columns []*lakebas
 			if issue != "" {
 				issues = append(issues, issue)
 			}
+
+			// Check for empty string abuse (empty string vs NULL)
+			issue = w.checkEmptyStringAbuse(ctx, col.ColumnName)
+			if issue != "" {
+				issues = append(issues, issue)
+			}
 		}
 
 		// Check NULL percentage
 		w.checkNullPercentage(ctx, col.ColumnName)
+
+		// Check orphan records for foreign key columns
+		if col.IsForeignKey && col.ForeignKeyInfo != nil {
+			issue := w.checkOrphanRecords(ctx, col)
+			if issue != "" {
+				issues = append(issues, issue)
+			}
+		}
 	}
 
 	return issues
@@ -274,6 +288,121 @@ func (w *ContextWorker) checkTypeMismatch(ctx context.Context, columnName string
 			Phase:   "quality",
 			Message: issue,
 			Result:  samples,
+		})
+		return issue
+	}
+
+	return ""
+}
+
+func (w *ContextWorker) checkEmptyStringAbuse(ctx context.Context, columnName string) string {
+	// Check for empty string usage that might indicate NULL abuse
+	sql := fmt.Sprintf("SELECT COUNT(*) as empty_count FROM `%s` WHERE `%s` = ''",
+		w.tableName, columnName)
+
+	w.emit(WorkerEvent{
+		Type:    "sql",
+		Phase:   "quality",
+		Message: fmt.Sprintf("Checking empty string abuse in %s", columnName),
+		SQL:     sql,
+	})
+
+	result, err := w.businessDB.ExecuteQuery(ctx, sql)
+	if err != nil || len(result.Rows) == 0 {
+		return ""
+	}
+
+	var emptyCount int64
+	if v, ok := result.Rows[0]["empty_count"]; ok {
+		switch n := v.(type) {
+		case int64:
+			emptyCount = n
+		case float64:
+			emptyCount = int64(n)
+		}
+	}
+
+	if emptyCount > 0 {
+		issue := fmt.Sprintf("⚠️ Column %s has %d empty string values (may be used instead of NULL). Check: WHERE %s IS NULL OR %s = ''",
+			columnName, emptyCount, columnName, columnName)
+		w.emit(WorkerEvent{
+			Type:    "result",
+			Phase:   "quality",
+			Message: issue,
+			Data: map[string]interface{}{
+				"column":      columnName,
+				"empty_count": emptyCount,
+			},
+		})
+		return issue
+	}
+
+	return ""
+}
+
+func (w *ContextWorker) checkOrphanRecords(ctx context.Context, col *lakebase.ColumnInfo) string {
+	// Skip if no foreign key info available yet
+	// TODO: Enhance to load from rc_relations
+	if col.ForeignKeyInfo == nil {
+		return ""
+	}
+
+	refTable := col.ForeignKeyInfo.RefTableName
+	refColumn := col.ForeignKeyInfo.RefColumnName
+
+	// Skip if reference info is incomplete
+	if refTable == "" || refColumn == "" {
+		return ""
+	}
+
+	sql := fmt.Sprintf("SELECT COUNT(*) as orphan_count FROM `%s` child LEFT JOIN `%s` parent ON child.`%s` = parent.`%s` WHERE parent.`%s` IS NULL AND child.`%s` IS NOT NULL",
+		w.tableName, refTable, col.ColumnName, refColumn, refColumn, col.ColumnName)
+
+	w.emit(WorkerEvent{
+		Type:    "sql",
+		Phase:   "quality",
+		Message: fmt.Sprintf("Checking orphan records in %s.%s → %s.%s", w.tableName, col.ColumnName, refTable, refColumn),
+		SQL:     sql,
+	})
+
+	result, err := w.businessDB.ExecuteQuery(ctx, sql)
+	if err != nil {
+		// Log error but don't fail
+		w.emit(WorkerEvent{
+			Type:    "result",
+			Phase:   "quality",
+			Message: fmt.Sprintf("Could not check orphan records: %v", err),
+		})
+		return ""
+	}
+
+	if len(result.Rows) == 0 {
+		return ""
+	}
+
+	var orphanCount int64
+	if v, ok := result.Rows[0]["orphan_count"]; ok {
+		switch n := v.(type) {
+		case int64:
+			orphanCount = n
+		case float64:
+			orphanCount = int64(n)
+		}
+	}
+
+	if orphanCount > 0 {
+		issue := fmt.Sprintf("⚠️ Found %d orphan records: %s.%s references %s.%s but %d values don't exist in parent table. Use LEFT JOIN to preserve all records.",
+			orphanCount, w.tableName, col.ColumnName, refTable, refColumn, orphanCount)
+		w.emit(WorkerEvent{
+			Type:    "result",
+			Phase:   "quality",
+			Message: issue,
+			Data: map[string]interface{}{
+				"column":       col.ColumnName,
+				"ref_table":    refTable,
+				"ref_column":   refColumn,
+				"orphan_count": orphanCount,
+			},
 		})
 		return issue
 	}

@@ -6,6 +6,8 @@ export { contextApi } from './context'
 export { queryApi } from './query'
 export { agentApi } from './agent'
 export type { AgentStatus, MaintenanceResult, ChangeLog, ChangeLogSummary, SchemaChange } from './agent'
+export { evolutionApi } from './evolution'
+export type { EvolutionStatus, EvolutionStage, StageExecution, ContextAction, EvolutionEvent } from './evolution'
 
 // Re-export demo APIs (preserved from original)
 import type {

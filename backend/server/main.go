@@ -157,6 +157,22 @@ func main() {
 		}
 	}
 
+	// ========================================
+	// Initialize Agent & Evolution Services
+	// ========================================
+	if lakebaseService != nil {
+		pool := lakebaseService.GetPool()
+		repo := lakebaseService.GetRepository()
+		if pool != nil && repo != nil {
+			handlers.InitAgentService(pool, nil)
+			agentSvc := handlers.GetAgentService()
+			if agentSvc != nil {
+				handlers.InitEvolutionService(pool, repo, agentSvc)
+				log.Println("✅ Agent & Evolution services initialized")
+			}
+		}
+	}
+
 	// Create handlers with dependencies
 	h, err := handlers.New(&handlers.HandlerDependencies{
 		Config:           cfg,
@@ -297,6 +313,14 @@ func main() {
 		api.POST("/agent/refresh/:datasource_id", h.TriggerContextRefresh)
 		api.POST("/agent/simulate-ddl/:datasource_id", h.SimulateDDLChange)
 		api.GET("/agent/logs/:datasource_id", h.GetAgentChangeLogs)
+
+		// Evolution Demo routes (Self-Maintenance Demo)
+		api.GET("/evolution/status", h.GetEvolutionStatus)
+		api.GET("/evolution/stages/:stage_id", h.GetEvolutionStagePreview)
+		api.POST("/evolution/execute-stage", h.ExecuteEvolutionStage)
+		api.POST("/evolution/execute-stage/stream", h.ExecuteEvolutionStageStream)
+		api.POST("/evolution/reset", h.ResetEvolution)
+		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
 		// Semantic Grounding routes (VLDB Demo V3)
 		if groundingHandlers != nil {

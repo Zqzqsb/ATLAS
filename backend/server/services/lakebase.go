@@ -141,6 +141,13 @@ func (s *LakebaseService) SetEmbeddingProvider(provider embedding.EmbeddingProvi
 	s.embeddingProvider = provider
 }
 
+// GetRepository returns the MySQL repository for data access
+func (s *LakebaseService) GetRepository() *lakebase.MySQLRepository {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.repo
+}
+
 // GetVectorRepository returns the vector repository for semantic grounding
 func (s *LakebaseService) GetVectorRepository() *lakebase.MySQLVectorRepository {
 	s.mu.RLock()

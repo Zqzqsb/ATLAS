@@ -54,18 +54,18 @@ onMounted(() => {
         class="mb-8"
       />
 
-      <!-- Content Grid -->
-      <div class="grid grid-cols-12 gap-8">
+      <!-- Self-Maintain Demo (full width — has its own layout) -->
+      <SelfMaintainDemo 
+        v-if="store.currentScenario === 'selfmaintain'"
+      />
+
+      <!-- Other demos: split layout with architecture sidebar -->
+      <div v-else class="grid grid-cols-12 gap-8">
         <!-- Left: Main Demo Area -->
         <div class="col-span-8">
           <!-- Context Comparison (Core) -->
           <ContextComparison 
             v-if="store.currentScenario === 'comparison'"
-          />
-
-          <!-- Self-Maintain Demo -->
-          <SelfMaintainDemo 
-            v-else-if="store.currentScenario === 'selfmaintain'"
           />
 
           <!-- Benchmark Demo -->

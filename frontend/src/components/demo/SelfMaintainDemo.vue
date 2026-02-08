@@ -1,195 +1,659 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useDemoStore } from '@/stores/demo'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { NButton, NTag, NProgress, NSwitch, NScrollbar, NEmpty, NTooltip, useMessage } from 'naive-ui'
+import { evolutionApi } from '@/api/evolution'
+import { agentApi } from '@/api/agent'
+import type { EvolutionStatus, EvolutionStage, StageExecution, ContextAction } from '@/api/evolution'
+import type { ChangeLog } from '@/api/agent'
 
-const store = useDemoStore()
-const activeDemo = ref<'error' | 'feedback' | 'schema' | null>(null)
-const demoStatus = ref<'idle' | 'running' | 'done'>('idle')
-const demoSteps = ref<{ label: string; status: 'pending' | 'running' | 'done' }[]>([])
+const message = useMessage()
 
-async function runDemo(type: 'error' | 'feedback' | 'schema') {
-  activeDemo.value = type
-  demoStatus.value = 'running'
-  
-  const steps = {
-    error: [
-      { label: '检测到 SQL 执行错误', status: 'pending' as const },
-      { label: '分析错误模式', status: 'pending' as const },
-      { label: '生成修复 Context', status: 'pending' as const },
-      { label: '验证修复效果', status: 'pending' as const }
-    ],
-    feedback: [
-      { label: '接收用户反馈', status: 'pending' as const },
-      { label: '解析反馈意图', status: 'pending' as const },
-      { label: '更新 Rich Context', status: 'pending' as const },
-      { label: '验证改进效果', status: 'pending' as const }
-    ],
-    schema: [
-      { label: '检测 Schema 变更', status: 'pending' as const },
-      { label: '分析影响范围', status: 'pending' as const },
-      { label: '更新相关 Context', status: 'pending' as const },
-      { label: '重新计算向量索引', status: 'pending' as const }
-    ]
-  }
-  
-  demoSteps.value = steps[type]
+// ========================================
+// State
+// ========================================
+const status = ref<EvolutionStatus | null>(null)
+const loading = ref(false)
+const executing = ref(false)
+const resetting = ref(false)
 
-  for (let i = 0; i < demoSteps.value.length; i++) {
-    const step = demoSteps.value[i]
-    if (step) {
-      step.status = 'running'
-      await new Promise(r => setTimeout(r, 1000))
-      step.status = 'done'
-    }
-  }
-
-  demoStatus.value = 'done'
+// Event log for real-time streaming display
+interface EventLogEntry {
+  id: number
+  type: string
+  phase: string
+  message: string
+  timestamp: Date
+  data?: any
 }
+const eventLog = ref<EventLogEntry[]>([])
+let eventCounter = 0
+
+// Change logs from agent
+const changeLogs = ref<ChangeLog[]>([])
+
+// Auto-scroll ref
+const logScrollRef = ref<any>(null)
+
+// Datasource ID for the evolution database
+const datasourceId = ref(1) // Will be configurable
+
+// ========================================
+// Computed
+// ========================================
+const currentStage = computed(() => status.value?.current_stage ?? 0)
+const totalStages = computed(() => status.value?.total_stages ?? 5)
+const stages = computed(() => status.value?.stages ?? [])
+const history = computed(() => status.value?.history ?? [])
+const nextStageId = computed(() => currentStage.value + 1)
+const canExecuteNext = computed(() => nextStageId.value <= totalStages.value && !executing.value)
+const isComplete = computed(() => currentStage.value >= totalStages.value)
+const progressPercent = computed(() => Math.round((currentStage.value / totalStages.value) * 100))
+
+// Stage icon mapping
+function getStageIcon(stage: EvolutionStage): string {
+  switch (stage.id) {
+    case 1: return 'i-carbon-phone'
+    case 2: return 'i-carbon-shopping-cart'
+    case 3: return 'i-carbon-connect'
+    case 4: return 'i-carbon-increase-level'
+    case 5: return 'i-carbon-trash-can'
+    default: return 'i-carbon-data-table'
+  }
+}
+
+function getChangeTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    'column_added': 'Column Added',
+    'column_dropped': 'Column Dropped',
+    'column_modified': 'Column Modified',
+    'table_added': 'Table Added',
+    'table_dropped': 'Table Dropped',
+    'fk_added': 'FK Added',
+    'fk_dropped': 'FK Dropped',
+  }
+  return map[type] || type
+}
+
+function getChangeTypeColor(type: string): string {
+  if (type.includes('added')) return 'text-green-600'
+  if (type.includes('dropped') || type.includes('deleted')) return 'text-red-600'
+  if (type.includes('modified') || type.includes('refreshed')) return 'text-amber-600'
+  return 'text-blue-600'
+}
+
+function getActionIcon(type: string): string {
+  switch (type) {
+    case 'created': return 'i-carbon-add-filled'
+    case 'expired': return 'i-carbon-warning-alt-filled'
+    case 'refreshed': return 'i-carbon-renew'
+    case 'deleted': return 'i-carbon-close-filled'
+    default: return 'i-carbon-information'
+  }
+}
+
+function getActionColor(type: string): string {
+  switch (type) {
+    case 'created': return 'text-green-500'
+    case 'expired': return 'text-amber-500'
+    case 'refreshed': return 'text-blue-500'
+    case 'deleted': return 'text-red-500'
+    default: return 'text-gray-500'
+  }
+}
+
+function getEventIcon(type: string): string {
+  switch (type) {
+    case 'stage_start': return 'i-carbon-play-filled-alt'
+    case 'ddl_executing': return 'i-carbon-terminal'
+    case 'ddl_complete': return 'i-carbon-checkmark'
+    case 'data_inserting': return 'i-carbon-data-table'
+    case 'data_complete': return 'i-carbon-checkmark'
+    case 'detecting': return 'i-carbon-search'
+    case 'changes_detected': return 'i-carbon-warning-alt'
+    case 'marking_expired': return 'i-carbon-time'
+    case 'context_expired': return 'i-carbon-warning-alt-filled'
+    case 'creating_context': return 'i-carbon-ai-status'
+    case 'context_created': return 'i-carbon-add-filled'
+    case 'context_refreshed': return 'i-carbon-renew'
+    case 'context_deleted': return 'i-carbon-close-filled'
+    case 'refreshing_context': return 'i-carbon-ai-status'
+    case 'context_refreshed_complete': return 'i-carbon-checkmark-filled'
+    case 'updating_embeddings': return 'i-carbon-chart-venn-diagram'
+    case 'stage_complete': return 'i-carbon-checkmark-filled'
+    case 'error': return 'i-carbon-error-filled'
+    case 'execution_complete': return 'i-carbon-trophy-filled'
+    case 'reset_step': return 'i-carbon-reset'
+    case 'reset_complete': return 'i-carbon-checkmark-filled'
+    default: return 'i-carbon-information'
+  }
+}
+
+function getEventColor(type: string): string {
+  if (type.includes('error')) return 'text-red-500'
+  if (type.includes('complete') || type.includes('created') || type === 'ddl_complete' || type === 'data_complete') return 'text-green-500'
+  if (type.includes('expired') || type.includes('warning') || type.includes('detecting')) return 'text-amber-500'
+  if (type.includes('executing') || type.includes('refreshing') || type.includes('creating') || type.includes('updating')) return 'text-blue-500'
+  if (type === 'stage_start') return 'text-indigo-500'
+  return 'text-gray-500'
+}
+
+// ========================================
+// Actions
+// ========================================
+
+async function fetchStatus() {
+  loading.value = true
+  try {
+    status.value = await evolutionApi.getStatus()
+  } catch (e: any) {
+    console.error('Failed to fetch evolution status:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fetchChangeLogs() {
+  try {
+    const result = await agentApi.getChangeLogs(datasourceId.value, 30)
+    changeLogs.value = result.logs || []
+  } catch (e) {
+    // ignore
+  }
+}
+
+function addEvent(type: string, phase: string, msg: string, data?: any) {
+  eventLog.value.push({
+    id: eventCounter++,
+    type,
+    phase,
+    message: msg,
+    timestamp: new Date(),
+    data
+  })
+  // Auto-scroll to bottom
+  nextTick(() => {
+    if (logScrollRef.value) {
+      const el = logScrollRef.value.$el || logScrollRef.value
+      if (el && el.scrollTo) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      }
+    }
+  })
+}
+
+async function executeNextStage() {
+  if (!canExecuteNext.value) return
+
+  executing.value = true
+  const stageId = nextStageId.value
+
+  addEvent('stage_start', 'announce', `Starting Stage ${stageId}...`)
+
+  const abort = evolutionApi.executeStageStream(
+    datasourceId.value,
+    stageId,
+    (event) => {
+      // Add event to log
+      const data = event.data as any
+      if (data && data.message) {
+        addEvent(event.type, data.phase || '', data.message, data.data)
+      }
+
+      // Handle completion
+      if (event.type === 'execution_complete') {
+        executing.value = false
+        fetchStatus()
+        fetchChangeLogs()
+        message.success(`Stage ${stageId} completed!`)
+      }
+      if (event.type === 'error') {
+        executing.value = false
+        message.error(data?.error || data?.message || 'Stage execution failed')
+      }
+    },
+    (err) => {
+      executing.value = false
+      addEvent('error', 'system', `Connection error: ${err.message}`)
+      message.error('Connection failed: ' + err.message)
+    },
+    () => {
+      executing.value = false
+    }
+  )
+}
+
+async function resetToInitial() {
+  resetting.value = true
+  eventLog.value = []
+
+  addEvent('reset_step', 'reset', 'Resetting to initial state...')
+
+  try {
+    const result = await evolutionApi.reset(datasourceId.value)
+    if (result.success) {
+      addEvent('reset_complete', 'done', 'Reset complete — back to initial state')
+      message.success('Reset to initial state')
+      await fetchStatus()
+      await fetchChangeLogs()
+    }
+  } catch (e: any) {
+    addEvent('error', 'reset', `Reset failed: ${e.message}`)
+    message.error('Reset failed: ' + e.message)
+  } finally {
+    resetting.value = false
+  }
+}
+
+// ========================================
+// Lifecycle
+// ========================================
+onMounted(async () => {
+  await Promise.all([fetchStatus(), fetchChangeLogs()])
+})
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- Title -->
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-indigo-50 via-blue-50 to-purple-50 rounded-2xl p-6 border border-indigo-100/80">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+            <div class="i-carbon-bot text-3xl text-white" />
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">Schema Evolution Demo</h2>
+            <p class="text-sm text-gray-500 mt-0.5">
+              Watch the Agent detect schema changes and maintain Rich Context automatically
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <NTag :type="isComplete ? 'success' : 'info'" size="large" round>
+            Stage {{ currentStage }} / {{ totalStages }}
+          </NTag>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="mt-5">
+        <div class="flex items-center justify-between text-xs font-medium text-gray-500 mb-2">
+          <span>Evolution Progress</span>
+          <span>{{ progressPercent }}%</span>
+        </div>
+        <div class="h-2.5 bg-white/80 rounded-full overflow-hidden border border-gray-200/50">
+          <div 
+            class="h-full rounded-full transition-all duration-700 ease-out"
+            :class="isComplete ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gradient-to-r from-indigo-400 to-purple-500'"
+            :style="{ width: `${progressPercent}%` }"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage Timeline -->
     <div class="card p-6">
-      <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-        <span class="i-carbon-recycle text-green-500" />
-        自维持机制演示
-      </h2>
-      <p class="text-gray-600 text-sm">
-        展示 Rich Context 如何通过错误反馈、用户纠正、Schema 变更等触发器自动维护和更新。
-      </p>
-    </div>
-
-    <!-- Trigger Cards -->
-    <div class="grid grid-cols-3 gap-4">
-      <button
-        @click="runDemo('error')"
-        class="card p-5 text-left hover:shadow-md transition-shadow"
-        :class="activeDemo === 'error' ? 'ring-2 ring-orange-500' : ''"
-      >
-        <div class="i-carbon-warning-alt text-2xl text-orange-500 mb-3" />
-        <div class="font-medium mb-1">SQL 错误反馈</div>
-        <div class="text-sm text-gray-500">当 SQL 执行失败时自动分析并修复</div>
-      </button>
-
-      <button
-        @click="runDemo('feedback')"
-        class="card p-5 text-left hover:shadow-md transition-shadow"
-        :class="activeDemo === 'feedback' ? 'ring-2 ring-blue-500' : ''"
-      >
-        <div class="i-carbon-user-feedback text-2xl text-blue-500 mb-3" />
-        <div class="font-medium mb-1">用户纠正</div>
-        <div class="text-sm text-gray-500">用户反馈错误时更新业务规则</div>
-      </button>
-
-      <button
-        @click="runDemo('schema')"
-        class="card p-5 text-left hover:shadow-md transition-shadow"
-        :class="activeDemo === 'schema' ? 'ring-2 ring-purple-500' : ''"
-      >
-        <div class="i-carbon-data-table text-2xl text-purple-500 mb-3" />
-        <div class="font-medium mb-1">Schema 变更</div>
-        <div class="text-sm text-gray-500">数据库结构变化时自动更新</div>
-      </button>
-    </div>
-
-    <!-- Demo Progress -->
-    <div v-if="activeDemo" class="card p-6">
-      <h3 class="font-medium mb-4 flex items-center gap-2">
-        <span 
-          class="text-lg"
-          :class="{
-            'i-carbon-warning-alt text-orange-500': activeDemo === 'error',
-            'i-carbon-user-feedback text-blue-500': activeDemo === 'feedback',
-            'i-carbon-data-table text-purple-500': activeDemo === 'schema'
-          }"
-        />
-        {{ activeDemo === 'error' ? 'SQL 错误反馈流程' : activeDemo === 'feedback' ? '用户纠正流程' : 'Schema 变更流程' }}
+      <h3 class="font-bold text-gray-900 mb-5 flex items-center gap-2">
+        <span class="i-carbon-milestone text-indigo-500" />
+        Evolution Stages
       </h3>
 
       <div class="relative">
-        <!-- Timeline -->
-        <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+        <!-- Horizontal timeline line -->
+        <div class="absolute top-8 left-0 right-0 h-0.5 bg-gray-200" />
         
-        <div class="space-y-4">
+        <div class="grid grid-cols-5 gap-2">
           <div 
-            v-for="(step, i) in demoSteps" 
-            :key="i"
-            class="relative pl-10"
+            v-for="stage in stages" 
+            :key="stage.id"
+            class="relative flex flex-col items-center"
           >
-            <!-- Dot -->
+            <!-- Stage dot -->
             <div 
-              class="absolute left-2.5 w-3 h-3 rounded-full border-2 bg-white"
+              class="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 border-2"
               :class="{
-                'border-gray-300': step.status === 'pending',
-                'border-blue-500 animate-pulse': step.status === 'running',
-                'border-green-500 bg-green-500': step.status === 'done'
-              }"
-            />
-            
-            <!-- Content -->
-            <div 
-              class="p-3 rounded-lg"
-              :class="{
-                'bg-gray-50': step.status === 'pending',
-                'bg-blue-50': step.status === 'running',
-                'bg-green-50': step.status === 'done'
+                'bg-green-50 border-green-400 shadow-sm shadow-green-100': stage.executed,
+                'bg-indigo-50 border-indigo-400 shadow-md shadow-indigo-100 animate-pulse': stage.is_next && !executing,
+                'bg-indigo-100 border-indigo-500 shadow-lg shadow-indigo-200': stage.is_next && executing,
+                'bg-gray-50 border-gray-200': !stage.executed && !stage.is_next,
               }"
             >
-              <div class="flex items-center gap-2">
-                <span v-if="step.status === 'running'" class="i-carbon-loading animate-spin" />
-                <span v-else-if="step.status === 'done'" class="i-carbon-checkmark text-green-500" />
-                <span class="font-medium">{{ step.label }}</span>
+              <div 
+                v-if="stage.executed"
+                class="i-carbon-checkmark-filled text-2xl text-green-500"
+              />
+              <div 
+                v-else-if="stage.is_next && executing"
+                class="i-carbon-loading text-2xl text-indigo-500 animate-spin"
+              />
+              <div 
+                v-else
+                :class="getStageIcon(stage)"
+                class="text-2xl"
+                :style="{ color: stage.is_next ? '#6366f1' : '#9ca3af' }"
+              />
+            </div>
+
+            <!-- Stage label -->
+            <div class="mt-3 text-center">
+              <div 
+                class="text-xs font-bold uppercase tracking-wider"
+                :class="{
+                  'text-green-600': stage.executed,
+                  'text-indigo-600': stage.is_next,
+                  'text-gray-400': !stage.executed && !stage.is_next,
+                }"
+              >
+                Stage {{ stage.id }}
+              </div>
+              <div 
+                class="text-xs mt-1 leading-tight max-w-[120px]"
+                :class="{
+                  'text-gray-700 font-medium': stage.executed || stage.is_next,
+                  'text-gray-400': !stage.executed && !stage.is_next,
+                }"
+              >
+                {{ stage.name }}
+              </div>
+            </div>
+
+            <!-- Expected changes badges -->
+            <div class="mt-2 flex flex-wrap justify-center gap-1">
+              <span 
+                v-for="change in stage.expected_changes" 
+                :key="change"
+                class="text-[10px] px-1.5 py-0.5 rounded-full"
+                :class="{
+                  'bg-green-100 text-green-700': stage.executed,
+                  'bg-indigo-100 text-indigo-600': stage.is_next,
+                  'bg-gray-100 text-gray-500': !stage.executed && !stage.is_next,
+                }"
+              >
+                {{ getChangeTypeLabel(change) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Panel + Event Log -->
+    <div class="grid grid-cols-12 gap-6">
+      <!-- Left: Controls + Stage Details -->
+      <div class="col-span-5 space-y-5">
+        <!-- Action Buttons -->
+        <div class="card p-5">
+          <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span class="i-carbon-play-filled-alt text-indigo-500" />
+            Controls
+          </h3>
+
+          <div class="space-y-3">
+            <NButton 
+              type="primary" 
+              size="large"
+              block
+              :loading="executing"
+              :disabled="!canExecuteNext"
+              @click="executeNextStage"
+            >
+              <template #icon>
+                <div class="i-carbon-play" />
+              </template>
+              {{ executing ? `Executing Stage ${nextStageId}...` : isComplete ? 'All Stages Complete' : `Execute Stage ${nextStageId}` }}
+            </NButton>
+
+            <NButton
+              size="large"
+              block
+              :loading="resetting"
+              :disabled="executing || currentStage === 0"
+              @click="resetToInitial"
+              quaternary
+              type="warning"
+            >
+              <template #icon>
+                <div class="i-carbon-reset" />
+              </template>
+              Reset to Initial State
+            </NButton>
+          </div>
+
+          <!-- Next stage preview -->
+          <div v-if="!isComplete && stages[currentStage]" class="mt-5 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+            <div class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">
+              Next: Stage {{ nextStageId }}
+            </div>
+            <div class="text-sm font-medium text-gray-800 mb-2">
+              {{ stages[currentStage]?.name }}
+            </div>
+            <div class="text-xs text-gray-500 mb-3">
+              {{ stages[currentStage]?.description }}
+            </div>
+            <div class="space-y-1.5">
+              <div 
+                v-for="(ddl, i) in stages[currentStage]?.ddls || []" 
+                :key="i"
+                class="font-mono text-xs bg-gray-900 text-green-400 px-3 py-2 rounded-lg overflow-x-auto"
+              >
+                {{ ddl }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Complete state -->
+          <div v-else-if="isComplete" class="mt-5 p-4 bg-green-50 rounded-xl border border-green-200">
+            <div class="flex items-center gap-2 text-green-700 font-bold mb-1">
+              <span class="i-carbon-trophy-filled text-lg" />
+              All Stages Complete!
+            </div>
+            <p class="text-xs text-green-600">
+              The database has evolved through {{ totalStages }} stages. Click Reset to start over.
+            </p>
+          </div>
+        </div>
+
+        <!-- Execution History (compact) -->
+        <div v-if="history.length > 0" class="card p-5">
+          <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <span class="i-carbon-recently-viewed text-blue-500" />
+            Execution History
+          </h3>
+
+          <div class="space-y-3">
+            <div 
+              v-for="exec in [...history].reverse()" 
+              :key="exec.stage_id"
+              class="p-3 rounded-xl border"
+              :class="exec.success ? 'bg-green-50/50 border-green-200' : 'bg-red-50/50 border-red-200'"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-bold text-gray-800">
+                  Stage {{ exec.stage_id }}: {{ exec.stage_name }}
+                </span>
+                <span class="text-xs text-gray-500">
+                  {{ exec.duration_ms }}ms
+                </span>
+              </div>
+              
+              <!-- Context Actions -->
+              <div v-if="exec.context_actions?.length" class="space-y-1">
+                <div 
+                  v-for="(action, i) in exec.context_actions" 
+                  :key="i"
+                  class="flex items-center gap-2 text-xs"
+                >
+                  <span :class="[getActionIcon(action.action_type), getActionColor(action.action_type)]" />
+                  <span class="text-gray-600">{{ action.description }}</span>
+                </div>
+              </div>
+
+              <!-- Schema Changes -->
+              <div v-if="exec.changes_detected?.length" class="mt-2 flex flex-wrap gap-1">
+                <span 
+                  v-for="(change, i) in exec.changes_detected" 
+                  :key="i"
+                  class="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                  :class="{
+                    'bg-green-100 text-green-700': change.change_type.includes('added'),
+                    'bg-red-100 text-red-700': change.change_type.includes('dropped'),
+                    'bg-amber-100 text-amber-700': change.change_type.includes('modified'),
+                  }"
+                >
+                  {{ change.change_type }}: {{ change.table_name }}{{ change.column_name ? '.' + change.column_name : '' }}
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Result -->
-      <div v-if="demoStatus === 'done'" class="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-        <div class="flex items-center gap-2 text-green-700 font-medium">
-          <span class="i-carbon-checkmark-filled" />
-          自维持流程完成
+      <!-- Right: Real-time Event Log -->
+      <div class="col-span-7">
+        <div class="card p-5 h-full flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-900 flex items-center gap-2">
+              <span class="i-carbon-activity text-green-500" />
+              Real-time Event Log
+              <span v-if="executing" class="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                LIVE
+              </span>
+            </h3>
+            <NButton quaternary size="tiny" @click="eventLog = []" :disabled="executing">
+              <template #icon><div class="i-carbon-trash-can" /></template>
+              Clear
+            </NButton>
+          </div>
+
+          <div 
+            ref="logScrollRef"
+            class="flex-1 overflow-y-auto min-h-[400px] max-h-[600px] bg-gray-950 rounded-xl p-4 font-mono text-sm"
+          >
+            <div v-if="eventLog.length === 0" class="flex items-center justify-center h-full text-gray-500">
+              <div class="text-center">
+                <div class="i-carbon-terminal text-4xl mb-3 opacity-50" />
+                <div class="text-sm">Execute a stage to see real-time events here</div>
+              </div>
+            </div>
+
+            <div v-else class="space-y-1">
+              <div 
+                v-for="event in eventLog" 
+                :key="event.id"
+                class="flex items-start gap-2 py-1 transition-all"
+                :class="event.type === 'stage_complete' || event.type === 'execution_complete' || event.type === 'reset_complete' ? 'border-t border-gray-700/50 pt-2 mt-1' : ''"
+              >
+                <!-- Timestamp -->
+                <span class="text-gray-600 text-xs shrink-0 w-16 mt-0.5">
+                  {{ event.timestamp.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+                </span>
+
+                <!-- Icon -->
+                <span 
+                  :class="[getEventIcon(event.type), getEventColor(event.type)]" 
+                  class="shrink-0 mt-0.5 text-sm"
+                />
+
+                <!-- Message -->
+                <span 
+                  class="leading-relaxed"
+                  :class="{
+                    'text-green-400 font-bold': event.type === 'stage_complete' || event.type === 'execution_complete' || event.type === 'reset_complete',
+                    'text-red-400 font-bold': event.type === 'error',
+                    'text-amber-300': event.type.includes('expired') || event.type.includes('detecting'),
+                    'text-blue-300': event.type.includes('executing') || event.type.includes('refreshing') || event.type.includes('creating') || event.type.includes('updating'),
+                    'text-indigo-300 font-semibold': event.type === 'stage_start',
+                    'text-green-300': event.type.includes('created') || event.type === 'ddl_complete' || event.type === 'data_complete',
+                    'text-gray-300': !['stage_complete', 'execution_complete', 'reset_complete', 'error', 'stage_start'].includes(event.type) && !event.type.includes('expired') && !event.type.includes('executing') && !event.type.includes('created'),
+                  }"
+                >
+                  {{ event.message }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <p class="text-sm text-green-600 mt-1">
-          Rich Context 已自动更新，后续查询将使用最新的上下文信息。
-        </p>
       </div>
     </div>
 
-    <!-- Maintenance Logs -->
-    <div class="card p-6">
-      <h3 class="font-medium mb-4 flex items-center gap-2">
-        <span class="i-carbon-list text-gray-500" />
-        维护日志
-      </h3>
+    <!-- Agent Change Logs -->
+    <div v-if="changeLogs.length > 0" class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-gray-900 flex items-center gap-2">
+          <span class="i-carbon-catalog text-purple-500" />
+          Agent Change Logs
+        </h3>
+        <NButton quaternary size="tiny" @click="fetchChangeLogs">
+          <template #icon><div class="i-carbon-refresh" /></template>
+          Refresh
+        </NButton>
+      </div>
 
-      <div class="space-y-3">
-        <div 
-          v-for="log in store.maintenanceLogs"
-          :key="log.id"
-          class="p-3 border rounded-lg"
-        >
-          <div class="flex-between mb-2">
-            <span 
-              class="px-2 py-0.5 text-xs rounded"
-              :class="{
-                'bg-orange-100 text-orange-700': log.type === 'error_feedback',
-                'bg-blue-100 text-blue-700': log.type === 'user_correction',
-                'bg-purple-100 text-purple-700': log.type === 'schema_change'
-              }"
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase">Time</th>
+              <th class="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase">Type</th>
+              <th class="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase">Table</th>
+              <th class="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase">Source</th>
+              <th class="text-left py-2 px-3 text-xs font-bold text-gray-500 uppercase">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr 
+              v-for="log in changeLogs.slice(0, 15)" 
+              :key="log.id"
+              class="border-b border-gray-100 hover:bg-gray-50"
             >
-              {{ log.type === 'error_feedback' ? '错误反馈' : log.type === 'user_correction' ? '用户纠正' : 'Schema变更' }}
-            </span>
-            <span class="text-xs text-gray-500">{{ log.timestamp }}</span>
-          </div>
-          <div class="text-sm">
-            <div class="text-gray-600">触发: {{ log.trigger }}</div>
-            <div class="text-gray-800 mt-1">操作: {{ log.action }}</div>
-          </div>
-        </div>
+              <td class="py-2 px-3 text-xs text-gray-500 font-mono">
+                {{ new Date(log.created_at).toLocaleTimeString() }}
+              </td>
+              <td class="py-2 px-3">
+                <span 
+                  class="text-xs px-2 py-0.5 rounded-full font-medium"
+                  :class="{
+                    'bg-amber-100 text-amber-700': log.change_type === 'schema_change',
+                    'bg-green-100 text-green-700': log.change_type === 'context_update',
+                    'bg-red-100 text-red-700': log.change_type === 'context_expire',
+                  }"
+                >
+                  {{ log.change_type === 'schema_change' ? 'Schema' : log.change_type === 'context_update' ? 'Context Update' : 'Expired' }}
+                </span>
+              </td>
+              <td class="py-2 px-3 font-mono text-xs text-gray-800">
+                {{ log.table_name }}
+              </td>
+              <td class="py-2 px-3 text-xs text-gray-500">
+                {{ log.trigger_source }}
+              </td>
+              <td class="py-2 px-3 text-xs text-gray-600 max-w-[300px] truncate">
+                {{ log.change_reason }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.card {
+  @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+}
+
+/* Terminal scrollbar */
+.font-mono::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.font-mono::-webkit-scrollbar-track {
+  background: transparent;
+}
+.font-mono::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+</style>

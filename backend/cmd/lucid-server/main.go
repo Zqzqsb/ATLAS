@@ -26,7 +26,14 @@ import (
 func main() {
 	// Parse command line flags
 	configPath := flag.String("config", "configs/system.yaml", "Path to configuration file")
+	migrateOnly := flag.Bool("migrate-only", false, "Run database auto-migration and exit")
 	flag.Parse()
+
+	// Handle migrate-only mode
+	if *migrateOnly {
+		runMigrateOnly(*configPath)
+		return
+	}
 
 	// Load configuration
 	cfg, err := config.Load(*configPath)
@@ -272,4 +279,31 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// runMigrateOnly connects to lakebase and runs auto-migration, then exits.
+func runMigrateOnly(configPath string) {
+	log.Println("🔄 Running database auto-migration...")
+
+	// Try to find lakebase config relative to the system config
+	lakebaseConfigPath := "configs/lakebase.yaml"
+	if _, err := os.Stat(lakebaseConfigPath); err != nil {
+		// Try relative to system config directory
+		log.Fatalf("❌ Lake-Base config not found at %s: %v", lakebaseConfigPath, err)
+	}
+
+	svc, err := services.NewLakebaseService(lakebaseConfigPath)
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize lakebase service: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := svc.Connect(ctx); err != nil {
+		log.Fatalf("❌ Failed to connect to lakebase (includes auto-migration): %v", err)
+	}
+	defer svc.Close()
+
+	log.Println("✅ Auto-migration completed successfully")
 }

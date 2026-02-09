@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"lucid/internal/config"
 	"lucid/internal/adapter"
+	"lucid/internal/config"
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
 )
@@ -62,6 +62,11 @@ func (s *LakebaseService) Connect(ctx context.Context) error {
 
 	if err := s.pool.Connect(ctx); err != nil {
 		return fmt.Errorf("lakebase service: failed to connect: %w", err)
+	}
+
+	// Run auto-migration to ensure schema matches code expectations
+	if err := lakebase.AutoMigrate(ctx, s.pool); err != nil {
+		log.Printf("[Lakebase] ⚠️  Auto-migration failed: %v (non-fatal, continuing)", err)
 	}
 
 	s.repo = lakebase.NewMySQLRepository(s.pool)

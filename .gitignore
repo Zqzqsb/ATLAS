@@ -38,6 +38,9 @@ logs/
 *.log
 tmp/
 
+# === Auto-generated schema copy (for go:embed) ===
+backend/internal/lakebase/schema/
+
 # === Environment ===
 .env
 .env.local

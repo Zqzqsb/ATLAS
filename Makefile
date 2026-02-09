@@ -113,6 +113,8 @@ dev-build:
 	docker compose -f deploy/docker-compose.yml up --build --no-cache
 
 backend-dev:
+	@mkdir -p backend/internal/lakebase/schema
+	@cp deploy/init/mariadb/01_init_lakebase.sql backend/internal/lakebase/schema/01_init_lakebase.sql
 	cd backend && go run ./cmd/lucid-server -config configs/system.yaml
 
 frontend-dev:
@@ -124,6 +126,11 @@ db-up:
 
 db-down:
 	docker compose -f deploy/docker-compose.yml down mariadb
+
+db-migrate:
+	@echo "🔄 Running database auto-migration..."
+	docker exec lucid-backend /app/server -config /app/configs/system.yaml -migrate-only
+	@echo "✅ Migration complete"
 
 db-login:
 	mycli -h 127.0.0.1 -P 19010 -u lucid -plucid2024 lucid
@@ -156,6 +163,8 @@ paper-clean:
 
 # ============== Build ==============
 build-backend:
+	@mkdir -p backend/internal/lakebase/schema
+	@cp deploy/init/mariadb/01_init_lakebase.sql backend/internal/lakebase/schema/01_init_lakebase.sql
 	cd backend && go build -o ../bin/lucid-server ./cmd/lucid-server
 
 build-frontend:
@@ -211,6 +220,7 @@ help:
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-up         - Start database container"
+	@echo "  make db-migrate    - Run auto-migration on lakebase schema"
 	@echo "  make db-login      - Connect to Lake-Base (lucid)"
 	@echo "  make db-login-tvshow - Connect to demo database"
 	@echo "  make db-check      - Show database status"

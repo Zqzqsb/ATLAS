@@ -7,7 +7,6 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/adapter"
-	contextpkg "lucid/internal/context"
 	"lucid/internal/inference"
 	"lucid/internal/lakebase"
 )
@@ -19,20 +18,22 @@ type LakebaseContextLoader interface {
 	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.ColumnInfo, error)
 }
 
-// InferenceEngine wraps internal/inference.Pipeline to implement InferenceEngineInterface.
+// InferenceEngine wraps internal/inference.Pipeline.
 type InferenceEngine struct {
 	llm          llms.Model
 	currentModel string
 	modelConfigs map[string]ModelInfo
 	lakebaseSvc  LakebaseContextLoader
+	dbService    *DatabaseService
 }
 
 // NewInferenceEngine creates a new inference engine.
-func NewInferenceEngine(llm llms.Model) *InferenceEngine {
+func NewInferenceEngine(llm llms.Model, dbService *DatabaseService) *InferenceEngine {
 	return &InferenceEngine{
 		llm:          llm,
 		currentModel: "default",
 		modelConfigs: make(map[string]ModelInfo),
+		dbService:    dbService,
 	}
 }
 
@@ -67,8 +68,8 @@ func (e *InferenceEngine) Execute(ctx context.Context, req *InferenceRequest) (*
 	defer pipeline.Reset()
 
 	if req.UseRichContext {
-		if sharedCtx := e.loadContextFromLakebase(ctx, req.DatabaseID); sharedCtx != nil {
-			pipeline.SetContext(sharedCtx)
+		if sc := e.loadSchemaContext(ctx, req.DatabaseID); sc != nil {
+			pipeline.SetSchemaContext(sc)
 		}
 	}
 
@@ -100,8 +101,8 @@ func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *InferenceReque
 	defer pipeline.Reset()
 
 	if req.UseRichContext {
-		if sharedCtx := e.loadContextFromLakebase(ctx, req.DatabaseID); sharedCtx != nil {
-			pipeline.SetContext(sharedCtx)
+		if sc := e.loadSchemaContext(ctx, req.DatabaseID); sc != nil {
+			pipeline.SetSchemaContext(sc)
 		}
 	}
 
@@ -169,13 +170,12 @@ func (e *InferenceEngine) GetLLMModelInterface() interface{} {
 // --- Internal helpers ---
 
 func (e *InferenceEngine) createAdapter(databaseID string) (adapter.DBAdapter, error) {
-	svc := GetGlobalDatabaseService()
-	if svc == nil {
+	if e.dbService == nil {
 		return nil, fmt.Errorf("database service not available")
 	}
 
 	var dbCfg *adapter.DBConfig
-	for _, db := range svc.config.Databases {
+	for _, db := range e.dbService.config.Databases {
 		if db.ID == databaseID {
 			dbCfg = &adapter.DBConfig{
 				Type:     db.Type,
@@ -199,15 +199,12 @@ func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inf
 	config := &inference.Config{
 		UseRichContext:  req.UseRichContext,
 		UseReact:        req.UseReact,
-		ReactLinking:    req.UseReact,
-		UseDryRun:       true,
-		MaxIterations:   req.MaxIterations,
-		ContextFile:     req.ContextFile,
-		ClarifyMode:     "off",
-		LogMode:         "simple",
-		EnableProofread: false,
-		DBName:          req.DatabaseID,
-		DBType:          dbType,
+		ReactLinking:  req.UseReact,
+		UseDryRun:     true,
+		MaxIterations: req.MaxIterations,
+		ClarifyMode:   "off",
+		DBName:        req.DatabaseID,
+		DBType:        dbType,
 	}
 	if config.MaxIterations == 0 {
 		config.MaxIterations = 5
@@ -215,7 +212,7 @@ func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inf
 	return config
 }
 
-func (e *InferenceEngine) loadContextFromLakebase(ctx context.Context, dbName string) *contextpkg.SharedContext {
+func (e *InferenceEngine) loadSchemaContext(ctx context.Context, dbName string) *inference.SchemaContext {
 	if e.lakebaseSvc == nil {
 		return nil
 	}
@@ -233,11 +230,10 @@ func (e *InferenceEngine) loadContextFromLakebase(ctx context.Context, dbName st
 		return nil
 	}
 
-	sharedCtx := &contextpkg.SharedContext{
+	sc := &inference.SchemaContext{
 		DatabaseName: dbName,
 		DatabaseType: ds.DBType,
-		Tables:       make(map[string]*contextpkg.TableMetadata),
-		TotalTables:  len(tables),
+		Tables:       make(map[string]*inference.SchemaTable, len(tables)),
 	}
 
 	columnsByTable := make(map[string][]*lakebase.ColumnInfo)
@@ -246,42 +242,39 @@ func (e *InferenceEngine) loadContextFromLakebase(ctx context.Context, dbName st
 	}
 
 	for _, t := range tables {
-		tableMeta := &contextpkg.TableMetadata{
+		st := &inference.SchemaTable{
 			Name:     t.TableName,
 			RowCount: t.RowCount,
 		}
-		if t.Description.Valid && t.Description.String != "" {
-			tableMeta.Description = t.Description.String
-			tableMeta.RichContext = map[string]contextpkg.RichContextValue{
-				"table_description": {
-					BusinessNote: contextpkg.BusinessNote{
-						Content: t.Description.String,
-						Source:  t.Source,
-					},
-				},
-			}
+		if t.Description.Valid {
+			st.Description = t.Description.String
 		}
 		if cols, ok := columnsByTable[t.TableName]; ok {
 			for _, col := range cols {
-				colMeta := contextpkg.ColumnMetadata{
+				colSchema := inference.SchemaColumn{
 					Name:         col.ColumnName,
-					Nullable:     col.IsNullable,
 					IsPrimaryKey: col.IsPrimaryKey,
+					IsNullable:   col.IsNullable,
 				}
 				if col.DataType.Valid {
-					colMeta.Type = col.DataType.String
+					colSchema.Type = col.DataType.String
 				}
 				if col.Description.Valid {
-					colMeta.Comment = col.Description.String
+					colSchema.Description = col.Description.String
 				}
-				tableMeta.Columns = append(tableMeta.Columns, colMeta)
+				if col.SampleValues.Valid {
+					colSchema.SampleValues = col.SampleValues.String
+				}
+				if col.Synonyms.Valid {
+					colSchema.Synonyms = col.Synonyms.String
+				}
+				st.Columns = append(st.Columns, colSchema)
 			}
 		}
-		sharedCtx.Tables[t.TableName] = tableMeta
-		sharedCtx.TotalRows += t.RowCount
+		sc.Tables[t.TableName] = st
 	}
 
-	return sharedCtx
+	return sc
 }
 
 func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
@@ -302,7 +295,6 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
 		Metadata: InferenceMetadata{
 			SelectedTables: r.SelectedTables,
 			Iterations:     r.LLMCalls,
-			TotalTokens:    r.TotalTokens,
 			ExecutionTime:  r.TotalTime,
 			ReactTrace:     steps,
 			Model:          e.currentModel,
@@ -317,14 +309,3 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
 	return result
 }
 
-// --- Global database service accessor ---
-
-var globalDBService *DatabaseService
-
-func SetGlobalDatabaseService(svc *DatabaseService) {
-	globalDBService = svc
-}
-
-func GetGlobalDatabaseService() *DatabaseService {
-	return globalDBService
-}

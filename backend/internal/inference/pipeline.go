@@ -2,75 +2,94 @@ package inference
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
+	"log"
 	"strings"
 	"time"
 
-	"github.com/pkoukk/tiktoken-go"
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/adapter"
-	contextpkg "lucid/internal/context"
 )
 
-// Config 推理管线配置
+// Config holds inference pipeline configuration.
 type Config struct {
 	UseRichContext bool
 	UseReact       bool
-	ReactLinking   bool // Schema Linking 是否使用 ReAct 模式
+	ReactLinking   bool // Whether Schema Linking uses ReAct mode
 	UseDryRun      bool
 	MaxIterations  int
-	ContextFile    string
 
-	// 澄清功能配置
-	ClarifyMode             string   // 澄清模式: "off" (不启用) | "on" (agent主动询问) | "force" (强制给出)
-	LogMode                 string   // 日志模式: "simple" (简洁) | "full" (完整输出所有交互)
-	ResultFields            []string // 期望的结果字段列表
-	ResultFieldsDescription string   // 结果字段的描述
+	// Clarify mode: "off" | "on" (agent asks) | "force" (forced fields)
+	ClarifyMode             string
+	ResultFields            []string // Expected result fields
+	ResultFieldsDescription string
 
-	// 校对模式配置
-	EnableProofread bool   // 是否启用校对模式（允许 LLM 修正 Rich Context）
-	DBName          string // 数据库名称
-	DBType          string // 数据库类型
+	DBName string
+	DBType string
 }
 
-// StepCallback is called for each ReAct step update during streaming
+// SchemaContext holds rich context information for the inference pipeline.
+// This replaces the dependency on internal/context.SharedContext.
+type SchemaContext struct {
+	DatabaseName string
+	DatabaseType string
+	Tables       map[string]*SchemaTable
+}
+
+// SchemaTable holds table-level schema and context information.
+type SchemaTable struct {
+	Name        string
+	Description string
+	RowCount    int64
+	Columns     []SchemaColumn
+	ForeignKeys []ForeignKeyRef
+}
+
+// SchemaColumn holds column-level information.
+type SchemaColumn struct {
+	Name         string
+	Type         string
+	Description  string
+	IsPrimaryKey bool
+	IsNullable   bool
+	SampleValues string
+	Synonyms     string
+}
+
+// ForeignKeyRef holds foreign key reference.
+type ForeignKeyRef struct {
+	ColumnName       string
+	ReferencedTable  string
+	ReferencedColumn string
+}
+
+// StepCallback is called for each ReAct step update during streaming.
 // eventType: "thought" | "action" | "observation" | "finish"
 type StepCallback func(step ReActStep, eventType string)
 
-// Pipeline 推理管线
+// Pipeline is the Text-to-SQL inference pipeline.
 type Pipeline struct {
 	llm          llms.Model
 	adapter      adapter.DBAdapter
 	config       *Config
-	context      *contextpkg.SharedContext
+	schema       *SchemaContext
 	schemaLinker SchemaLinker
-	tokenizer    *tiktoken.Tiktoken
-
-	// Token 统计累积器
-	promptTexts   []string
-	responseTexts []string
 
 	// Streaming callback
 	stepCallback StepCallback
 }
 
-// Result 推理结果
+// Result holds inference output.
 type Result struct {
 	Query           string
 	GeneratedSQL    string
 	ExecutionResult interface{}
 
-	// 统计信息
-	TotalTime     time.Duration
-	LLMCalls      int
-	SQLExecutions int
-	TotalTokens   int
-	ClarifyCount  int // 澄清次数
-
-	// 中间结果
+	TotalTime      time.Duration
+	LLMCalls       int
+	SQLExecutions  int
+	ClarifyCount   int
 	SelectedTables []string
 	ReActSteps     []ReActStep
 }
@@ -85,10 +104,8 @@ type ReActStep struct {
 	Phase       string      `json:"phase,omitempty"` // "schema_linking" or "sql_generation"
 }
 
-// Reset 清理累积的统计数据，防止内存泄漏
+// Reset cleans up pipeline state.
 func (p *Pipeline) Reset() {
-	p.promptTexts = nil
-	p.responseTexts = nil
 	p.stepCallback = nil
 }
 
@@ -104,86 +121,44 @@ func (p *Pipeline) notifyStep(step ReActStep, eventType string) {
 	}
 }
 
-// NewPipeline 创建推理管线
+// NewPipeline creates a new inference pipeline.
 func NewPipeline(llm llms.Model, dbAdapter adapter.DBAdapter, config *Config) *Pipeline {
-	// 初始化 tokenizer (使用 cl100k_base，适用于 GPT-3.5/GPT-4/DeepSeek)
-	tokenizer, err := tiktoken.GetEncoding("cl100k_base")
-	if err != nil {
-		// 如果失败，使用 nil，后续会跳过 token 统计
-		tokenizer = nil
-	}
-
-	// Schema Linking 使用 ReAct 模式（由 ReactLinking 配置控制）
 	linker := NewLLMSchemaLinker(llm, dbAdapter, config.ReactLinking)
 
-	p := &Pipeline{
+	return &Pipeline{
 		llm:          llm,
 		adapter:      dbAdapter,
 		config:       config,
 		schemaLinker: linker,
-		tokenizer:    tokenizer,
 	}
-
-	// 设置 token recorder
-	linker.tokenRecorder = func(prompt, response string) {
-		p.promptTexts = append(p.promptTexts, prompt)
-		p.responseTexts = append(p.responseTexts, response)
-	}
-
-	// 加载 Context 文件（如果提供）
-	// 注意：context 总是加载用于 Schema Linking
-	// UseRichContext 只控制是否在 SQL Generation 中使用 rich_context
-	if config.ContextFile != "" {
-		if ctx, err := p.loadContext(config.ContextFile); err == nil {
-			p.context = ctx
-		}
-	}
-
-	return p
 }
 
-// SetContext sets the shared context directly (alternative to loading from file)
-func (p *Pipeline) SetContext(ctx *contextpkg.SharedContext) {
-	p.context = ctx
+// SetSchemaContext sets the rich schema context (from lakebase).
+func (p *Pipeline) SetSchemaContext(sc *SchemaContext) {
+	p.schema = sc
 }
 
-// countTokens 统计文本的 token 数量
-func (p *Pipeline) countTokens(text string) int {
-	if p.tokenizer == nil {
-		return 0
-	}
-	tokens := p.tokenizer.Encode(text, nil, nil)
-	return len(tokens)
-}
-
-// Execute 执行推理
+// Execute runs the inference pipeline.
 func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	startTime := time.Now()
-
-	// 重置 token 统计累积器
-	p.promptTexts = []string{}
-	p.responseTexts = []string{}
 
 	result := &Result{
 		Query:      query,
 		ReActSteps: []ReActStep{},
 	}
 
-	// 1. Schema Linking (总是执行，识别相关表)
+	// 1. Schema Linking — identify relevant tables
 	var allTableInfo map[string]*TableInfo
 	var err error
-	if p.context != nil {
-		// 从 Rich Context 提取表信息
-		allTableInfo = ExtractTableInfo(p.context)
+	if p.schema != nil {
+		allTableInfo = extractTableInfoFromSchema(p.schema)
 	} else {
-		// 从数据库查询表信息
 		allTableInfo, err = p.extractTableInfoFromDB(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract table info: %w", err)
 		}
 	}
 
-	// Notify that schema linking is starting
 	p.notifyStep(ReActStep{
 		Step:    0,
 		Thought: "Starting Schema Linking to identify relevant tables...",
@@ -197,7 +172,6 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	result.SelectedTables = tables
 	result.LLMCalls++
 
-	// Add Schema Linking ReAct steps to result and notify via streaming
 	for i, step := range schemaLinkingSteps {
 		reactStep := ReActStep{
 			Step:        i + 1,
@@ -208,8 +182,6 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 			Phase:       "schema_linking",
 		}
 		result.ReActSteps = append(result.ReActSteps, reactStep)
-
-		// Send streaming notification for each schema linking step
 		if step.Thought != "" {
 			p.notifyStep(reactStep, "thought")
 		}
@@ -221,7 +193,6 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 		}
 	}
 
-	// Notify schema linking completion with selected tables
 	p.notifyStep(ReActStep{
 		Step:        len(schemaLinkingSteps) + 1,
 		Thought:     fmt.Sprintf("Schema Linking completed. Selected %d tables: %v", len(tables), tables),
@@ -229,28 +200,16 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 		Phase:       "schema_linking",
 	}, "finish")
 
-	fmt.Printf("📋 Selected Tables: %v\n\n", tables)
+	log.Printf("[inference] Selected tables: %v", tables)
 
-	// 2. 构建 Schema Context (基础表结构信息，总是提供)
+	// 2. Build schema prompt for SQL generation
 	var contextPrompt string
-
-	if p.config.UseRichContext && p.context != nil {
-		// 使用 Rich Context (详细信息)
-		opts := &contextpkg.ExportOptions{
-			Tables:             tables,
-			IncludeColumns:     true,
-			IncludeIndexes:     true,
-			IncludeRichContext: true,
-			IncludeStats:       true,
-		}
-		contextPrompt = p.context.ExportToCompactPrompt(opts)
-		// 不打印完整的 Rich Context，只打印简要信息
-		fmt.Printf("📚 Using Rich Context for %d tables\n", len(tables))
+	if p.config.UseRichContext && p.schema != nil {
+		contextPrompt = p.buildRichSchemaPrompt(tables)
+		log.Printf("[inference] Using Rich Context for %d tables", len(tables))
 	} else {
-		// 使用基础 Schema (仅表名+列名)
 		contextPrompt = p.buildBasicSchema(ctx, tables)
-		// 不打印完整的 Basic Schema
-		fmt.Printf("📋 Using Basic Schema for %d tables\n", len(tables))
+		log.Printf("[inference] Using Basic Schema for %d tables", len(tables))
 	}
 
 	// 3. Generate SQL
@@ -261,7 +220,6 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 		sql, err = p.oneShotGeneration(ctx, query, contextPrompt)
 		result.LLMCalls++
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("SQL generation failed: %w", err)
 	}
@@ -269,23 +227,7 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	result.GeneratedSQL = sql
 	result.TotalTime = time.Since(startTime)
 
-	// 4. 统计 tokens（从累积器中统计所有 prompts 和 responses）
-	// 暂时禁用 token 统计，避免潜在的问题
-	fmt.Printf("[DEBUG] Token counting disabled (would count %d prompts, %d responses)\n", len(p.promptTexts), len(p.responseTexts))
-	result.TotalTokens = 0 // 暂时设为 0
-
-	// if p.tokenizer != nil {
-	// 	for i, prompt := range p.promptTexts {
-	// 		fmt.Printf("[DEBUG] Counting prompt %d/%d (length: %d)\n", i+1, len(p.promptTexts), len(prompt))
-	// 		result.TotalTokens += p.countTokens(prompt)
-	// 	}
-	// 	for i, response := range p.responseTexts {
-	// 		fmt.Printf("[DEBUG] Counting response %d/%d (length: %d)\n", i+1, len(p.responseTexts), len(response))
-	// 		result.TotalTokens += p.countTokens(response)
-	// 	}
-	// }
-
-	// 5. Execute SQL (optional)
+	// 4. Execute SQL
 	if sql != "" {
 		execResult, err := p.adapter.ExecuteQuery(ctx, sql)
 		if err == nil {
@@ -297,22 +239,84 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	return result, nil
 }
 
-// loadContext 加载 Rich Context
-func (p *Pipeline) loadContext(path string) (*contextpkg.SharedContext, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+// extractTableInfoFromSchema extracts TableInfo from SchemaContext for schema linking.
+func extractTableInfoFromSchema(sc *SchemaContext) map[string]*TableInfo {
+	result := make(map[string]*TableInfo, len(sc.Tables))
+	for name, table := range sc.Tables {
+		columns := make([]string, len(table.Columns))
+		for i, col := range table.Columns {
+			columns[i] = col.Name
+		}
+		fks := make([]ForeignKeyRef, len(table.ForeignKeys))
+		copy(fks, table.ForeignKeys)
 
-	var ctx contextpkg.SharedContext
-	if err := json.Unmarshal(data, &ctx); err != nil {
-		return nil, err
+		result[name] = &TableInfo{
+			Name:        name,
+			Columns:     columns,
+			ForeignKeys: fks,
+			Description: table.Description,
+		}
 	}
-
-	return &ctx, nil
+	return result
 }
 
-// extractTableInfoFromDB 从数据库提取表信息
+// buildRichSchemaPrompt builds a rich context prompt from SchemaContext for selected tables.
+func (p *Pipeline) buildRichSchemaPrompt(tables []string) string {
+	if p.schema == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Database: %s (%s)\n\n", p.schema.DatabaseName, p.schema.DatabaseType))
+
+	for _, tableName := range tables {
+		table, exists := p.schema.Tables[tableName]
+		if !exists {
+			continue
+		}
+
+		sb.WriteString(fmt.Sprintf("Table: %s", tableName))
+		if table.RowCount > 0 {
+			sb.WriteString(fmt.Sprintf(" (%d rows)", table.RowCount))
+		}
+		sb.WriteString("\n")
+		if table.Description != "" {
+			sb.WriteString(fmt.Sprintf("  Description: %s\n", table.Description))
+		}
+
+		for _, col := range table.Columns {
+			sb.WriteString(fmt.Sprintf("  - %s: %s", col.Name, col.Type))
+			if col.IsPrimaryKey {
+				sb.WriteString(" [PK]")
+			}
+			if !col.IsNullable {
+				sb.WriteString(" [NOT NULL]")
+			}
+			sb.WriteString("\n")
+			if col.Description != "" {
+				sb.WriteString(fmt.Sprintf("    Description: %s\n", col.Description))
+			}
+			if col.SampleValues != "" {
+				sb.WriteString(fmt.Sprintf("    Examples: %s\n", col.SampleValues))
+			}
+			if col.Synonyms != "" {
+				sb.WriteString(fmt.Sprintf("    Synonyms: %s\n", col.Synonyms))
+			}
+		}
+
+		if len(table.ForeignKeys) > 0 {
+			sb.WriteString("  Foreign Keys:\n")
+			for _, fk := range table.ForeignKeys {
+				sb.WriteString(fmt.Sprintf("    %s → %s.%s\n", fk.ColumnName, fk.ReferencedTable, fk.ReferencedColumn))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// extractTableInfoFromDB extracts table info from the database directly.
 func (p *Pipeline) extractTableInfoFromDB(ctx context.Context) (map[string]*TableInfo, error) {
 	// 获取所有表名
 	var query string

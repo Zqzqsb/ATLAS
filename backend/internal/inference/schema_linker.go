@@ -11,34 +11,29 @@ import (
 	"github.com/tmc/langchaingo/tools"
 
 	"lucid/internal/adapter"
-	contextpkg "lucid/internal/context"
 )
 
-// SchemaLinker Schema Linking 模块接口
+// SchemaLinker defines the interface for identifying relevant tables.
 type SchemaLinker interface {
-	// Link 执行 Schema Linking
-	// 输入: query, 所有表的信息
-	// 输出: 相关表名列表, ReAct 步骤（如果使用 ReAct 模式）
 	Link(ctx context.Context, query string, allTables map[string]*TableInfo) ([]string, []ReActStep, error)
 }
 
-// TableInfo 表的简要信息（用于 Schema Linking）
+// TableInfo holds table information for Schema Linking.
 type TableInfo struct {
 	Name        string
-	Columns     []string                        // 列名列表
-	ForeignKeys []contextpkg.ForeignKeyMetadata // 外键关系
-	Description string                          // 表描述（可选，来自 rich_context 或表注释）
+	Columns     []string
+	ForeignKeys []ForeignKeyRef // Uses inference-local type
+	Description string
 }
 
-// LLMSchemaLinker 基于 LLM 的 Schema Linking
+// LLMSchemaLinker performs LLM-based Schema Linking.
 type LLMSchemaLinker struct {
-	llm           llms.Model
-	adapter       adapter.DBAdapter
-	useReact      bool
-	tokenRecorder func(prompt, response string)
+	llm      llms.Model
+	adapter  adapter.DBAdapter
+	useReact bool
 }
 
-// NewLLMSchemaLinker 创建 LLM Schema Linker
+// NewLLMSchemaLinker creates a new LLM-based schema linker.
 func NewLLMSchemaLinker(llm llms.Model, dbAdapter adapter.DBAdapter, useReact bool) *LLMSchemaLinker {
 	return &LLMSchemaLinker{
 		llm:      llm,
@@ -83,40 +78,12 @@ If no tables are needed, output: none
 
 Output:`, schemaDesc.String(), query)
 
-	// 不打印完整的 Schema Linking prompt
-	fmt.Println("🔍 Schema Linking...")
 
-	// 调用 LLM，带退避重试机制
-	var response string
-	var err error
-	maxRetries := 2
-	backoffDelays := []time.Duration{1 * time.Second, 3 * time.Second}
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		response, err = l.llm.Call(ctx, prompt)
-		if err == nil {
-			break
-		}
-
-		// 如果还有重试机会，等待后重试
-		if attempt < maxRetries {
-			delay := backoffDelays[attempt]
-			fmt.Printf("⚠️  Schema Linking failed (attempt %d/%d): %v\n", attempt+1, maxRetries+1, err)
-			fmt.Printf("⏳ Retrying after %v...\n\n", delay)
-			time.Sleep(delay)
-		}
-	}
-
+	response, err := llmCallWithRetry(ctx, l.llm, prompt, 2)
 	if err != nil {
-		return nil, []ReActStep{}, fmt.Errorf("schema linking failed after %d attempts: %w", maxRetries+1, err)
+		return nil, []ReActStep{}, fmt.Errorf("schema linking failed: %w", err)
 	}
-
 	response = strings.TrimSpace(response)
-
-	// 记录 tokens
-	if l.tokenRecorder != nil {
-		l.tokenRecorder(prompt, response)
-	}
 
 	// 解析响应
 	if response == "all" {
@@ -189,7 +156,6 @@ Output:`, schemaDesc.String(), query)
 
 // linkWithReact ReAct 模式 Schema Linking
 func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTables map[string]*TableInfo) ([]string, []ReActStep, error) {
-	fmt.Println("🔍 Schema Linking (ReAct mode)...")
 
 	// 创建 SQL 工具
 	sqlTool := &SQLTool{
@@ -198,7 +164,7 @@ func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTa
 	}
 
 	// Create handler to collect ReAct steps
-	reactHandler := &PrettyReActHandler{logMode: "simple"}
+	reactHandler := &PrettyReActHandler{}
 
 	// 创建 ReAct Agent
 	// 策略：告诉模型最大 5 次迭代（制造紧迫感），实际设置 15 次（保证足够空间）
@@ -222,7 +188,6 @@ func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTa
 		schemaDesc.WriteString(fmt.Sprintf("- %s\n", table.Name))
 		schemaDesc.WriteString(fmt.Sprintf("  Columns: %s\n", strings.Join(table.Columns, ", ")))
 
-		// 添加外键信息
 		if len(table.ForeignKeys) > 0 {
 			schemaDesc.WriteString("  Foreign Keys:\n")
 			for _, fk := range table.ForeignKeys {
@@ -334,37 +299,19 @@ Output:`, claimedMaxIterations, schemaDesc.String(), query)
 	return nil, []ReActStep{}, fmt.Errorf("schema linking failed to produce a valid table list")
 }
 
-// ExtractTableInfo 从 Rich Context 提取表信息
-func ExtractTableInfo(ctx *contextpkg.SharedContext) map[string]*TableInfo {
-	result := make(map[string]*TableInfo)
-
-	for name, table := range ctx.Tables {
-		columns := make([]string, len(table.Columns))
-		for i, col := range table.Columns {
-			columns[i] = col.Name
+// llmCallWithRetry calls the LLM with exponential backoff retry.
+func llmCallWithRetry(ctx context.Context, model llms.Model, prompt string, maxRetries int) (string, error) {
+	backoff := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		response, err := model.Call(ctx, prompt)
+		if err == nil {
+			return response, nil
 		}
-
-		// 优先使用 LLM 生成的 Description
-		description := table.Description
-		if description == "" {
-			// 备选：使用表注释
-			description = table.Comment
-		}
-		if description == "" && len(table.RichContext) > 0 {
-			// 最后备选：使用第一个 rich_context 条目的内容
-			for _, v := range table.RichContext {
-				description = v.Content
-				break
-			}
-		}
-
-		result[name] = &TableInfo{
-			Name:        name,
-			Columns:     columns,
-			ForeignKeys: table.ForeignKeys,
-			Description: description,
+		lastErr = err
+		if attempt < maxRetries && attempt < len(backoff) {
+			time.Sleep(backoff[attempt])
 		}
 	}
-
-	return result
+	return "", fmt.Errorf("LLM call failed after %d attempts: %w", maxRetries+1, lastErr)
 }

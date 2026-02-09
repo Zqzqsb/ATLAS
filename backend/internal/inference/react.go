@@ -3,8 +3,8 @@ package inference
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
-	"time"
 
 	"lucid/internal/adapter"
 
@@ -12,60 +12,26 @@ import (
 	"github.com/tmc/langchaingo/tools"
 )
 
-// oneShotGeneration One-shot SQL 生成
+// truncateLog truncates a string for log output.
+func truncateLog(s string, maxLen int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > maxLen {
+		return s[:maxLen] + "..."
+	}
+	return s
+}
+
+// oneShotGeneration performs one-shot SQL generation.
 func (p *Pipeline) oneShotGeneration(ctx context.Context, query string, contextPrompt string) (string, error) {
 	prompt := p.buildPrompt(query, contextPrompt, false)
 
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println(" SQL Generation (One-shot) - Prompt to LLM:")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println(prompt)
-	fmt.Println()
-
-	// 调用 LLM，带退避重试机制
-	var response string
-	var err error
-	maxRetries := 2
-	backoffDelays := []time.Duration{1 * time.Second, 3 * time.Second}
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		response, err = p.llm.Call(ctx, prompt)
-		if err == nil {
-			break
-		}
-
-		// 如果还有重试机会，等待后重试
-		if attempt < maxRetries {
-			delay := backoffDelays[attempt]
-			fmt.Printf("⚠️  SQL Generation failed (attempt %d/%d): %v\n", attempt+1, maxRetries+1, err)
-			fmt.Printf("⏳ Retrying after %v...\n\n", delay)
-			time.Sleep(delay)
-		}
-	}
-
+	response, err := llmCallWithRetry(ctx, p.llm, prompt, 2)
 	if err != nil {
-		return "", fmt.Errorf("LLM call failed after %d attempts: %w", maxRetries+1, err)
+		return "", err
 	}
 
-	// 记录 tokens
-	p.promptTexts = append(p.promptTexts, prompt)
-	p.responseTexts = append(p.responseTexts, response)
-
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("💡 SQL Generation - LLM Response:")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println(response)
-	fmt.Println()
-
-	// 提取 SQL
 	sql := p.extractSQL(response)
-
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println(" Extracted SQL:")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println(sql)
-	fmt.Println()
-
+	log.Printf("[inference] One-shot SQL generated: %s", truncateLog(sql, 200))
 	return sql, nil
 }
 
@@ -93,13 +59,9 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 		toolsList = append(toolsList, clarifyTool)
 	}
 
-	if p.config.EnableProofread {
-		updateTool := NewUpdateRichContextTool(p.config.DBName, p.config.DBType)
-		toolsList = append(toolsList, updateTool)
-	}
 
 	// Create handler to collect ReAct steps
-	reactHandler := &PrettyReActHandler{logMode: p.config.LogMode}
+	reactHandler := &PrettyReActHandler{}
 
 	// Set up streaming callback if available (for real-time step notifications)
 	if p.stepCallback != nil {
@@ -134,21 +96,14 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	// 构建 Prompt - pass claimed iterations to prompt
 	prompt := p.buildPrompt(query, contextPrompt, true)
 
-	// 只打印关键信息，不打印完整 prompt（避免重复的 Best Practices 等）
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Printf("🔄 Starting ReAct Loop (Claimed %d, Actual Max %d iterations)\n", claimedMaxIterations, actualMaxIterations)
-	fmt.Printf("Question: %s\n", query)
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Printf("[inference] Starting ReAct loop (max %d iterations, claimed %d)", actualMaxIterations, claimedMaxIterations)
 
 	agentResult, err := executor.Call(ctx, map[string]any{"input": prompt})
 	if err != nil {
-		fmt.Printf("\n❌ ReAct Loop failed: %v\n\n", err)
-		return "", err
+		return "", fmt.Errorf("ReAct loop failed: %w", err)
 	}
 
-	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("✅ ReAct Loop completed successfully")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Printf("[inference] ReAct loop completed")
 
 	// Collect ReAct steps from handler
 	collectedSteps := reactHandler.GetCollectedSteps()
@@ -211,19 +166,8 @@ func (p *Pipeline) buildPrompt(query string, contextPrompt string, isReact bool)
 		sb.WriteString("\n\n")
 	}
 
-	// SQL Best Practices（仅在使用 Rich Context 时添加）
-	// 这些是在 onboarding 阶段分析出的增强提示，不应该在 baseline 中使用
+	// SQL Best Practices (only in Rich Context mode)
 	if p.config.UseRichContext {
-		// JOIN 路径和字段语义信息（仅在 Rich Context 模式下）
-		if p.context != nil {
-			if joinPathsPrompt := p.context.FormatJoinPathsForPrompt(); joinPathsPrompt != "" {
-				sb.WriteString(joinPathsPrompt)
-			}
-			if fieldSemanticsPrompt := p.context.FormatFieldSemanticsForPrompt(); fieldSemanticsPrompt != "" {
-				sb.WriteString(fieldSemanticsPrompt)
-			}
-		}
-
 		sb.WriteString(`IMPORTANT: Rich Context may be outdated or incorrect. When Rich Context conflicts with actual database data, trust the database.
 
 SQL Best Practices:
@@ -283,11 +227,6 @@ SQL Best Practices:
 			sb.WriteString(`
 - clarify_fields: Ask which fields to return (when question doesn't specify)`)
 		}
-		if p.config.EnableProofread {
-			sb.WriteString(`
-- update_rich_context: Update expired/incorrect Rich Context`)
-		}
-
 		// Workflow
 		sb.WriteString(`
 
@@ -301,12 +240,8 @@ Workflow:
 			sb.WriteString(`
 2. If string values missing from Rich Context → use execute_sql to find them`)
 		}
-		if p.config.EnableProofread {
-			sb.WriteString(`
-4. If Rich Context conflicts with actual data → use update_rich_context`)
-		}
 		sb.WriteString(`
-5. Write SQL following best practices
+3. Write SQL following best practices
 6. If uncertain → validate with execute_sql (use LIMIT/COUNT for large results)
 7. Provide Final Answer
 
@@ -448,46 +383,29 @@ Output: Query results`
 
 func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 	t.ExecutionCount++
-
-	fmt.Printf("\n🔧 Tool Call [execute_sql] #%d:\n", t.ExecutionCount)
-	fmt.Printf("Input SQL: %s\n", input)
-
 	sql := strings.TrimSpace(input)
 
-	// Dry Run 验证（如果启用）
 	if t.useDryRun {
 		if err := t.adapter.DryRunSQL(ctx, sql); err != nil {
 			return fmt.Sprintf("SQL validation failed: %v", err), nil
 		}
 	}
 
-	// 执行 SQL
 	result, err := t.adapter.ExecuteQuery(ctx, sql)
 	if err != nil {
 		return fmt.Sprintf("SQL execution failed: %v", err), nil
 	}
 
-	// 格式化结果
 	output := fmt.Sprintf("Query executed successfully!\nRows: %d\n", result.RowCount)
-
-	// 基于字符长度而非行数来决定是否显示 sample
-	// 序列化结果并检查长度
 	if result.RowCount > 0 {
 		sampleStr := fmt.Sprintf("%v", result.Rows)
-		const maxSampleLength = 1000 // 最大显示 1000 字符
-
+		const maxSampleLength = 1000
 		if len(sampleStr) <= maxSampleLength {
-			// 完整显示
 			output += fmt.Sprintf("Sample results: %s\n", sampleStr)
 		} else {
-			// 截断并添加省略标志
-			truncated := sampleStr[:maxSampleLength]
-			output += fmt.Sprintf("Sample results: %s... (truncated, showing first %d chars of %d total)\n",
-				truncated, maxSampleLength, len(sampleStr))
+			output += fmt.Sprintf("Sample results: %s... (truncated)\n", sampleStr[:maxSampleLength])
 		}
 	}
-
-	fmt.Printf("Output: %s\n", output)
 
 	return output, nil
 }
@@ -510,18 +428,11 @@ Input: Your question about which fields to return (e.g., "Which fields should I 
 Output: List of required fields or description of required fields`
 }
 
-func (t *ClarifyTool) Call(ctx context.Context, input string) (string, error) {
+func (t *ClarifyTool) Call(_ context.Context, _ string) (string, error) {
 	t.ClarifyCount++
 
-	fmt.Printf("\n🔔 Clarification requested: %s\n", input)
-
-	// 统一返回字段列表 + 描述
 	fieldsStr := strings.Join(t.resultFields, ", ")
-	response := fmt.Sprintf("Required fields in EXACT ORDER: %s\n\nField descriptions: %s\n\nIMPORTANT: Use these field names WITHOUT table prefixes (e.g., 'Name' not 'singer.Name')",
+	return fmt.Sprintf("Required fields in EXACT ORDER: %s\n\nField descriptions: %s\n\nIMPORTANT: Use these field names WITHOUT table prefixes (e.g., 'Name' not 'singer.Name')",
 		fieldsStr,
-		t.resultFieldsDescription)
-
-	fmt.Printf("📋 Clarification response: %s\n\n", response)
-
-	return response, nil
+		t.resultFieldsDescription), nil
 }

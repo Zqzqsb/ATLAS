@@ -40,43 +40,30 @@ Use this tool BEFORE giving your final answer to ensure SQL correctness.`
 func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) {
 	sql := strings.TrimSpace(input)
 
-	fmt.Printf("\n🔍 Tool Call [verify_sql]:\n")
-	fmt.Printf("Input SQL: %s\n", sql)
-
-	// 1. 快速静态检查（避免明显错误）
 	if err := t.quickCheck(sql); err != nil {
-		result := fmt.Sprintf("❌ SQL validation failed (static check):\n%v\n\nPlease fix the error and try again.", err)
-		fmt.Printf("Output: %s\n", result)
-		return result, nil
+		return fmt.Sprintf("SQL validation failed (static check):\n%v\n\nPlease fix the error and try again.", err), nil
 	}
 
-	// 2. 使用数据库执行验证，而不仅仅是 dry-run
 	data, err := t.adapter.ExecuteQuery(ctx, sql)
 	if err != nil {
-		result := fmt.Sprintf("❌ SQL validation failed (database check):\n%v\n\nPlease fix the error and try again.", err)
-		fmt.Printf("Output: %s\n", result)
-		return result, nil
+		return fmt.Sprintf("SQL validation failed (database check):\n%v\n\nPlease fix the error and try again.", err), nil
 	}
 
-	// 3. 检查结果行数
 	var warnings []string
 	if len(data.Rows) == 0 {
 		warnings = append(warnings, "⚠️  Warning: Query returned 0 rows. Please double-check:\n  - Are the JOIN conditions correct?\n  - Are the WHERE conditions too restrictive?\n  - Does the data actually exist in the database?")
 	}
 
-	// 4. 检查重复行
 	rows := convertQueryResultFormat(data.Rows)
 	if duplicateWarning := t.checkDuplicateRows(rows); duplicateWarning != "" {
 		warnings = append(warnings, duplicateWarning)
 	}
 
-	// 5. 构建最终结果
-	result := "✓ SQL is valid! You can now provide the final answer."
+	result := "SQL is valid. You can now provide the final answer."
 	if len(warnings) > 0 {
 		result += "\n" + strings.Join(warnings, "\n")
 	}
 
-	fmt.Printf("Output: %s\n", result)
 	return result, nil
 }
 

@@ -30,7 +30,6 @@ type InferenceRequest struct {
 	UseReact         bool             `json:"use_react"`
 	MaxIterations    int              `json:"max_iterations"`
 	FieldDescription string           `json:"field_description"`
-	ContextFile      string           `json:"context_file,omitempty"`
 	GroundingResult  *GroundingResult `json:"grounding_result,omitempty"`
 }
 
@@ -41,11 +40,10 @@ type InferenceResult struct {
 	Metadata        InferenceMetadata    `json:"metadata"`
 }
 
-// InferenceMetadata 推理元数据
+// InferenceMetadata holds metadata about an inference run.
 type InferenceMetadata struct {
 	SelectedTables     []string      `json:"selected_tables"`
 	Iterations         int           `json:"iterations"`
-	TotalTokens        int           `json:"total_tokens,omitempty"`
 	ExecutionTime      time.Duration `json:"execution_time,omitempty"`
 	ReactTrace         []ReActStep   `json:"react_trace"`
 	RichContextUpdated bool          `json:"rich_context_updated"`
@@ -143,41 +141,6 @@ type JoinPath struct {
 	ToTable    string `json:"to_table"`
 	ToColumn   string `json:"to_column"`
 	Reason     string `json:"reason,omitempty"`
-}
-
-// ============================================
-// Rich Context
-// ============================================
-
-// RichContextProvider Rich Context 提供者接口
-type RichContextProvider interface {
-	GetRichContext(dbID, database string) (*RichContextInfo, error)
-	HasRichContext(database string) bool
-}
-
-// RichContextInfo Rich Context 信息
-type RichContextInfo struct {
-	Database  string                 `json:"database"`
-	Tables    []TableContextInfo     `json:"tables"`
-	UpdatedAt time.Time              `json:"updated_at"`
-	Version   string                 `json:"version"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// TableContextInfo 表级 Context 信息
-type TableContextInfo struct {
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	Columns     []ColumnContextInfo `json:"columns"`
-	IsExpired   bool                `json:"is_expired"`
-}
-
-// ColumnContextInfo 列级 Context 信息
-type ColumnContextInfo struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Synonyms    []string `json:"synonyms,omitempty"`
-	Examples    []string `json:"examples,omitempty"`
 }
 
 // ============================================

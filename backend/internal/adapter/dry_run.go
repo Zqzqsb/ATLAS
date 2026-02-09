@@ -29,5 +29,3 @@ func (a *PostgreSQLAdapter) DryRunSQL(ctx context.Context, sql string) error {
 	return err
 }
 
-// DBAdapter 接口添加 DryRunSQL 方法
-// 需要在 adapter.go 中添加此方法声明

@@ -17,7 +17,7 @@ type DBAdapter interface {
 	ExecuteQuery(ctx context.Context, query string) (*QueryResult, error)
 	GetDatabaseType() string
 	GetDatabaseVersion(ctx context.Context) (string, error)
-	DryRunSQL(ctx context.Context, sql string) error
+	DryRunSQL(ctx context.Context, sql string) (*QueryResult, error)
 }
 
 // DBConfig 数据库连接配置

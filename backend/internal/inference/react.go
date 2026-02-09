@@ -211,14 +211,20 @@ SQL Best Practices:
 		// Tools available
 		sb.WriteString(`Available Tools:
 - execute_sql: Execute SQL and see results
-- verify_sql: Validate SQL syntax via dry run
+- verify_sql: Validate SQL via EXPLAIN (safe for large datasets — never executes the actual query)
+  → Returns: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, plus EXPLAIN plan and ⚠️ performance warnings
+  → If FAILED or has warnings: YOU MUST rewrite the SQL and verify again
 
 Workflow:
 1. Analyze question and schema
 2. If string values missing from Rich Context → use execute_sql to find them
 3. Write SQL following best practices
-4. If uncertain → validate with execute_sql (use LIMIT/COUNT for large results)
-5. Provide Final Answer
+4. Use verify_sql to check EXPLAIN plan:
+   - ❌ FAILED → fix SQL error, re-verify
+   - ✅ PASSED with ⚠️ warnings (full table scan, filesort, etc.) → rewrite SQL to optimize, re-verify
+   - ✅ PASSED with no warnings → proceed to Final Answer
+5. You may iterate verify_sql up to 3 times to optimize
+6. Provide Final Answer
 
 `)
 
@@ -356,7 +362,7 @@ func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 	sql := strings.TrimSpace(input)
 
 	if t.useDryRun {
-		if err := t.adapter.DryRunSQL(ctx, sql); err != nil {
+		if _, err := t.adapter.DryRunSQL(ctx, sql); err != nil {
 			return fmt.Sprintf("SQL validation failed: %v", err), nil
 		}
 	}

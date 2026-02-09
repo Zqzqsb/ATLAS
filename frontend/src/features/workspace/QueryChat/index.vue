@@ -767,11 +767,20 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div
                 v-for="step in sqlGenerationStage.steps"
                 :key="step.step"
-                class="react-step p-4 rounded-lg bg-purple-50 border border-purple-100"
+                class="react-step p-4 rounded-lg border"
+                :class="step.action === 'verify_sql' && step.observation
+                  ? (step.observation.startsWith('✅') ? 'bg-green-50 border-green-200' : step.observation.startsWith('❌') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-100')
+                  : 'bg-purple-50 border-purple-100'"
               >
                 <div class="flex items-start gap-3">
-                  <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border border-purple-100">
-                    <span class="text-xs text-purple-600 font-bold">{{ step.step }}</span>
+                  <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border"
+                    :class="step.action === 'verify_sql' && step.observation
+                      ? (step.observation.startsWith('✅') ? 'border-green-200' : step.observation.startsWith('❌') ? 'border-red-200' : 'border-purple-100')
+                      : 'border-purple-100'"
+                  >
+                    <span v-if="step.action === 'verify_sql' && step.observation?.startsWith('✅')" class="text-xs text-green-600 font-bold">✓</span>
+                    <span v-else-if="step.action === 'verify_sql' && step.observation?.startsWith('❌')" class="text-xs text-red-600 font-bold">✗</span>
+                    <span v-else class="text-xs text-purple-600 font-bold">{{ step.step }}</span>
                   </div>
                   
                   <div class="flex-1 min-w-0 space-y-3">
@@ -780,12 +789,50 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                     </div>
                     
-                    <div v-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
+                    <!-- Action: verify_sql with status badge -->
+                    <div v-if="step.action === 'verify_sql'" class="space-y-2">
+                      <div class="flex items-center gap-2 bg-white p-2 rounded border"
+                        :class="step.observation?.startsWith('✅') ? 'border-green-200' : step.observation?.startsWith('❌') ? 'border-red-200' : 'border-purple-100'"
+                      >
+                        <div class="i-carbon-checkmark-outline mt-0.5 flex-shrink-0"
+                          :class="step.observation?.startsWith('✅') ? 'text-green-600' : step.observation?.startsWith('❌') ? 'text-red-600' : 'text-pink-600'"
+                        />
+                        <span class="text-xs font-mono font-bold"
+                          :class="step.observation?.startsWith('✅') ? 'text-green-700' : step.observation?.startsWith('❌') ? 'text-red-700' : 'text-pink-600'"
+                        >verify_sql</span>
+                        <NTag v-if="step.observation?.startsWith('✅')" size="tiny" type="success" round>PASSED</NTag>
+                        <NTag v-else-if="step.observation?.startsWith('❌')" size="tiny" type="error" round>FAILED</NTag>
+                        <NTag v-else-if="step.observation" size="tiny" type="warning" round>CHECKING</NTag>
+                      </div>
+                      
+                      <!-- EXPLAIN plan in collapsible section -->
+                      <div v-if="step.observation" class="verify-result">
+                        <NCollapse :default-expanded-names="step.observation?.startsWith('❌') ? ['explain'] : []" arrow-placement="left">
+                          <NCollapseItem name="explain">
+                            <template #header>
+                              <div class="flex items-center gap-2">
+                                <div class="i-carbon-analytics text-sm"
+                                  :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
+                                />
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
+                              </div>
+                            </template>
+                            <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 rounded-lg mt-1 max-h-48 overflow-y-auto"
+                              :class="step.observation?.startsWith('✅') ? 'bg-green-50' : 'bg-red-50'"
+                            >{{ step.observation }}</pre>
+                          </NCollapseItem>
+                        </NCollapse>
+                      </div>
+                    </div>
+                    
+                    <!-- Regular action (non-verify_sql) -->
+                    <div v-else-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
                       <div class="i-carbon-play-filled text-pink-600 mt-0.5 flex-shrink-0" />
                       <span class="text-xs text-pink-600 font-mono font-bold">{{ step.action }}</span>
                     </div>
                     
-                    <div v-if="step.observation" class="flex items-start gap-2">
+                    <!-- Observation for non-verify_sql actions -->
+                    <div v-if="step.observation && step.action !== 'verify_sql'" class="flex items-start gap-2">
                       <div class="i-carbon-view text-amber-500 mt-0.5 flex-shrink-0" />
                       <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
                     </div>

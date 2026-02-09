@@ -3,12 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
-	"lucid/internal/config"
 	"lucid/internal/adapter"
-	ctx "lucid/internal/context"
+	"lucid/internal/config"
 )
 
 // DatabaseService manages multiple database connections
@@ -324,59 +322,3 @@ type ColumnInfo struct {
 	DefaultValue string `json:"default_value,omitempty"`
 }
 
-// GetRichContext returns the Rich Context for a database connection
-func (s *DatabaseService) GetRichContext(dbID string) (*ctx.SharedContext, error) {
-	// Find database config
-	var dbConfig *config.DatabaseConfig
-	for _, db := range s.config.Databases {
-		if db.ID == dbID {
-			dbConfig = &db
-			break
-		}
-	}
-
-	if dbConfig == nil {
-		return nil, fmt.Errorf("database not found: %s", dbID)
-	}
-
-	// Try to load existing Rich Context
-	contextPath := fmt.Sprintf("data/contexts/%s/%s.json", dbConfig.Type, dbConfig.Name)
-	richContext, err := ctx.LoadContextFromFile(contextPath)
-	if err != nil {
-		// If not found, create a new one
-		richContext = ctx.NewSharedContext(dbConfig.Name, dbConfig.Type)
-	}
-
-	return richContext, nil
-}
-
-// SaveRichContext saves the Rich Context for a database connection
-func (s *DatabaseService) SaveRichContext(dbID string, richContext *ctx.SharedContext) error {
-	// Find database config
-	var dbConfig *config.DatabaseConfig
-	for _, db := range s.config.Databases {
-		if db.ID == dbID {
-			dbConfig = &db
-			break
-		}
-	}
-
-	if dbConfig == nil {
-		return fmt.Errorf("database not found: %s", dbID)
-	}
-
-	// Ensure directory exists
-	contextDir := fmt.Sprintf("data/contexts/%s", dbConfig.Type)
-	if err := ensureDir(contextDir); err != nil {
-		return fmt.Errorf("failed to create context directory: %w", err)
-	}
-
-	// Save Rich Context
-	contextPath := fmt.Sprintf("%s/%s.json", contextDir, dbConfig.Name)
-	return richContext.SaveToFile(contextPath)
-}
-
-// ensureDir ensures a directory exists
-func ensureDir(path string) error {
-	return os.MkdirAll(path, 0755)
-}

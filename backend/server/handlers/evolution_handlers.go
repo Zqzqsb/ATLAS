@@ -14,17 +14,24 @@ import (
 	"lucid/internal/lakebase"
 )
 
-// evolutionService holds the singleton evolution service
-var evolutionService *agent.EvolutionService
+var (
+	agentService     *agent.AgentService
+	evolutionService *agent.EvolutionService
+)
 
-// InitEvolutionService initializes the evolution service
-func InitEvolutionService(pool *lakebase.ConnectionPool, repo *lakebase.MySQLRepository, agentSvc *agent.AgentService) {
-	evolutionService = agent.NewEvolutionService(pool, repo, agentSvc)
+// InitAgentService initializes the agent service singleton.
+func InitAgentService(pool *lakebase.ConnectionPool, agentCfg *agent.AgentConfig) {
+	agentService = agent.NewAgentService(pool, agentCfg)
 }
 
-// GetEvolutionService returns the evolution service
-func GetEvolutionService() *agent.EvolutionService {
-	return evolutionService
+// GetAgentService returns the agent service.
+func GetAgentService() *agent.AgentService {
+	return agentService
+}
+
+// InitEvolutionService initializes the evolution service.
+func InitEvolutionService(pool *lakebase.ConnectionPool, repo *lakebase.MySQLRepository, agentSvc *agent.AgentService) {
+	evolutionService = agent.NewEvolutionService(pool, repo, agentSvc)
 }
 
 // GetEvolutionStatus returns the current evolution demo state

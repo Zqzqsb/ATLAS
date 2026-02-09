@@ -39,13 +39,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// ========================================
-	// Initialize dependencies (no bridge layer)
-	// ========================================
-
-	// Create database service — adapter.NewAdapter directly implements interfaces.DBAdapter
+	// Initialize dependencies
 	dbService := services.NewDatabaseService(cfg, adapter.NewAdapter)
-	services.SetGlobalDatabaseService(dbService)
 
 	// Initialize LLM (optional - may fail if config not found)
 	var llmModel llms.Model
@@ -69,24 +64,16 @@ func main() {
 		}
 	}
 
-	// Create inference engine (previously bridge.InferenceEngineBridge)
-	inferenceEngine := services.NewInferenceEngine(llmModel)
+	inferenceEngine := services.NewInferenceEngine(llmModel, dbService)
 
-	// Create rich context provider and field suggester
-	richContextProvider := services.NewFileRichContextProvider()
+	// Create field suggester (optional, requires LLM)
 	var fieldSuggester services.FieldSuggesterInterface
 	if llmModel != nil {
 		fieldSuggester = services.NewFieldSuggester(llmModel, adapter.NewAdapter, cfg)
 	}
 
-	// Create translator
-	services.SetTranslator(services.NewPassthroughTranslator())
-
 	// Create inference service
-	inferenceService := services.NewInferenceService(cfg, dbService, inferenceEngine, &services.InferenceServiceOptions{
-		RichContextProvider: richContextProvider,
-		FieldSuggester:      fieldSuggester,
-	})
+	inferenceService := services.NewInferenceService(cfg, dbService, inferenceEngine, fieldSuggester)
 
 	// ========================================
 	// Initialize Lake-Base Storage Service
@@ -182,17 +169,6 @@ func main() {
 		log.Fatalf("Failed to initialize handlers: %v", err)
 	}
 
-	// ========================================
-	// System Warmup (background)
-	// ========================================
-	warmupService := services.NewWarmupService(cfg, llmModel, lakebaseService, adapter.NewAdapter)
-	go func() {
-		warmupCtx, warmupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer warmupCancel()
-		if err := warmupService.Warmup(warmupCtx); err != nil {
-			log.Printf("⚠️  Warmup failed: %v", err)
-		}
-	}()
 
 	// ========================================
 	// Create Gin router
@@ -212,12 +188,10 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "ok",
 			"timestamp": time.Now().Unix(),
-			"warmup":    warmupService.GetWarmupStatus(),
 		})
 	})
 
@@ -247,12 +221,10 @@ func main() {
 
 		// Database connection management
 		api.GET("/connections", h.ListConnections)
-		api.GET("/connections/available", h.ListAvailableConnections)
 		api.POST("/connections", h.AddConnection)
 		api.POST("/connections/test", h.TestConnection)
 		api.DELETE("/connections/:id", h.RemoveConnection)
 		api.POST("/connections/:id/sync-schema", h.SyncConnectionSchema)
-		api.POST("/connections/load-demo", h.LoadDemoDatabases)
 		api.POST("/connections/release-all", h.ReleaseAllDemoConnections)
 
 		// Text2SQL routes
@@ -263,35 +235,10 @@ func main() {
 		// SQL execution
 		api.POST("/databases/:id/execute", h.ExecuteSQL)
 
-		// Spider dataset routes
-		api.GET("/spider/databases", h.ListSpiderDatabases)
-		api.GET("/spider/databases/:database/questions", h.GetSpiderQuestions)
-
-		// Demo routes
-		api.GET("/demo/scenarios", h.ListDemoScenarios)
-		api.GET("/demo/scenarios/:id", h.GetDemoScenario)
-
-		// Onboarding routes (visible database analysis)
+		// Onboarding routes
 		api.GET("/onboarding/stream", h.OnboardingStream)
 
-		// Catalog routes (for business metadata import)
-		api.POST("/catalog/upload", h.UploadCatalog)
-		api.POST("/catalog/upload-file", h.UploadCatalogFile)
-		api.GET("/catalog/template", h.GetCatalogTemplate)
-		api.GET("/catalog/schema", h.GetCatalogSchema)
-		api.GET("/catalog/export/:connection_id", h.ExportCatalogFromContext)
-
-		// Rich Context maintenance routes
-		api.GET("/context/maintenance/:connection_id", h.GetMaintenanceReport)
-		api.GET("/context/expired/:connection_id", h.GetExpiredEntries)
-		api.POST("/context/update/:connection_id", h.UpdateRichContextEntry)
-		api.POST("/context/batch-update/:connection_id", h.BatchUpdateRichContext)
-		api.POST("/context/refresh/:connection_id", h.RefreshExpiredEntries)
-
-		// Translation route
-		api.POST("/translate", h.TranslateTexts)
-
-		// Lake-Base Storage routes (VLDB Demo V3)
+		// Lake-Base Storage routes
 		api.GET("/lakebase/status", h.GetLakebaseStatus)
 		api.POST("/lakebase/connect", h.ConnectLakebase)
 		api.GET("/lakebase/datasources", h.ListLakebaseDatasources)
@@ -305,16 +252,7 @@ func main() {
 		api.DELETE("/lakebase/datasources/:id", h.DeleteDatasource)
 		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
 
-		// Agent Maintenance routes (VLDB Demo V3)
-		api.GET("/agent/status", h.GetAgentStatus)
-		api.POST("/agent/start", h.StartAgentService)
-		api.POST("/agent/stop", h.StopAgentService)
-		api.POST("/agent/maintenance/:datasource_id", h.RunAgentMaintenance)
-		api.POST("/agent/refresh/:datasource_id", h.TriggerContextRefresh)
-		api.POST("/agent/simulate-ddl/:datasource_id", h.SimulateDDLChange)
-		api.GET("/agent/logs/:datasource_id", h.GetAgentChangeLogs)
-
-		// Evolution Demo routes (Self-Maintenance Demo)
+		// Evolution Demo routes
 		api.GET("/evolution/status", h.GetEvolutionStatus)
 		api.GET("/evolution/stages/:stage_id", h.GetEvolutionStagePreview)
 		api.POST("/evolution/execute-stage", h.ExecuteEvolutionStage)
@@ -322,7 +260,7 @@ func main() {
 		api.POST("/evolution/reset", h.ResetEvolution)
 		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
-		// Semantic Grounding routes (VLDB Demo V3)
+		// Semantic Grounding routes
 		if groundingHandlers != nil {
 			api.POST("/grounding/ground", groundingHandlers.Ground)
 			api.GET("/grounding/stream", groundingHandlers.GroundStream)

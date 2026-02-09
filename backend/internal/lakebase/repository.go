@@ -618,9 +618,9 @@ func (r *MySQLRepository) PruneAllContext(ctx context.Context, dsID int64) error
 		return fmt.Errorf("lakebase: failed to clear rc_tables descriptions: %w", err)
 	}
 
-	// Clear descriptions in rc_columns (keep schema metadata)
-	if _, err := tx.ExecContext(ctx, "UPDATE rc_columns SET description = NULL, updated_at = NOW() WHERE datasource_id = ?", dsID); err != nil {
-		return fmt.Errorf("lakebase: failed to clear rc_columns descriptions: %w", err)
+	// Clear all RC data in rc_columns (keep schema metadata: column_name, data_type, etc.)
+	if _, err := tx.ExecContext(ctx, "UPDATE rc_columns SET description = NULL, sample_values = NULL, synonyms = NULL, value_mapping = NULL, updated_at = NOW() WHERE datasource_id = ?", dsID); err != nil {
+		return fmt.Errorf("lakebase: failed to clear rc_columns context: %w", err)
 	}
 
 	// Delete generated context data (these can be fully regenerated)

@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/adapter"
 	ctx "lucid/internal/context"
 )

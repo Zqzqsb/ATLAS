@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/adapter"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"

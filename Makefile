@@ -113,7 +113,7 @@ dev-build:
 	docker compose -f deploy/docker-compose.yml up --build --no-cache
 
 backend-dev:
-	cd backend && go run ./server -config configs/system.yaml
+	cd backend && go run ./cmd/lucid-server -config configs/system.yaml
 
 frontend-dev:
 	cd frontend && pnpm dev --port 19000
@@ -156,7 +156,7 @@ paper-clean:
 
 # ============== Build ==============
 build-backend:
-	cd backend && go build -o ../bin/lucid-server ./server
+	cd backend && go build -o ../bin/lucid-server ./cmd/lucid-server
 
 build-frontend:
 	cd frontend && pnpm build

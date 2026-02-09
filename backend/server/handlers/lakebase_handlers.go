@@ -13,7 +13,7 @@ import (
 
 	"strings"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/adapter"
 	"lucid/internal/lakebase"
 	"lucid/internal/react"

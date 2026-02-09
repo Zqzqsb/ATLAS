@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/adapter"
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"

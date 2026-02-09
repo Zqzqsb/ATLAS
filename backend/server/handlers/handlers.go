@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/grounding"
 	"lucid/internal/lakebase"
 	"lucid/server/services"

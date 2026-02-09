@@ -9,7 +9,7 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/config"
+	"lucid/internal/config"
 	"lucid/internal/adapter"
 )
 

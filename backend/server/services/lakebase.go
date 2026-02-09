@@ -70,10 +70,11 @@ func (s *LakebaseService) Connect(ctx context.Context) error {
 	// Initialize embedding provider if configured
 	if s.config.Embedding.Enabled && s.config.Embedding.APIKey != "" {
 		provider := embedding.NewOpenAIProvider(embedding.OpenAIConfig{
-			APIKey:    s.config.Embedding.APIKey,
-			BaseURL:   s.config.Embedding.BaseURL,
-			Model:     s.config.Embedding.Model,
-			Dimension: s.config.Embedding.Dimension,
+			APIKey:     s.config.Embedding.APIKey,
+			BaseURL:    s.config.Embedding.BaseURL,
+			Model:      s.config.Embedding.Model,
+			Dimension:  s.config.Embedding.Dimension,
+			Multimodal: s.config.Embedding.Multimodal,
 		})
 		s.embeddingProvider = provider
 		log.Printf("[Lakebase] Embedding provider initialized: %s (dim=%d)", s.config.Embedding.Model, s.config.Embedding.Dimension)

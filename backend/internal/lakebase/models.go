@@ -174,8 +174,8 @@ type EmbeddingWithDistance struct {
 	Distance float64 `json:"distance" db:"distance"`
 }
 
-// DefaultEmbeddingModel is the default embedding model (Seed-1.5-Embedding via Volcengine Ark)
-const DefaultEmbeddingModel = "doubao-embedding-large-text-250515"
+// DefaultEmbeddingModel is the default embedding model (Volcengine Ark multimodal embedding)
+const DefaultEmbeddingModel = "doubao-embedding-vision-250615"
 
 // DefaultEmbeddingDimension is the native dimension for Seed-1.5-Embedding
 const DefaultEmbeddingDimension = 2048

@@ -44,21 +44,11 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 		useDryRun: p.config.UseDryRun,
 	}
 
-	clarifyTool := &ClarifyTool{
-		resultFields:            p.config.ResultFields,
-		resultFieldsDescription: p.config.ResultFieldsDescription,
-	}
-
 	// 创建 verify_sql 工具
 	verifySQLTool := NewVerifySQLTool(p.adapter, p.config.DBType)
 
 	// 创建 ReAct Agent
-	var toolsList []tools.Tool
-	toolsList = []tools.Tool{sqlTool, verifySQLTool}
-
-	if p.config.ClarifyMode == "on" {
-		toolsList = append(toolsList, clarifyTool)
-	}
+	toolsList := []tools.Tool{sqlTool, verifySQLTool}
 
 
 	// Create handler to collect ReAct steps
@@ -119,7 +109,6 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	// 更新统计信息
 	result.LLMCalls += len(reactHandler.GetSteps()) // Use actual iteration count
 	result.SQLExecutions += sqlTool.ExecutionCount
-	result.ClarifyCount = clarifyTool.ClarifyCount
 
 	// 提取最终 SQL
 	if output, ok := agentResult["output"].(string); ok {
@@ -221,28 +210,15 @@ SQL Best Practices:
 	if isReact {
 		// Tools available
 		sb.WriteString(`Available Tools:
-- execute_sql: Execute SQL and see results`)
-		if p.config.ClarifyMode == "on" {
-			sb.WriteString(`
-- clarify_fields: Ask which fields to return (when question doesn't specify)`)
-		}
-		// Workflow
-		sb.WriteString(`
+- execute_sql: Execute SQL and see results
+- verify_sql: Validate SQL syntax via dry run
 
 Workflow:
-1. Analyze question and schema`)
-		if p.config.ClarifyMode == "on" {
-			sb.WriteString(`
-2. If unclear which columns needed → use clarify_fields
-3. If string values missing from Rich Context → use execute_sql to find them`)
-		} else {
-			sb.WriteString(`
-2. If string values missing from Rich Context → use execute_sql to find them`)
-		}
-		sb.WriteString(`
+1. Analyze question and schema
+2. If string values missing from Rich Context → use execute_sql to find them
 3. Write SQL following best practices
-6. If uncertain → validate with execute_sql (use LIMIT/COUNT for large results)
-7. Provide Final Answer
+4. If uncertain → validate with execute_sql (use LIMIT/COUNT for large results)
+5. Provide Final Answer
 
 `)
 
@@ -286,11 +262,6 @@ Before Final Answer, verify your SQL returns these EXACT fields in EXACT order:
 `)
 		}
 
-		if p.config.ClarifyMode == "on" {
-			sb.WriteString(`
-6. Clarify: Follow field names/descriptions from clarify_fields precisely
-`)
-		}
 	} else {
 		sb.WriteString(`Task: Generate SQL directly.
 Output ONLY the SQL query (no explanations, no markdown).
@@ -409,29 +380,3 @@ func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 	return output, nil
 }
 
-// ClarifyTool 澄清工具 - 用于询问需要返回哪些字段
-type ClarifyTool struct {
-	resultFields            []string
-	resultFieldsDescription string
-	ClarifyCount            int
-}
-
-func (t *ClarifyTool) Name() string {
-	return "clarify_fields"
-}
-
-func (t *ClarifyTool) Description() string {
-	return `Ask for clarification about which fields should be returned in the query result.
-Use this when the question doesn't specify which columns to return.
-Input: Your question about which fields to return (e.g., "Which fields should I return?")
-Output: List of required fields or description of required fields`
-}
-
-func (t *ClarifyTool) Call(_ context.Context, _ string) (string, error) {
-	t.ClarifyCount++
-
-	fieldsStr := strings.Join(t.resultFields, ", ")
-	return fmt.Sprintf("Required fields in EXACT ORDER: %s\n\nField descriptions: %s\n\nIMPORTANT: Use these field names WITHOUT table prefixes (e.g., 'Name' not 'singer.Name')",
-		fieldsStr,
-		t.resultFieldsDescription), nil
-}

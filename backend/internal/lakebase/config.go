@@ -31,12 +31,13 @@ type LakebaseDBConfig struct {
 
 // EmbeddingConfig holds embedding generation settings
 type EmbeddingConfig struct {
-	Enabled   bool   `yaml:"enabled"`
-	APIKey    string `yaml:"api_key"`
-	BaseURL   string `yaml:"base_url"`
-	Model     string `yaml:"model"`
-	Dimension int    `yaml:"dimension"`
-	BatchSize int    `yaml:"batch_size"`
+	Enabled    bool   `yaml:"enabled"`
+	APIKey     string `yaml:"api_key"`
+	BaseURL    string `yaml:"base_url"`
+	Model      string `yaml:"model"`
+	Dimension  int    `yaml:"dimension"`
+	BatchSize  int    `yaml:"batch_size"`
+	Multimodal bool   `yaml:"multimodal"` // use /embeddings/multimodal endpoint (Volcengine)
 }
 
 // VectorSearchConfig holds vector search settings

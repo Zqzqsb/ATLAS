@@ -71,10 +71,10 @@ function applyPreset(preset: string) {
 }
 
 const rules = {
-  name: { required: true, message: '请输入连接名称', trigger: ['blur', 'input'] },
-  type: { required: true, message: '请选择数据库类型', trigger: 'change' },
-  host: { required: true, message: '请输入主机地址', trigger: ['blur', 'input'] },
-  database: { required: true, message: '请输入数据库名', trigger: ['blur', 'input'] }
+  name: { required: true, message: 'Connection name is required', trigger: ['blur', 'input'] },
+  type: { required: true, message: 'Database type is required', trigger: 'change' },
+  host: { required: true, message: 'Host address is required', trigger: ['blur', 'input'] },
+  database: { required: true, message: 'Database name is required', trigger: ['blur', 'input'] }
 }
 
 // Reset form when dialog opens
@@ -123,7 +123,7 @@ function updatePort() {
   <NModal
     :show="show"
     preset="card"
-    title="添加数据库连接"
+    title="Add Database Connection"
     style="width: 500px"
     :mask-closable="false"
     @update:show="$emit('update:show', $event)"
@@ -136,7 +136,7 @@ function updatePort() {
       label-width="100"
     >
       <!-- Preset selector -->
-      <NFormItem label="快速选择" :show-feedback="false">
+      <NFormItem label="Quick Select" :show-feedback="false">
         <NSelect
           v-model:value="selectedPreset"
           :options="presetOptions"
@@ -144,14 +144,14 @@ function updatePort() {
         />
       </NFormItem>
 
-      <NFormItem label="连接名称" path="name">
+      <NFormItem label="Name" path="name">
         <NInput 
           v-model:value="formData.name" 
-          placeholder="给这个连接起个名字"
+          placeholder="Give this connection a name"
         />
       </NFormItem>
 
-      <NFormItem label="数据库类型" path="type">
+      <NFormItem label="Type" path="type">
         <NSelect
           v-model:value="formData.type"
           :options="typeOptions"
@@ -160,14 +160,14 @@ function updatePort() {
       </NFormItem>
 
       <template v-if="formData.type !== 'sqlite'">
-        <NFormItem label="主机地址" path="host">
+        <NFormItem label="Host" path="host">
           <NInput 
             v-model:value="formData.host" 
             placeholder="localhost"
           />
         </NFormItem>
 
-        <NFormItem label="端口" path="port">
+        <NFormItem label="Port" path="port">
           <NInputNumber
             v-model:value="formData.port"
             :min="1"
@@ -177,25 +177,25 @@ function updatePort() {
           />
         </NFormItem>
 
-        <NFormItem label="用户名" path="username">
+        <NFormItem label="Username" path="username">
           <NInput 
             v-model:value="formData.username" 
             placeholder="root"
           />
         </NFormItem>
 
-        <NFormItem label="密码" path="password">
+        <NFormItem label="Password" path="password">
           <NInput
             v-model:value="formData.password"
             type="password"
             show-password-on="click"
-            placeholder="请输入密码"
+            placeholder="Enter password"
           />
         </NFormItem>
       </template>
 
       <template v-else>
-        <NFormItem label="文件路径" path="path">
+        <NFormItem label="File Path" path="path">
           <NInput 
             v-model:value="formData.path" 
             placeholder="/path/to/database.db"
@@ -203,19 +203,19 @@ function updatePort() {
         </NFormItem>
       </template>
 
-      <NFormItem label="数据库名" path="database">
+      <NFormItem label="Database" path="database">
         <NInput 
           v-model:value="formData.database" 
-          placeholder="请输入数据库名"
+          placeholder="Enter database name"
         />
       </NFormItem>
     </NForm>
 
     <template #footer>
       <NSpace justify="end">
-        <NButton @click="handleClose">取消</NButton>
+        <NButton @click="handleClose">Cancel</NButton>
         <NButton type="primary" :loading="loading" @click="handleSubmit">
-          添加连接
+          Add Connection
         </NButton>
       </NSpace>
     </template>

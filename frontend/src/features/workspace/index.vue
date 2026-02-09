@@ -18,30 +18,30 @@ const workspaceStore = useWorkspaceStore()
 const databaseStore = useDatabaseStore()
 
 const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
-  { key: 'query', label: '对话查询', icon: 'i-carbon-chat' },
+  { key: 'query', label: 'Query', icon: 'i-carbon-chat' },
   { key: 'schema', label: 'Schema', icon: 'i-carbon-data-table' },
   { key: 'context', label: 'Context', icon: 'i-carbon-document' },
-  { key: 'monitor', label: '监控', icon: 'i-carbon-analytics' }
+  { key: 'monitor', label: 'Monitor', icon: 'i-carbon-analytics' }
 ]
 
-// Spider 库名称模式
+// Spider database name patterns
 const SPIDER_PATTERNS = ['spider_tvshow', 'spider_flight', 'spider_wta']
 
-// 判断是否是 Spider 库
+// Check if database belongs to Spider dataset
 function isSpiderDatabase(name: string): boolean {
   return name.toLowerCase().startsWith('spider_')
 }
 
-// 当前是否在 Spider 模式
+// Whether currently in Spider mode
 const isSpiderMode = computed(() => {
   return workspaceStore.currentDatabase && isSpiderDatabase(workspaceStore.currentDatabase.name)
 })
 
-// Spider 场景列表
+// Spider scenario list
 const spiderScenarios = computed(() => {
   if (!isSpiderMode.value) return []
   
-  // 获取所有 Spider 库
+  // Get all Spider databases
   return databaseStore.databases
     .filter(db => isSpiderDatabase(db.name))
     .map(db => ({
@@ -53,7 +53,7 @@ const spiderScenarios = computed(() => {
     }))
 })
 
-// 当前选中的 Spider 场景
+// Currently selected Spider scenario
 const currentScenarioId = computed(() => workspaceStore.currentDatabaseId)
 
 function getScenarioName(dbName: string): string {
@@ -71,11 +71,11 @@ function getScenarioIcon(dbName: string): string {
 }
 
 function getScenarioTag(_dbName: string): string {
-  // 所有 Spider 库都是脏库场景，不做区分
+  // All Spider databases are dirty-data scenarios, no distinction needed
   return ''
 }
 
-// 切换 Spider 场景
+// Switch Spider scenario
 function switchSpiderScenario(scenarioId: string) {
   if (scenarioId !== workspaceStore.currentDatabaseId) {
     router.push(`/workspace/${scenarioId}`)
@@ -157,7 +157,7 @@ function goBack() {
             </button>
             
             <div class="flex items-center gap-4 flex-1">
-              <!-- Spider 模式显示特殊图标 -->
+              <!-- Spider mode: special icon -->
               <div 
                 class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
                 :class="isSpiderMode 
@@ -179,7 +179,7 @@ function goBack() {
                     </template>
                   </h1>
                   
-                  <!-- Spider 场景切换 - 放在标题旁边 -->
+                  <!-- Spider scenario switcher -->
                   <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-2">
                     <button
                       v-for="scenario in spiderScenarios"

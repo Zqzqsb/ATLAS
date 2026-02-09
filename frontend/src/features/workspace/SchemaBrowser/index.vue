@@ -105,7 +105,7 @@ const treeData = computed(() => {
       prefix: () => h('div', { class: 'i-carbon-data-table text-blue-500' }),
       suffix: () => h('div', { class: 'flex items-center gap-1' }, [
         table.hasContext && h('div', { class: 'i-carbon-magic-wand text-purple-500 text-xs' }),
-        h('span', { class: 'text-xs text-gray-400' }, `${table.columns.length} 列`)
+        h('span', { class: 'text-xs text-gray-400' }, `${table.columns.length} cols`)
       ]),
       isLeaf: false,
       children: table.columns.map(col => ({
@@ -151,7 +151,7 @@ const tableContexts = computed(() => {
       <div class="p-4 border-b border-gray-200">
         <NInput
           v-model:value="searchKeyword"
-          placeholder="搜索表或列..."
+          placeholder="Search tables or columns..."
           clearable
           class="bg-white"
         >
@@ -163,10 +163,10 @@ const tableContexts = computed(() => {
 
       <!-- Tabs: Tree / ER Diagram -->
       <NTabs v-model:value="activePane" type="segment" size="small" class="px-4 pt-2">
-        <NTabPane name="tree" tab="表列表">
+        <NTabPane name="tree" tab="Tables">
           <div class="overflow-auto" style="height: calc(100vh - 240px);">
             <NSpin v-if="workspaceStore.loadingSchema" class="mt-8" />
-            <NEmpty v-else-if="treeData.length === 0" description="暂无数据" class="mt-8" />
+            <NEmpty v-else-if="treeData.length === 0" description="No data" class="mt-8" />
             <NTree
               v-else
               :data="treeData"
@@ -177,7 +177,7 @@ const tableContexts = computed(() => {
             />
           </div>
         </NTabPane>
-        <NTabPane name="er" tab="ER 图">
+        <NTabPane name="er" tab="ER Diagram">
           <div class="overflow-auto p-2" style="height: calc(100vh - 240px);">
             <NSpin v-if="!erDiagramSvg && !erError" class="mt-8" />
             <div v-else-if="erError" class="text-red-500 text-sm p-4 font-medium">

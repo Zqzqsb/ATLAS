@@ -89,7 +89,6 @@ type Result struct {
 	TotalTime      time.Duration
 	LLMCalls       int
 	SQLExecutions  int
-	ClarifyCount   int
 	SelectedTables []string
 	ReActSteps     []ReActStep
 }

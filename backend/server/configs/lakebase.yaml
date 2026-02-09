@@ -15,9 +15,10 @@ embedding:
   enabled: true
   api_key: "404b0d95-e938-4fbb-8724-34d2f0dadb00"
   base_url: "https://ark.cn-beijing.volces.com/api/v3"
-  model: "doubao-embedding-large-text-250515"
+  model: "doubao-embedding-vision-250615"
   dimension: 2048
   batch_size: 100
+  multimodal: true
 
 vector_search:
   top_k: 10

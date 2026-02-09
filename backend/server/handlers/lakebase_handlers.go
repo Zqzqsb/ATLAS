@@ -22,6 +22,29 @@ import (
 // Lake-base Storage API Handlers
 // ===========================================
 
+// resolveDatasource resolves a datasource from the :id route param.
+// Accepts either a numeric ID or a datasource name.
+func (h *Handler) resolveDatasource(c *gin.Context) (*lakebase.Datasource, int64, bool) {
+	idStr := c.Param("id")
+	ctx := c.Request.Context()
+
+	if dsID, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+		ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found"})
+			return nil, 0, false
+		}
+		return ds, dsID, true
+	}
+
+	ds, err := h.lakebaseService.GetDatasourceByName(ctx, idStr)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
+		return nil, 0, false
+	}
+	return ds, ds.ID, true
+}
+
 // GetLakebaseStatus returns the status of lake-base storage
 func (h *Handler) GetLakebaseStatus(c *gin.Context) {
 	if h.lakebaseService == nil {
@@ -361,12 +384,8 @@ func (h *Handler) GetLakebaseTableContext(c *gin.Context) {
 		return
 	}
 
-	dsIDStr := c.Param("id")
-	dsID, err := strconv.ParseInt(dsIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid datasource ID",
-		})
+	_, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
@@ -441,12 +460,8 @@ func (h *Handler) GetLakebaseChangeLogs(c *gin.Context) {
 		return
 	}
 
-	dsIDStr := c.Param("id")
-	dsID, err := strconv.ParseInt(dsIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid datasource ID",
-		})
+	_, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
@@ -532,11 +547,8 @@ func (h *Handler) GenerateEmbeddings(c *gin.Context) {
 		return
 	}
 
-	dsID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid datasource ID",
-		})
+	_, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
@@ -616,27 +628,11 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	}
 
 	// Resolve datasource
-	idStr := c.Param("id")
-	ctx := c.Request.Context()
-
-	var dsID int64
-	var ds *lakebase.Datasource
-	var err error
-	dsID, err = strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		ds, err = h.lakebaseService.GetDatasourceByName(ctx, idStr)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
-			return
-		}
-		dsID = ds.ID
-	} else {
-		ds, err = h.lakebaseService.GetDatasource(ctx, dsID)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found: " + idStr})
-			return
-		}
+	ds, dsID, ok := h.resolveDatasource(c)
+	if !ok {
+		return
 	}
+	ctx := c.Request.Context()
 
 	// Get business database adapter
 	var businessDB adapter.DBAdapter
@@ -821,26 +817,13 @@ func (h *Handler) PruneContext(c *gin.Context) {
 		return
 	}
 
-	dsIDStr := c.Param("id")
-	dsID, err := strconv.ParseInt(dsIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid datasource ID",
-		})
+	ds, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
-
-	// Verify datasource exists
-	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Datasource not found",
-		})
-		return
-	}
 
 	// Prune all context
 	if err := h.lakebaseService.PruneAllContext(ctx, dsID); err != nil {
@@ -871,21 +854,13 @@ func (h *Handler) SyncSchema(c *gin.Context) {
 		return
 	}
 
-	dsID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid datasource ID"})
+	ds, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 	defer cancel()
-
-	// Get datasource to find its name (used as adapter key)
-	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found"})
-		return
-	}
 
 	// Get adapter for the target database
 	adapter, err := h.dbService.GetAdapter(ds.Name)
@@ -927,20 +902,13 @@ func (h *Handler) DeleteDatasource(c *gin.Context) {
 		return
 	}
 
-	dsID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid datasource ID"})
+	ds, dsID, ok := h.resolveDatasource(c)
+	if !ok {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
-
-	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found"})
-		return
-	}
 
 	// Delete the datasource record (CASCADE will remove all associated rc_* data)
 	if err := h.lakebaseService.DeleteDatasource(ctx, dsID); err != nil {

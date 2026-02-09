@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/tmc/langchaingo/llms"
 
@@ -190,6 +191,28 @@ func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inf
 	if config.MaxIterations == 0 {
 		config.MaxIterations = 5
 	}
+
+	// Wire up Field Alignment: parse field description into ResultFields for force mode
+	if req.FieldDescription != "" {
+		config.ClarifyMode = "force"
+		config.ResultFieldsDescription = req.FieldDescription
+		// Parse "FieldName (description), FieldName2 (description2)" into field names
+		var fields []string
+		for _, part := range strings.Split(req.FieldDescription, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			// Extract field name before the parenthesis
+			if idx := strings.Index(part, "("); idx > 0 {
+				fields = append(fields, strings.TrimSpace(part[:idx]))
+			} else {
+				fields = append(fields, part)
+			}
+		}
+		config.ResultFields = fields
+	}
+
 	return config
 }
 

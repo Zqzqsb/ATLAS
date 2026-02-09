@@ -180,7 +180,7 @@ async function startGeneration() {
   addLog('system', `Starting generation with ${concurrency.value} workers, iterations: ${minIterations.value}-${maxIterations.value}...`, 'info')
 
   // Create SSE connection
-  const url = `/api/v1/lakebase/datasources/${props.databaseId}/generate-context/stream`
+  const url = `/api/v1/lakebase/datasources/${props.databaseId}/generate-context`
   
   try {
     const response = await fetch(url, {

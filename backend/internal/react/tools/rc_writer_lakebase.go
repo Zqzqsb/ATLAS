@@ -29,14 +29,14 @@ func NewLakebaseRCWriter(repo rcRepo) *LakebaseRCWriter {
 }
 
 func (w *LakebaseRCWriter) SetTableDescription(ctx context.Context, dsID int64, tableName, description string) error {
-	if err := w.repo.UpdateTableDescription(ctx, dsID, tableName, description, "react_agent", 0.85); err != nil {
+	if err := w.repo.UpdateTableDescription(ctx, dsID, tableName, description, "llm", 0.85); err != nil {
 		return fmt.Errorf("set table description: %w", err)
 	}
 	return nil
 }
 
 func (w *LakebaseRCWriter) SetColumnDescription(ctx context.Context, dsID int64, tableName, columnName, description string) error {
-	if err := w.repo.UpdateColumnDescription(ctx, dsID, tableName, columnName, description, "react_agent", 0.85); err != nil {
+	if err := w.repo.UpdateColumnDescription(ctx, dsID, tableName, columnName, description, "llm", 0.85); err != nil {
 		return fmt.Errorf("set column description: %w", err)
 	}
 	return nil

@@ -44,7 +44,7 @@ def migrate_flight2():
                 print(f"  Warning: {e}")
     
     maria_conn.commit()
-    cursor.execute("USE lucid_flight")
+    cursor.execute("USE spider_flight")
     
     # 迁移 airlines
     print("  迁移 airlines...")
@@ -107,7 +107,7 @@ def migrate_wta1():
                 print(f"  Warning: {e}")
     
     maria_conn.commit()
-    cursor.execute("USE lucid_wta")
+    cursor.execute("USE spider_wta")
     
     # 迁移 players
     print("  迁移 players...")
@@ -192,13 +192,13 @@ def verify():
     cursor = maria_conn.cursor()
     
     # 验证 flight_2
-    cursor.execute("USE lucid_flight")
+    cursor.execute("USE spider_flight")
     cursor.execute("SELECT COUNT(*) FROM airlines")
-    print(f"  lucid_flight.airlines: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.airlines: {cursor.fetchone()[0]} 行")
     cursor.execute("SELECT COUNT(*) FROM airports")
-    print(f"  lucid_flight.airports: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.airports: {cursor.fetchone()[0]} 行")
     cursor.execute("SELECT COUNT(*) FROM flights")
-    print(f"  lucid_flight.flights: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.flights: {cursor.fetchone()[0]} 行")
     
     # 验证孤儿记录
     cursor.execute("""
@@ -223,13 +223,13 @@ def verify():
     print()
     
     # 验证 wta_1
-    cursor.execute("USE lucid_wta")
+    cursor.execute("USE spider_wta")
     cursor.execute("SELECT COUNT(*) FROM players")
-    print(f"  lucid_wta.players: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.players: {cursor.fetchone()[0]} 行")
     cursor.execute("SELECT COUNT(*) FROM matches")
-    print(f"  lucid_wta.matches: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.matches: {cursor.fetchone()[0]} 行")
     cursor.execute("SELECT COUNT(*) FROM rankings")
-    print(f"  lucid_wta.rankings: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.rankings: {cursor.fetchone()[0]} 行")
     
     maria_conn.close()
     print("\n验证完成！")

@@ -13,15 +13,15 @@ const message = useMessage()
 
 const showAddDialog = ref(false)
 
-// Spider 库名称模式
+// Spider database name patterns
 const SPIDER_PATTERNS = ['spider_tvshow', 'spider_flight', 'spider_wta']
 
-// 判断是否是 Spider 库
+// Check if database belongs to Spider dataset
 function isSpiderDatabase(name: string): boolean {
   return name.toLowerCase().startsWith('spider_')
 }
 
-// 分离 Spider 库和其他库
+// Separate Spider databases from other databases
 const spiderDatabases = computed(() => 
   databaseStore.databases.filter(db => isSpiderDatabase(db.name))
 )
@@ -30,7 +30,7 @@ const otherDatabases = computed(() =>
   databaseStore.databases.filter(db => !isSpiderDatabase(db.name))
 )
 
-// 是否显示 Spider Dataset 卡片
+// Whether to show Spider Dataset card
 const showSpiderCard = computed(() => spiderDatabases.value.length > 0)
 
 onMounted(async () => {
@@ -40,9 +40,9 @@ onMounted(async () => {
 async function handleTestConnection(id: string) {
   const result = await databaseStore.testConnection(id)
   if (result.success) {
-    message.success('连接成功')
+    message.success('Connection successful')
   } else {
-    message.error(result.message || '连接失败')
+    message.error(result.message || 'Connection failed')
   }
 }
 
@@ -50,9 +50,9 @@ async function handleAddDatabase(config: DatabaseConfig) {
   const result = await databaseStore.addDatabase(config)
   showAddDialog.value = false
   if (result.success) {
-    message.success('连接添加成功，Schema 已同步')
+    message.success('Connection added, schema synced')
   } else {
-    message.error(result.error || '添加失败')
+    message.error(result.error || 'Failed to add connection')
   }
 }
 </script>
@@ -128,7 +128,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
             v-else
             class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
           >
-            <!-- Spider Dataset Card (合并显示) -->
+            <!-- Spider Dataset Card (merged display) -->
             <SpiderDatasetCard 
               v-if="showSpiderCard"
               :databases="spiderDatabases"

@@ -43,13 +43,13 @@ const editForm = ref({
 })
 
 const typeOptions = [
-  { label: '描述', value: 'description' },
-  { label: '示例', value: 'example' },
-  { label: '约束', value: 'constraint' },
-  { label: '同义词', value: 'synonym' },
-  { label: '值映射', value: 'value_mapping' },
-  { label: '业务规则', value: 'business_rule' },
-  { label: '计算规则', value: 'calculation' }
+  { label: 'Description', value: 'description' },
+  { label: 'Example', value: 'example' },
+  { label: 'Constraint', value: 'constraint' },
+  { label: 'Synonym', value: 'synonym' },
+  { label: 'Value Mapping', value: 'value_mapping' },
+  { label: 'Business Rule', value: 'business_rule' },
+  { label: 'Calculation', value: 'calculation' }
 ]
 
 const tableOptions = computed(() => 
@@ -168,7 +168,7 @@ function openEditDialog(ctx: RichContext) {
 
 async function handleSave() {
   if (!editForm.value.tableName || !editForm.value.content) {
-    message.warning('请填写完整信息')
+    message.warning('Please fill in all required fields')
     return
   }
 
@@ -180,7 +180,7 @@ async function handleSave() {
       type: editForm.value.type,
       content: editForm.value.content
     })
-    message.success('更新成功')
+    message.success('Updated successfully')
   } else {
     // Create
     await workspaceStore.addContext({
@@ -192,7 +192,7 @@ async function handleSave() {
       content: editForm.value.content,
       source: 'manual'
     })
-    message.success('添加成功')
+    message.success('Added successfully')
   }
 
   showEditDialog.value = false
@@ -200,7 +200,7 @@ async function handleSave() {
 
 async function handleDelete(ctx: RichContext) {
   await workspaceStore.deleteContext(ctx.id)
-  message.success('删除成功')
+  message.success('Deleted successfully')
 }
 
 function getTypeColor(type: ContextType): string {
@@ -219,7 +219,7 @@ function getTypeColor(type: ContextType): string {
 // Open generate console
 function openGenerateConsole() {
   if (!workspaceStore.currentDatabaseId) {
-    message.warning('请先选择数据库')
+    message.warning('Please select a database first')
     return
   }
   showGenerateConsole.value = true
@@ -247,7 +247,7 @@ function resumeBackgroundTask() {
 async function handlePruneAll() {
   const lakebaseId = workspaceStore.currentDatabase?.metadata?.lakebaseId
   if (!lakebaseId) {
-    message.warning('无法获取数据源 ID')
+    message.warning('Unable to get datasource ID')
     return
   }
 
@@ -255,15 +255,15 @@ async function handlePruneAll() {
   try {
     const result = await databaseApi.pruneContext(lakebaseId)
     if (result.success) {
-      message.success(result.message || '已清除所有 Rich Context')
+      message.success(result.message || 'All Rich Context cleared')
       // Refresh contexts and schema
       await workspaceStore.fetchContexts()
       await workspaceStore.fetchSchema()
     } else {
-      message.error(result.message || '清除失败')
+      message.error(result.message || 'Failed to clear context')
     }
   } catch (e: any) {
-    message.error(`清除失败: ${e.message}`)
+    message.error(`Failed to clear: ${e.message}`)
   } finally {
     isPruning.value = false
   }
@@ -277,7 +277,7 @@ async function handlePruneAll() {
       <div class="flex items-center gap-3">
         <NInput
           v-model:value="searchKeyword"
-          placeholder="搜索 Context..."
+          placeholder="Search context..."
           clearable
           style="width: 240px"
         >
@@ -289,7 +289,7 @@ async function handlePruneAll() {
         <NSelect
           v-model:value="filterTable"
           :options="tableOptions"
-          placeholder="筛选表"
+          placeholder="Filter table"
           clearable
           style="width: 160px"
         />
@@ -297,7 +297,7 @@ async function handlePruneAll() {
         <NSelect
           v-model:value="filterType"
           :options="typeOptions"
-          placeholder="筛选类型"
+          placeholder="Filter type"
           clearable
           style="width: 140px"
         />
@@ -308,12 +308,12 @@ async function handlePruneAll() {
           <template #icon>
             <div class="i-carbon-refresh" />
           </template>
-          刷新
+          Refresh
         </NButton>
         <NPopconfirm
           @positive-click="handlePruneAll"
-          positive-text="确认清除"
-          negative-text="取消"
+          positive-text="Confirm"
+          negative-text="Cancel"
         >
           <template #trigger>
             <NButton 
@@ -324,12 +324,12 @@ async function handlePruneAll() {
               <template #icon>
                 <div class="i-carbon-trash-can" />
               </template>
-              清除全部
+              Clear All
             </NButton>
           </template>
           <div class="max-w-xs">
-            <p class="font-semibold mb-2">确定要清除所有 Rich Context 吗？</p>
-            <p class="text-sm text-gray-500">此操作将删除所有表描述、列描述、业务术语及其向量嵌入，不可恢复。</p>
+            <p class="font-semibold mb-2">Clear all Rich Context?</p>
+            <p class="text-sm text-gray-500">This will delete all table descriptions, column descriptions, business terms and their vector embeddings. This action cannot be undone.</p>
           </div>
         </NPopconfirm>
         <NButton 
@@ -339,13 +339,13 @@ async function handlePruneAll() {
           <template #icon>
             <div class="i-carbon-machine-learning-model" />
           </template>
-          AI 自动生成
+          AI Generate
         </NButton>
         <NButton type="primary" @click="openCreateDialog">
           <template #icon>
             <div class="i-carbon-add" />
           </template>
-          添加 Context
+          Add Context
         </NButton>
       </div>
     </div>
@@ -358,12 +358,12 @@ async function handlePruneAll() {
     <!-- Empty -->
     <NEmpty 
       v-else-if="filteredContexts.length === 0" 
-      description="暂无 Context"
+      description="No context yet"
       class="py-16"
     >
       <template #extra>
         <NButton type="primary" @click="openCreateDialog">
-          添加第一条 Context
+          Add First Context
         </NButton>
       </template>
     </NEmpty>
@@ -374,14 +374,14 @@ async function handlePruneAll() {
       <div class="flex gap-2 mb-4">
         <NButton size="small" quaternary @click="expandAll">
           <template #icon><div class="i-carbon-expand-all" /></template>
-          展开全部
+          Expand All
         </NButton>
         <NButton size="small" quaternary @click="collapseAll">
           <template #icon><div class="i-carbon-collapse-all" /></template>
-          折叠全部
+          Collapse All
         </NButton>
         <span class="text-sm text-gray-500 ml-auto">
-          {{ groupedContexts.length }} 个表，{{ filteredContexts.length }} 条 Context
+          {{ groupedContexts.length }} tables, {{ filteredContexts.length }} contexts
         </span>
       </div>
 
@@ -482,7 +482,7 @@ async function handlePruneAll() {
             v-if="group.columnContexts.length === 0 && !group.tableContext"
             class="text-sm text-gray-400 py-4 text-center"
           >
-            暂无 Context，点击上方 + 按钮添加
+            No context yet. Click the + button above to add.
           </div>
         </div>
       </div>
@@ -492,43 +492,43 @@ async function handlePruneAll() {
     <NModal
       v-model:show="showEditDialog"
       preset="card"
-      :title="editingContext ? '编辑 Context' : '添加 Context'"
+      :title="editingContext ? 'Edit Context' : 'Add Context'"
       style="width: 500px"
     >
       <NForm :model="editForm" label-placement="left" label-width="80">
-        <NFormItem label="表名" required>
+        <NFormItem label="Table" required>
           <NSelect
             v-model:value="editForm.tableName"
             :options="tableOptions"
-            placeholder="选择表"
+            placeholder="Select table"
           />
         </NFormItem>
-        <NFormItem label="列名">
+        <NFormItem label="Column">
           <NInput
             v-model:value="editForm.columnName"
-            placeholder="可选，不填则为表级 Context"
+            placeholder="Optional. Leave blank for table-level context"
           />
         </NFormItem>
-        <NFormItem label="类型" required>
+        <NFormItem label="Type" required>
           <NSelect
             v-model:value="editForm.type"
             :options="typeOptions"
           />
         </NFormItem>
-        <NFormItem label="内容" required>
+        <NFormItem label="Content" required>
           <NInput
             v-model:value="editForm.content"
             type="textarea"
             :autosize="{ minRows: 3, maxRows: 6 }"
-            placeholder="输入 Context 内容..."
+            placeholder="Enter context content..."
           />
         </NFormItem>
       </NForm>
 
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showEditDialog = false">取消</NButton>
-          <NButton type="primary" @click="handleSave">保存</NButton>
+          <NButton @click="showEditDialog = false">Cancel</NButton>
+          <NButton type="primary" @click="handleSave">Save</NButton>
         </NSpace>
       </template>
     </NModal>

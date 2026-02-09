@@ -93,50 +93,59 @@ const exampleQuestions = computed(() => {
   // TV Show database
   if (dbName.includes('tvshow') || dbName.includes('tv_show')) {
     return [
-      '查询所有电视频道',
-      '哪个频道的套餐价格最高？',
-      '列出所有动画片及其播出频道',
-      '统计每个国家的频道数量'
+      'List all TV channels',
+      'Which channel has the highest package price?',
+      'Show all cartoons and their broadcast channels',
+      'Count the number of channels per country'
     ]
   }
   
   // Flight database
   if (dbName.includes('flight')) {
     return [
-      '查询所有航空公司',
-      '从洛杉矶出发的航班有哪些？',
-      '列出所有机场及其所在城市',
-      '哪个航空公司的航班最多？'
+      'List all airlines',
+      'What flights depart from Los Angeles?',
+      'Show all airports and their cities',
+      'Which airline has the most flights?'
     ]
   }
   
   // WTA Tennis database
   if (dbName.includes('wta')) {
     return [
-      '查询所有球员信息',
-      '哪位球员赢得的比赛最多？',
-      '列出2016年的所有比赛',
-      '按国家统计球员数量'
+      'List all player information',
+      'Which player has won the most matches?',
+      'Show all matches in 2016',
+      'Count the number of players by country'
     ]
   }
   
   // Default examples
   return [
-    '查询所有数据表',
-    '统计每个表的记录数',
-    '查找包含特定关键字的数据'
+    'List all tables',
+    'Count the number of records in each table',
+    'Find data containing a specific keyword'
   ]
 })
 
 // Execution stages
+const hasGroundingContent = computed((): boolean => {
+  const r = workspaceStore.groundingResult
+  if (!r) return false
+  return (r.tables?.length ?? 0) > 0 ||
+    (r.columns?.length ?? 0) > 0 ||
+    (r.joinPaths?.length ?? 0) > 0
+})
+
 const vectorSearchStage = computed(() => {
   const { start, end } = stageTimings.value.vectorSearch
-  const completed = workspaceStore.groundingStage === 'done' || !!workspaceStore.groundingResult
+  const stageDone = workspaceStore.groundingStage === 'done' || !!workspaceStore.groundingResult
   return {
     active: isExecuting.value && workspaceStore.groundingStage !== 'idle',
-    completed,
+    completed: stageDone && hasGroundingContent.value,
+    empty: stageDone && !hasGroundingContent.value,
     data: workspaceStore.groundingResult,
-    duration: completed && start && end ? end - start : 0
+    duration: stageDone && start && end ? end - start : 0
   }
 })
 
@@ -178,16 +187,13 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// Fetch suggested fields when Field Alignment is enabled
-async function fetchSuggestedFields() {
-  if (!useFieldAlignment.value || !question.value.trim()) {
-    suggestedFields.value = []
-    showFieldPanel.value = false
-    return
-  }
+// Field Alignment: waiting for user confirmation
+const awaitingFieldConfirm = ref(false)
 
+// Fetch suggested fields from LLM
+async function fetchSuggestedFields() {
   const db = workspaceStore.currentDatabase
-  if (!db) return
+  if (!db || !question.value.trim()) return
 
   isLoadingFields.value = true
   showFieldPanel.value = true
@@ -197,7 +203,7 @@ async function fetchSuggestedFields() {
       question: question.value,
       databaseId: db.id,
       database: db.name,
-      language: 'Chinese'
+      language: 'English'
     })
     
     suggestedFields.value = response.suggested_fields || []
@@ -216,21 +222,46 @@ function toggleField(field: SuggestedField) {
   field.selected = !field.selected
 }
 
-// Get selected fields description for injection into prompt
+// Build field description from selected fields for injection into inference prompt
 function getFieldDescription(): string {
   const selected = suggestedFields.value.filter(f => f.selected)
   if (selected.length === 0) return ''
   
-  const fieldList = selected.map(f => `${f.name} (${f.description})`).join(', ')
-  return `用户期望输出以下字段: ${fieldList}`
+  return selected.map(f => `${f.name} (${f.description})`).join(', ')
+}
+
+// Confirm field selection and proceed with query execution
+async function confirmFieldsAndExecute() {
+  awaitingFieldConfirm.value = false
+  await doExecute()
+}
+
+// Skip field alignment and execute directly
+function skipFieldAlignment() {
+  awaitingFieldConfirm.value = false
+  suggestedFields.value = []
+  showFieldPanel.value = false
+  doExecute()
 }
 
 async function handleExecute() {
   if (!question.value.trim()) {
-    message.warning('请输入问题')
+    message.warning('Please enter a question')
     return
   }
   
+  // If Field Alignment is enabled, first fetch suggested fields and wait for confirmation
+  if (useFieldAlignment.value) {
+    awaitingFieldConfirm.value = true
+    await fetchSuggestedFields()
+    // Wait for user to confirm via confirmFieldsAndExecute() or skipFieldAlignment()
+    return
+  }
+
+  await doExecute()
+}
+
+async function doExecute() {
   // Reset timings
   resetTimings()
   
@@ -240,13 +271,13 @@ async function handleExecute() {
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
 
-  // Build field description if Field Alignment is enabled
+  // Build field description if Field Alignment produced selections
   const fieldDesc = useFieldAlignment.value ? getFieldDescription() : ''
 
   try {
     await workspaceStore.executeQuery(question.value, fieldDesc)
   } catch (e: any) {
-    message.error(e.message || '执行失败')
+    message.error(e.message || 'Execution failed')
   }
 }
 
@@ -379,40 +410,24 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
         <div class="param-item flex items-end">
           <div class="flex items-center gap-3 h-8">
-            <NSwitch v-model:value="useReact" :disabled="isExecuting" size="small" />
-            <span class="text-sm font-medium text-gray-700">ReAct Reasoning</span>
-          </div>
-        </div>
-
-        <div class="param-item flex items-end">
-          <div class="flex items-center gap-3 h-8">
             <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
             <span class="text-sm font-medium text-gray-700">Field Alignment</span>
-            <button
-              v-if="useFieldAlignment && question.trim()"
-              :disabled="isExecuting || isLoadingFields"
-              class="px-3 py-1 text-xs font-medium rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-all disabled:opacity-50"
-              @click="fetchSuggestedFields"
-            >
-              <span v-if="isLoadingFields" class="i-carbon-circle-dash animate-spin inline-block mr-1" />
-              分析字段
-            </button>
           </div>
         </div>
       </div>
 
-      <!-- Field Alignment Panel -->
+      <!-- Field Alignment Panel (shown automatically during execute) -->
       <Transition name="field-panel">
-        <div v-if="showFieldPanel && useFieldAlignment" class="mt-6 p-5 bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
+        <div v-if="showFieldPanel && awaitingFieldConfirm" class="mt-6 p-5 bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
               <div class="i-carbon-data-table text-purple-600" />
-              <h4 class="font-bold text-gray-800">候选输出字段</h4>
+              <h4 class="font-bold text-gray-800">Select Output Fields</h4>
               <NTag v-if="fieldAnalysisNote" size="small" type="info">{{ fieldAnalysisNote }}</NTag>
             </div>
             <button 
               class="text-gray-400 hover:text-gray-600 transition-colors"
-              @click="showFieldPanel = false"
+              @click="skipFieldAlignment"
             >
               <div class="i-carbon-close" />
             </button>
@@ -420,7 +435,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           
           <div v-if="isLoadingFields" class="flex items-center justify-center py-8">
             <NSpin size="medium" />
-            <span class="ml-3 text-gray-500">正在分析问题和 Schema...</span>
+            <span class="ml-3 text-gray-500">Analyzing question and schema...</span>
           </div>
           
           <div v-else-if="suggestedFields.length > 0" class="space-y-3">
@@ -442,13 +457,35 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
             <p class="text-xs text-gray-400 mt-3">
               <span class="i-carbon-information inline-block mr-1" />
-              选中的字段将注入到 SQL 生成提示词中，帮助 LLM 生成更精确的查询
+              Selected fields will constrain the SQL SELECT clause for more precise results
             </p>
+            
+            <!-- Confirm / Skip buttons -->
+            <div class="flex items-center gap-3 mt-4 pt-4 border-t border-purple-200">
+              <button
+                class="px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-violet-600 text-white font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                @click="confirmFieldsAndExecute"
+              >
+                Confirm &amp; Execute
+              </button>
+              <button
+                class="px-4 py-2 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:bg-gray-50 transition-all"
+                @click="skipFieldAlignment"
+              >
+                Skip
+              </button>
+            </div>
           </div>
           
           <div v-else class="text-center py-6 text-gray-400">
             <div class="i-carbon-warning text-2xl mb-2 mx-auto" />
-            <p>无法分析候选字段，请检查问题描述</p>
+            <p>Could not analyze candidate fields</p>
+            <button
+              class="mt-3 px-4 py-2 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:bg-gray-50 transition-all"
+              @click="skipFieldAlignment"
+            >
+              Continue without field alignment
+            </button>
           </div>
         </div>
       </Transition>
@@ -501,7 +538,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         color="blue"
       >
         <template #content>
-          <div v-if="workspaceStore.groundingResult" class="space-y-4 content-fade">
+          <div v-if="vectorSearchStage.empty" class="flex flex-col items-center justify-center py-8 text-gray-400">
+            <div class="i-carbon-catalog text-3xl mb-2 opacity-40" />
+            <span class="text-sm font-medium">No context available</span>
+            <span class="text-xs mt-1 opacity-70">Generate Rich Context to enable vector retrieval</span>
+          </div>
+          <div v-else-if="workspaceStore.groundingResult" class="space-y-4 content-fade">
             <!-- Tables with confidence -->
             <div v-if="workspaceStore.groundingResult.tables?.length">
               <div class="flex items-center gap-2 mb-2">

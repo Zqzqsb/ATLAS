@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"lucid/internal/adapter"
+	"lucid/internal/react"
 
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/tools"
@@ -61,21 +62,20 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 
 
 	// Create handler to collect ReAct steps
-	reactHandler := &PrettyReActHandler{}
-
-	// Set up streaming callback if available (for real-time step notifications)
+	var stepCB react.StepCallback
 	if p.stepCallback != nil {
-		reactHandler.SetStepNotifier(func(step CollectedStep, eventType string) {
+		stepCB = func(step react.Step, eventType string) {
 			p.stepCallback(ReActStep{
-				Step:        step.Step,
+				Step:        step.Iteration,
 				Thought:     step.Thought,
 				Action:      step.Action,
 				ActionInput: step.ActionInput,
 				Observation: step.Observation,
 				Phase:       "sql_generation",
 			}, eventType)
-		})
+		}
 	}
+	reactHandler := react.NewHandler(stepCB)
 
 	// Use higher actual iterations than what we show in prompt
 	// This gives the model more chances to complete while not overwhelming the prompt
@@ -106,8 +106,7 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	log.Printf("[inference] ReAct loop completed")
 
 	// Collect ReAct steps from handler
-	collectedSteps := reactHandler.GetCollectedSteps()
-	for _, step := range collectedSteps {
+	for _, step := range reactHandler.GetSteps() {
 		result.ReActSteps = append(result.ReActSteps, ReActStep{
 			Thought:     step.Thought,
 			Action:      step.Action,
@@ -118,7 +117,7 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	}
 
 	// 更新统计信息
-	result.LLMCalls += len(collectedSteps) // Use actual iteration count
+	result.LLMCalls += len(reactHandler.GetSteps()) // Use actual iteration count
 	result.SQLExecutions += sqlTool.ExecutionCount
 	result.ClarifyCount = clarifyTool.ClarifyCount
 

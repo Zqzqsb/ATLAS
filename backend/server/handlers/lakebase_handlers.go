@@ -12,7 +12,6 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/adapter"
-	"lucid/internal/config"
 	"lucid/internal/lakebase"
 	"lucid/internal/react"
 	"lucid/internal/react/scenarios"
@@ -952,15 +951,7 @@ func (h *Handler) DeleteDatasource(c *gin.Context) {
 	}
 
 	// Also remove from in-memory connection config so it can be re-added
-	connID := ds.Name
-	h.dbService.CloseAdapter(connID)
-	newDatabases := make([]config.DatabaseConfig, 0, len(h.config.Databases))
-	for _, db := range h.config.Databases {
-		if db.ID != connID {
-			newDatabases = append(newDatabases, db)
-		}
-	}
-	h.config.Databases = newDatabases
+	h.dbService.RemoveDatabase(ds.Name)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,

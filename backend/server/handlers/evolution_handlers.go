@@ -187,11 +187,11 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 			if !ok {
 				// Channel closed — send final result
 				if execErr != nil {
-					sendSSEEvent(c.Writer, "error", map[string]interface{}{
+					SendSSE(c.Writer, "error", map[string]interface{}{
 						"error": execErr.Error(),
 					})
 				} else {
-					sendSSEEvent(c.Writer, "execution_complete", map[string]interface{}{
+					SendSSE(c.Writer, "execution_complete", map[string]interface{}{
 						"success":   true,
 						"execution": execution,
 					})
@@ -199,7 +199,7 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 				flusher.Flush()
 				return
 			}
-			sendSSEEvent(c.Writer, event.Type, map[string]interface{}{
+			SendSSE(c.Writer, event.Type, map[string]interface{}{
 				"phase":   event.Phase,
 				"message": event.Message,
 				"data":    event.Data,
@@ -290,7 +290,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	defer cancel()
 
 	sendStep := func(phase, msg string) {
-		sendSSEEvent(c.Writer, "reset_step", map[string]interface{}{
+		SendSSE(c.Writer, "reset_step", map[string]interface{}{
 			"phase":   phase,
 			"message": msg,
 		})
@@ -301,7 +301,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	sendStep("reset_db", "Dropping and recreating evolution database tables...")
 
 	if err := h.evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
-		sendSSEEvent(c.Writer, "error", map[string]string{
+		SendSSE(c.Writer, "error", map[string]string{
 			"error": "Reset failed: " + err.Error(),
 		})
 		flusher.Flush()
@@ -322,7 +322,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	// Context regeneration could be triggered here if needed
 
 	// Complete
-	sendSSEEvent(c.Writer, "reset_complete", map[string]interface{}{
+	SendSSE(c.Writer, "reset_complete", map[string]interface{}{
 		"success":       true,
 		"current_stage": 0,
 		"message":       "Reset to initial state complete",

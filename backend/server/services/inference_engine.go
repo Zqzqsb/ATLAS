@@ -173,26 +173,7 @@ func (e *InferenceEngine) createAdapter(databaseID string) (adapter.DBAdapter, e
 	if e.dbService == nil {
 		return nil, fmt.Errorf("database service not available")
 	}
-
-	var dbCfg *adapter.DBConfig
-	for _, db := range e.dbService.config.Databases {
-		if db.ID == databaseID {
-			dbCfg = &adapter.DBConfig{
-				Type:     db.Type,
-				Host:     db.Host,
-				Port:     db.Port,
-				Database: db.Database,
-				User:     db.User,
-				Password: db.Password,
-				FilePath: db.Path,
-			}
-			break
-		}
-	}
-	if dbCfg == nil {
-		return nil, fmt.Errorf("database config not found: %s", databaseID)
-	}
-	return adapter.NewAdapter(dbCfg)
+	return e.dbService.NewIsolatedAdapter(databaseID)
 }
 
 func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inference.Config {

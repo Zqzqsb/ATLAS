@@ -23,14 +23,13 @@ type InferenceEngineInterface interface {
 
 // InferenceRequest 推理请求
 type InferenceRequest struct {
-	Question         string           `json:"question"`
-	DatabaseID       string           `json:"database_id"`
-	Database         string           `json:"database"`
-	UseRichContext   bool             `json:"use_rich_context"`
-	UseReact         bool             `json:"use_react"`
-	MaxIterations    int              `json:"max_iterations"`
-	FieldDescription string           `json:"field_description"`
-	GroundingResult  *GroundingResult `json:"grounding_result,omitempty"`
+	Question         string `json:"question"`
+	DatabaseID       string `json:"database_id"`
+	Database         string `json:"database"`
+	UseRichContext   bool   `json:"use_rich_context"`
+	UseReact         bool   `json:"use_react"`
+	MaxIterations    int    `json:"max_iterations"`
+	FieldDescription string `json:"field_description"`
 }
 
 // InferenceResult 推理结果
@@ -105,42 +104,6 @@ type StreamEvent struct {
 // ErrorEventData 错误事件数据
 type ErrorEventData struct {
 	Error string `json:"error"`
-}
-
-// ============================================
-// Grounding
-// ============================================
-
-// GroundingResult 语义接地结果
-type GroundingResult struct {
-	Tables          []GroundedTable  `json:"tables"`
-	Columns         []GroundedColumn `json:"columns"`
-	JoinPaths       []JoinPath       `json:"join_paths,omitempty"`
-	ExecutionTimeMs int64            `json:"execution_time_ms"`
-}
-
-// GroundedTable 接地的表
-type GroundedTable struct {
-	Name       string  `json:"name"`
-	Reason     string  `json:"reason,omitempty"`
-	Confidence float64 `json:"confidence,omitempty"`
-}
-
-// GroundedColumn 接地的列
-type GroundedColumn struct {
-	TableName  string  `json:"table_name"`
-	ColumnName string  `json:"column_name"`
-	Reason     string  `json:"reason,omitempty"`
-	Confidence float64 `json:"confidence,omitempty"`
-}
-
-// JoinPath 连接路径
-type JoinPath struct {
-	FromTable  string `json:"from_table"`
-	FromColumn string `json:"from_column"`
-	ToTable    string `json:"to_table"`
-	ToColumn   string `json:"to_column"`
-	Reason     string `json:"reason,omitempty"`
 }
 
 // ============================================

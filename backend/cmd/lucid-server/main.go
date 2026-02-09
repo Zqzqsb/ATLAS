@@ -208,7 +208,6 @@ func main() {
 		api.POST("/connections/test", h.TestConnection)
 		api.DELETE("/connections/:id", h.RemoveConnection)
 		api.POST("/connections/:id/sync-schema", h.SyncConnectionSchema)
-		api.POST("/connections/release-all", h.ReleaseAllDemoConnections)
 
 		// Text2SQL routes
 		api.POST("/text2sql", h.Text2SQL)

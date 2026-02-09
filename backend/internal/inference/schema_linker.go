@@ -11,6 +11,7 @@ import (
 	"github.com/tmc/langchaingo/tools"
 
 	"lucid/internal/adapter"
+	"lucid/internal/react"
 )
 
 // SchemaLinker defines the interface for identifying relevant tables.
@@ -164,7 +165,7 @@ func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTa
 	}
 
 	// Create handler to collect ReAct steps
-	reactHandler := &PrettyReActHandler{}
+	reactHandler := react.NewHandler(nil)
 
 	// 创建 ReAct Agent
 	// 策略：告诉模型最大 5 次迭代（制造紧迫感），实际设置 15 次（保证足够空间）
@@ -255,9 +256,9 @@ Output:`, claimedMaxIterations, schemaDesc.String(), query)
 	}
 
 	// Collect ReAct steps from handler
-	collectedSteps := reactHandler.GetCollectedSteps()
-	schemaLinkingSteps := make([]ReActStep, 0, len(collectedSteps))
-	for _, step := range collectedSteps {
+	collected := reactHandler.GetSteps()
+	schemaLinkingSteps := make([]ReActStep, 0, len(collected))
+	for _, step := range collected {
 		schemaLinkingSteps = append(schemaLinkingSteps, ReActStep{
 			Thought:     step.Thought,
 			Action:      step.Action,

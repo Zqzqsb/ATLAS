@@ -34,18 +34,12 @@ func (h *Handler) OnboardingStream(c *gin.Context) {
 	}
 
 	// Find connection config
-	var dbName, dbType string
-	for _, db := range h.config.Databases {
-		if db.ID == connectionID {
-			dbName = db.Name
-			dbType = db.Type
-			break
-		}
-	}
-	if dbName == "" {
+	dbCfg := h.dbService.FindDatabase(connectionID)
+	if dbCfg == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Connection not found"})
 		return
 	}
+	dbName, dbType := dbCfg.Name, dbCfg.Type
 
 	// Set SSE headers
 	c.Header("Content-Type", "text/event-stream")
@@ -74,7 +68,7 @@ func (h *Handler) OnboardingStream(c *gin.Context) {
 			if !ok {
 				return
 			}
-			writeSSE(c.Writer, event)
+			SendSSE(c.Writer, event.Type, event.Data)
 			flusher.Flush()
 		}
 	}
@@ -250,8 +244,3 @@ func sendEvent(events chan<- OnboardingEvent, eventType string, data interface{}
 	}
 }
 
-func writeSSE(w http.ResponseWriter, event OnboardingEvent) {
-	jsonData, _ := json.Marshal(event.Data)
-	fmt.Fprintf(w, "event: %s\n", event.Type)
-	fmt.Fprintf(w, "data: %s\n\n", jsonData)
-}

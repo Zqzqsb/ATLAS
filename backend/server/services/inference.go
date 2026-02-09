@@ -69,14 +69,13 @@ func (s *InferenceService) GetLLMModel() interface{} {
 
 // Text2SQLRequest represents a text2sql request.
 type Text2SQLRequest struct {
-	Question         string           `json:"question"`
-	DatabaseID       string           `json:"database_id"`
-	Database         string           `json:"database"`
-	UseRichContext   bool             `json:"use_rich_context"`
-	UseReact         bool             `json:"use_react"`
-	MaxIterations    int              `json:"max_iterations"`
-	FieldDescription string           `json:"field_description"`
-	GroundingResult  *GroundingResult `json:"grounding_result,omitempty"`
+	Question         string `json:"question"`
+	DatabaseID       string `json:"database_id"`
+	Database         string `json:"database"`
+	UseRichContext   bool   `json:"use_rich_context"`
+	UseReact         bool   `json:"use_react"`
+	MaxIterations    int    `json:"max_iterations"`
+	FieldDescription string `json:"field_description"`
 }
 
 // Text2SQLResult represents the result of text2sql
@@ -113,7 +112,6 @@ func (s *InferenceService) Execute(ctx context.Context, req *Text2SQLRequest) (*
 		UseReact:         req.UseReact,
 		MaxIterations:    req.MaxIterations,
 		FieldDescription: req.FieldDescription,
-		GroundingResult:  req.GroundingResult,
 	}
 
 	if inferReq.MaxIterations == 0 {
@@ -156,7 +154,6 @@ func (s *InferenceService) ExecuteStream(ctx context.Context, req *Text2SQLReque
 		UseReact:         req.UseReact,
 		MaxIterations:    req.MaxIterations,
 		FieldDescription: req.FieldDescription,
-		GroundingResult:  req.GroundingResult,
 	}
 
 	if inferReq.MaxIterations == 0 {

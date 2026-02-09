@@ -3,11 +3,8 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -54,13 +51,6 @@ func (h *Handler) AddConnection(c *gin.Context) {
 		return
 	}
 
-	for _, db := range h.config.Databases {
-		if db.ID == conn.ID {
-			c.JSON(http.StatusConflict, gin.H{"error": "Connection ID already exists"})
-			return
-		}
-	}
-
 	adapterType := conn.Type
 	if adapterType == "mariadb" {
 		adapterType = "mysql"
@@ -77,12 +67,10 @@ func (h *Handler) AddConnection(c *gin.Context) {
 		Database: conn.Database,
 		Path:     conn.Path,
 	}
-	h.config.Databases = append(h.config.Databases, newDB)
 
-	if _, err := h.dbService.GetAdapter(conn.ID); err != nil {
-		h.config.Databases = h.config.Databases[:len(h.config.Databases)-1]
+	if err := h.dbService.AddDatabase(newDB); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Failed to connect to database: %v", err),
+			"error": fmt.Sprintf("Failed to add connection: %v", err),
 		})
 		return
 	}
@@ -97,23 +85,11 @@ func (h *Handler) AddConnection(c *gin.Context) {
 func (h *Handler) RemoveConnection(c *gin.Context) {
 	connID := c.Param("id")
 
-	found := false
-	newDatabases := make([]config.DatabaseConfig, 0, len(h.config.Databases))
-	for _, db := range h.config.Databases {
-		if db.ID == connID {
-			found = true
-			h.dbService.CloseAdapter(connID)
-		} else {
-			newDatabases = append(newDatabases, db)
-		}
-	}
-
-	if !found {
+	if !h.dbService.RemoveDatabase(connID) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Connection not found"})
 		return
 	}
 
-	h.config.Databases = newDatabases
 	c.JSON(http.StatusOK, gin.H{"message": "Connection removed successfully", "id": connID})
 }
 
@@ -126,13 +102,7 @@ func (h *Handler) SyncConnectionSchema(c *gin.Context) {
 		return
 	}
 
-	var dbCfg *config.DatabaseConfig
-	for _, db := range h.config.Databases {
-		if db.ID == connID {
-			dbCfg = &db
-			break
-		}
-	}
+	dbCfg := h.dbService.FindDatabase(connID)
 	if dbCfg == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Connection not found"})
 		return
@@ -234,8 +204,9 @@ func (h *Handler) TestConnection(c *gin.Context) {
 
 // ListConnections returns all configured connections with status.
 func (h *Handler) ListConnections(c *gin.Context) {
-	connections := make([]map[string]interface{}, 0, len(h.config.Databases))
-	for _, db := range h.config.Databases {
+	databases := h.dbService.ListDatabases()
+	connections := make([]map[string]interface{}, 0, len(databases))
+	for _, db := range databases {
 		conn := map[string]interface{}{
 			"id":       db.ID,
 			"name":     db.Name,
@@ -251,79 +222,4 @@ func (h *Handler) ListConnections(c *gin.Context) {
 		connections = append(connections, conn)
 	}
 	c.JSON(http.StatusOK, gin.H{"connections": connections, "count": len(connections)})
-}
-
-// ReleaseAllDemoConnections releases all demo database connections.
-func (h *Handler) ReleaseAllDemoConnections(c *gin.Context) {
-	demoConfigPath := os.Getenv("DEMO_DATABASES_PATH")
-	if demoConfigPath == "" {
-		demoConfigPath = "demo_databases.json"
-	}
-
-	var demoIDs []string
-	data, err := os.ReadFile(demoConfigPath)
-	if err == nil {
-		var demoConfig struct {
-			Databases []struct {
-				ID          string                       `json:"id"`
-				Connections map[string]map[string]string `json:"connections"`
-			} `json:"databases"`
-		}
-		if json.Unmarshal(data, &demoConfig) == nil {
-			for _, db := range demoConfig.Databases {
-				for connType := range db.Connections {
-					demoIDs = append(demoIDs, fmt.Sprintf("%s_%s", db.ID, connType))
-				}
-			}
-		}
-	}
-
-	if len(demoIDs) == 0 {
-		for _, db := range h.config.Databases {
-			if strings.HasSuffix(db.ID, "_mysql") ||
-				strings.HasSuffix(db.ID, "_sqlite") ||
-				strings.HasSuffix(db.ID, "_postgres") ||
-				strings.HasSuffix(db.ID, "_postgresql") {
-				demoIDs = append(demoIDs, db.ID)
-			}
-		}
-	}
-
-	releasedCount := 0
-	releasedIDs := []string{}
-	newDatabases := make([]config.DatabaseConfig, 0, len(h.config.Databases))
-
-	for _, db := range h.config.Databases {
-		isDemo := false
-		for _, demoID := range demoIDs {
-			if db.ID == demoID {
-				isDemo = true
-				break
-			}
-		}
-		if isDemo {
-			h.dbService.CloseAdapter(db.ID)
-			releasedCount++
-			releasedIDs = append(releasedIDs, db.ID)
-		} else {
-			newDatabases = append(newDatabases, db)
-		}
-	}
-
-	h.config.Databases = newDatabases
-	c.JSON(http.StatusOK, gin.H{
-		"message":  fmt.Sprintf("Released %d demo database connections", releasedCount),
-		"released": releasedCount,
-		"ids":      releasedIDs,
-	})
-}
-
-// ListAvailableConnections is deprecated.
-func (h *Handler) ListAvailableConnections(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"available": []interface{}{}, "count": 0})
-}
-
-// LoadDemoDatabases is deprecated.
-func (h *Handler) LoadDemoDatabases(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "deprecated", "added": 0})
 }

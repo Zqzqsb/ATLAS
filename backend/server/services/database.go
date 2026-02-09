@@ -264,6 +264,109 @@ func (s *DatabaseService) CloseAdapter(dbID string) {
 	}
 }
 
+// AddDatabase adds a database configuration and validates connectivity.
+// Returns an error if the ID already exists or the connection fails.
+func (s *DatabaseService) AddDatabase(db config.DatabaseConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, existing := range s.config.Databases {
+		if existing.ID == db.ID {
+			return fmt.Errorf("connection ID already exists: %s", db.ID)
+		}
+	}
+
+	// Validate connectivity before committing
+	adapterCfg := &adapter.DBConfig{
+		Type:     db.Type,
+		Host:     db.Host,
+		Port:     db.Port,
+		Database: db.Database,
+		User:     db.User,
+		Password: db.Password,
+		FilePath: db.Path,
+	}
+	adp, err := s.adapterFactory(adapterCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create adapter: %w", err)
+	}
+	if err := adp.Connect(context.Background()); err != nil {
+		adp.Close()
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	s.adapters[db.ID] = adp
+
+	s.config.Databases = append(s.config.Databases, db)
+	return nil
+}
+
+// RemoveDatabase removes a database configuration and closes its adapter.
+// Returns false if the ID was not found.
+func (s *DatabaseService) RemoveDatabase(dbID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	found := false
+	newDatabases := make([]config.DatabaseConfig, 0, len(s.config.Databases))
+	for _, db := range s.config.Databases {
+		if db.ID == dbID {
+			found = true
+			if adp, ok := s.adapters[dbID]; ok {
+				adp.Close()
+				delete(s.adapters, dbID)
+			}
+		} else {
+			newDatabases = append(newDatabases, db)
+		}
+	}
+	if found {
+		s.config.Databases = newDatabases
+	}
+	return found
+}
+
+// FindDatabase returns the database config for the given ID, or nil.
+func (s *DatabaseService) FindDatabase(dbID string) *config.DatabaseConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, db := range s.config.Databases {
+		if db.ID == dbID {
+			cpy := db
+			return &cpy
+		}
+	}
+	return nil
+}
+
+// ListDatabases returns a copy of all database configurations.
+func (s *DatabaseService) ListDatabases() []config.DatabaseConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]config.DatabaseConfig, len(s.config.Databases))
+	copy(out, s.config.Databases)
+	return out
+}
+
+// NewIsolatedAdapter creates a new, independent adapter for the given database ID.
+// Unlike GetAdapter, the returned adapter is NOT cached and must be closed by the caller.
+func (s *DatabaseService) NewIsolatedAdapter(dbID string) (adapter.DBAdapter, error) {
+	dbCfg := s.FindDatabase(dbID)
+	if dbCfg == nil {
+		return nil, fmt.Errorf("database config not found: %s", dbID)
+	}
+	return s.adapterFactory(&adapter.DBConfig{
+		Type:     dbCfg.Type,
+		Host:     dbCfg.Host,
+		Port:     dbCfg.Port,
+		Database: dbCfg.Database,
+		User:     dbCfg.User,
+		Password: dbCfg.Password,
+		FilePath: dbCfg.Path,
+	})
+}
+
 // AdapterConfig represents configuration for creating a custom adapter
 type AdapterConfig struct {
 	Type     string

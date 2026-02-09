@@ -24,6 +24,14 @@ type Handler struct {
 	lastAction     string
 }
 
+// NewHandler creates a Handler with an optional step callback.
+func NewHandler(callback StepCallback) *Handler {
+	return &Handler{
+		logMode:      "simple",
+		stepCallback: callback,
+	}
+}
+
 // Ensure Handler implements all required callback interfaces.
 var _ interface {
 	HandleText(ctx context.Context, text string)

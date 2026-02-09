@@ -17,8 +17,9 @@ type DatabaseInfo struct {
 
 // ListDatabases returns all configured databases.
 func (h *Handler) ListDatabases(c *gin.Context) {
-	databases := make([]DatabaseInfo, 0, len(h.config.Databases))
-	for _, db := range h.config.Databases {
+	allDBs := h.dbService.ListDatabases()
+	databases := make([]DatabaseInfo, 0, len(allDBs))
+	for _, db := range allDBs {
 		databases = append(databases, DatabaseInfo{
 			ID:   db.ID,
 			Name: db.Name,

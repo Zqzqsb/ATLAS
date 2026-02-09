@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -114,7 +113,7 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
 
-	groundingInfo, groundingResult := h.performGrounding(ctx, &req)
+	groundingInfo := h.performGrounding(ctx, &req)
 
 	inferReq := &services.Text2SQLRequest{
 		Question:         req.Question,
@@ -124,7 +123,6 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 		UseReact:         req.Options.UseReact,
 		MaxIterations:    req.Options.MaxIterations,
 		FieldDescription: req.FieldDescription,
-		GroundingResult:  groundingResult,
 	}
 
 	result, err := h.inferenceService.Execute(ctx, inferReq)
@@ -175,9 +173,8 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 
 	// Perform grounding with SSE progress
 	var groundingInfo *GroundingInfo
-	var groundingResult *services.GroundingResult
 	if req.Options.UseGrounding && h.groundingService != nil {
-		sendSSEEvent(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
+		SendSSE(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
 		flusher.Flush()
 
 		if h.lakebaseService != nil {
@@ -187,18 +184,17 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			}
 		}
 
-		sendSSEEvent(c.Writer, "grounding_progress", map[string]string{"stage": "analyzing", "message": "Analyzing query and schema..."})
+		SendSSE(c.Writer, "grounding_progress", map[string]string{"stage": "analyzing", "message": "Analyzing query and schema..."})
 		flusher.Flush()
 
 		result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
 		if err != nil {
 			fmt.Printf("Grounding failed (continuing without): %v\n", err)
-			sendSSEEvent(c.Writer, "grounding_error", map[string]string{"error": err.Error()})
+			SendSSE(c.Writer, "grounding_error", map[string]string{"error": err.Error()})
 			flusher.Flush()
 		} else {
 			groundingInfo = convertGroundingResult(result)
-			groundingResult = convertToInterfaceGrounding(result)
-			sendSSEEvent(c.Writer, "grounding_complete", groundingInfo)
+			SendSSE(c.Writer, "grounding_complete", groundingInfo)
 			flusher.Flush()
 		}
 	}
@@ -216,7 +212,6 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			UseReact:         req.Options.UseReact,
 			MaxIterations:    req.Options.MaxIterations,
 			FieldDescription: req.FieldDescription,
-			GroundingResult:  groundingResult,
 		}
 
 		if err := h.inferenceService.ExecuteStream(ctx, inferReq, events); err != nil {
@@ -234,7 +229,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			return
 		default:
 		}
-		sendSSEEvent(c.Writer, string(event.Type), event.Data)
+		SendSSE(c.Writer, string(event.Type), event.Data)
 		flusher.Flush()
 	}
 }
@@ -263,34 +258,12 @@ func (h *Handler) SuggestFields(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// Deprecated stubs.
-
-func (h *Handler) ListSpiderDatabases(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"databases": []interface{}{}, "count": 0})
-}
-
-func (h *Handler) GetSpiderQuestions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"questions": []interface{}{}, "count": 0})
-}
-
-func (h *Handler) ListDemoScenarios(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"scenarios": []interface{}{}})
-}
-
-func (h *Handler) GetDemoScenario(c *gin.Context) {
-	c.JSON(http.StatusNotFound, gin.H{"error": "demo scenarios deprecated"})
-}
-
-func (h *Handler) TranslateTexts(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "translation not supported"})
-}
-
 // --- Helper functions ---
 
 // performGrounding runs semantic grounding if enabled.
-func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) (*GroundingInfo, *services.GroundingResult) {
+func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *GroundingInfo {
 	if !req.Options.UseGrounding || h.groundingService == nil {
-		return nil, nil
+		return nil
 	}
 
 	if h.lakebaseService != nil {
@@ -303,9 +276,9 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) (*
 	result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
 	if err != nil {
 		fmt.Printf("Grounding failed (continuing without): %v\n", err)
-		return nil, nil
+		return nil
 	}
-	return convertGroundingResult(result), convertToInterfaceGrounding(result)
+	return convertGroundingResult(result)
 }
 
 func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
@@ -357,40 +330,6 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 	return info
 }
 
-func convertToInterfaceGrounding(result *grounding.GroundingResult) *services.GroundingResult {
-	if result == nil || result.Context == nil {
-		return nil
-	}
-
-	gr := &services.GroundingResult{
-		ExecutionTimeMs: result.TotalDuration.Milliseconds(),
-	}
-	for _, t := range result.Context.Tables {
-		gr.Tables = append(gr.Tables, services.GroundedTable{
-			Name:       t.Name,
-			Reason:     t.Reason,
-			Confidence: float64(t.Relevance),
-		})
-	}
-	for _, col := range result.Context.Columns {
-		gr.Columns = append(gr.Columns, services.GroundedColumn{
-			TableName:  col.TableName,
-			ColumnName: col.ColumnName,
-			Reason:     col.Reason,
-			Confidence: float64(col.Relevance),
-		})
-	}
-	for _, rel := range result.Context.Relationships {
-		gr.JoinPaths = append(gr.JoinPaths, services.JoinPath{
-			FromTable:  rel.FromTable,
-			FromColumn: rel.FromColumn,
-			ToTable:    rel.ToTable,
-			ToColumn:   rel.ToColumn,
-			Reason:     rel.Type,
-		})
-	}
-	return gr
-}
 
 func convertReactSteps(steps []services.ReActStep) []ReactStep {
 	result := make([]ReactStep, len(steps))
@@ -407,11 +346,3 @@ func convertReactSteps(steps []services.ReActStep) []ReactStep {
 	return result
 }
 
-func sendSSEEvent(w http.ResponseWriter, eventType string, data interface{}) {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return
-	}
-	fmt.Fprintf(w, "event: %s\n", eventType)
-	fmt.Fprintf(w, "data: %s\n\n", jsonData)
-}

@@ -9,6 +9,8 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
+
+	"lucid/internal/logger"
 )
 
 // Handler implements langchaingo's callbacks interface for the ReAct loop.
@@ -81,11 +83,9 @@ func (h *Handler) HandleText(_ context.Context, text string) {}
 
 func (h *Handler) HandleLLMStart(_ context.Context, prompts []string) {
 	if h.logMode == "full" {
-		fmt.Println("\n" + strings.Repeat("=", 60))
-		fmt.Println("[ReAct] LLM Prompt")
-		fmt.Println(strings.Repeat("=", 60))
-		for _, p := range prompts {
-			fmt.Println(p)
+		log := logger.With("component", "react_handler")
+		for i, p := range prompts {
+			log.Debug("LLM prompt", "index", i, "prompt_length", len(p), "prompt", truncate(p, 500))
 		}
 	}
 }
@@ -94,19 +94,16 @@ func (h *Handler) HandleLLMGenerateContentStart(_ context.Context, _ []llms.Mess
 
 func (h *Handler) HandleLLMGenerateContentEnd(_ context.Context, res *llms.ContentResponse) {
 	if h.logMode == "full" {
-		fmt.Println("\n" + strings.Repeat("=", 60))
-		fmt.Println("[ReAct] LLM Response")
-		fmt.Println(strings.Repeat("=", 60))
-		for _, c := range res.Choices {
-			fmt.Println(c.Content)
+		log := logger.With("component", "react_handler")
+		for i, c := range res.Choices {
+			log.Debug("LLM response", "choice", i, "content_length", len(c.Content), "content", truncate(c.Content, 500))
 		}
 	}
 }
 
 func (h *Handler) HandleLLMError(_ context.Context, err error) {
-	if h.logMode != "quiet" {
-		fmt.Printf("[ReAct] LLM Error: %v\n", err)
-	}
+	log := logger.With("component", "react_handler")
+	log.Error("LLM error", "error", err)
 }
 
 func (h *Handler) HandleChainStart(_ context.Context, _ map[string]any) {
@@ -120,9 +117,8 @@ func (h *Handler) HandleChainStart(_ context.Context, _ map[string]any) {
 		Timestamp: time.Now(),
 	}
 
-	if h.logMode != "quiet" {
-		fmt.Printf("\n┌─ ReAct Iteration %d ───────────────────────────\n", h.iterationCount)
-	}
+	log := logger.With("component", "react_handler")
+	log.Info("ReAct iteration started", "iteration", h.iterationCount)
 }
 
 func (h *Handler) HandleChainEnd(_ context.Context, outputs map[string]any) {
@@ -135,16 +131,16 @@ func (h *Handler) HandleChainEnd(_ context.Context, outputs map[string]any) {
 		h.notify("thought")
 		h.mu.Unlock()
 
-		if h.logMode != "quiet" && thought != "" {
-			fmt.Printf("│ Thought: %s\n", truncate(thought, 120))
+		if thought != "" {
+			log := logger.With("component", "react_handler")
+			log.Info("ReAct thought", "iteration", h.currentStep.Iteration, "thought", truncate(thought, 200))
 		}
 	}
 }
 
 func (h *Handler) HandleChainError(_ context.Context, err error) {
-	if h.logMode != "quiet" {
-		fmt.Printf("│ Chain Error: %v\n", err)
-	}
+	log := logger.With("component", "react_handler")
+	log.Error("chain error", "error", err)
 }
 
 func (h *Handler) HandleToolStart(_ context.Context, _ string) {}
@@ -158,7 +154,8 @@ func (h *Handler) HandleToolEnd(_ context.Context, output string) {
 	h.mu.Unlock()
 
 	if h.logMode == "full" {
-		fmt.Printf("│ Observation: %s\n", truncate(output, 200))
+		log := logger.With("component", "react_handler")
+		log.Debug("tool observation", "output_length", len(output), "output", truncate(output, 300))
 	}
 }
 
@@ -168,9 +165,8 @@ func (h *Handler) HandleToolError(_ context.Context, err error) {
 		h.currentStep.Observation = fmt.Sprintf("Error: %v", err)
 	}
 	h.mu.Unlock()
-	if h.logMode != "quiet" {
-		fmt.Printf("│ Tool Error: %v\n", err)
-	}
+	log := logger.With("component", "react_handler")
+	log.Error("tool error", "error", err)
 }
 
 func (h *Handler) HandleAgentAction(_ context.Context, action schema.AgentAction) {
@@ -184,10 +180,11 @@ func (h *Handler) HandleAgentAction(_ context.Context, action schema.AgentAction
 	h.notify("action")
 	h.mu.Unlock()
 
-	if h.logMode != "quiet" {
-		fmt.Printf("│ Action: %s\n", action.Tool)
-		fmt.Printf("│ Input: %s\n", truncate(action.ToolInput, 100))
-	}
+	log := logger.With("component", "react_handler")
+	log.Info("ReAct action",
+		"tool", action.Tool,
+		"input", truncate(action.ToolInput, 200),
+	)
 }
 
 func (h *Handler) HandleAgentFinish(_ context.Context, finish schema.AgentFinish) {
@@ -200,12 +197,11 @@ func (h *Handler) HandleAgentFinish(_ context.Context, finish schema.AgentFinish
 		h.notify("finish")
 		h.mu.Unlock()
 
-		if h.logMode != "quiet" {
-			if strings.Contains(output, "agent not finished") {
-				fmt.Println("└─ Max iterations reached")
-			} else {
-				fmt.Printf("└─ Final Answer: %s\n", truncate(output, 150))
-			}
+		log := logger.With("component", "react_handler")
+		if strings.Contains(output, "agent not finished") {
+			log.Warn("max iterations reached")
+		} else {
+			log.Info("final answer", "output", truncate(output, 200))
 		}
 	}
 }

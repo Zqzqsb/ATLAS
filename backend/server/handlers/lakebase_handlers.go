@@ -14,6 +14,7 @@ import (
 
 	"lucid/internal/adapter"
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 	"lucid/internal/react"
 	"lucid/internal/react/scenarios"
 	reacttools "lucid/internal/react/tools"
@@ -690,6 +691,14 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	}
 
 	startTime := time.Now()
+	log := logger.With("component", "generate_context", "datasource", ds.Name, "dsID", dsID)
+	log.Info("starting Rich Context generation",
+		"tables", len(tables),
+		"columns", len(columns),
+		"max_iterations", req.MaxIterations,
+		"min_iterations", req.MinIterations,
+		"force", req.Force,
+	)
 
 	// Phase 1: Announce start with totals
 	sendEvent("agent_start", GenerateContextEvent{
@@ -711,6 +720,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	// Track incremental embedding count
 	var embeddingCount int
 	var embeddingMu sync.Mutex
+	embeddingsTotal := len(tables) + len(columns)
 
 	// Announce embedding agent is running (starts alongside RC gen)
 	sendEvent("agent_start", GenerateContextEvent{
@@ -760,12 +770,13 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 			sendEvent("agent_step", GenerateContextEvent{
 				Agent:   "embedding",
 				Phase:   "embedding",
-				Message: fmt.Sprintf("🧬 Embedded %s: %s (#%d)", ct, detail, cnt),
+				Message: fmt.Sprintf("🧬 Embedded %s: %s (%d/%d)", ct, detail, cnt, embeddingsTotal),
 				Data: map[string]interface{}{
 					"context_type":        ct,
 					"table":               tn,
 					"column":              cn,
 					"embeddings_so_far":   cnt,
+					"embeddings_total":    embeddingsTotal,
 				},
 			})
 		}(contextType, tableName, columnName)
@@ -836,12 +847,18 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	result, execErr := engine.Execute(ctx, "")
 
 	if execErr != nil {
+		log.Error("ReAct agent execution failed", "error", execErr)
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "rc_gen",
 			Status:  "error",
 			Message: fmt.Sprintf("ReAct agent error: %v", execErr),
 		})
 	} else {
+		log.Info("ReAct agent completed",
+			"iterations", result.Iterations,
+			"duration_s", result.Duration.Seconds(),
+			"output_length", len(result.Output),
+		)
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "rc_gen",
 			Status:  "success",
@@ -863,6 +880,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	var catchupEmbeddings int
 	embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(ctx, dsID)
 	if embErr != nil {
+		log.Error("catch-up embedding failed", "stream_embedded", streamEmbedded, "error", embErr)
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "embedding",
 			Phase:   "embedding",
@@ -871,6 +889,11 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		})
 	} else if embResult != nil {
 		catchupEmbeddings = embResult.TotalEmbeddings
+		log.Info("embeddings complete",
+			"stream_embedded", streamEmbedded,
+			"catchup_embedded", catchupEmbeddings,
+			"total_embeddings", catchupEmbeddings,
+		)
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "embedding",
 			Phase:   "embedding",

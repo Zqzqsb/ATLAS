@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"lucid/internal/logger"
 )
 
 // RCWriter is the interface for writing Rich Context data.
@@ -65,11 +67,20 @@ type rcAction struct {
 
 func (t *SetRichContext) Call(ctx context.Context, input string) (string, error) {
 	t.callCount++
+	log := logger.With("component", "set_rich_context", "dsID", t.dsID, "call", t.callCount)
 
 	var action rcAction
 	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &action); err != nil {
+		log.Warn("invalid JSON input", "error", err, "input", truncateStr(input, 200))
 		return fmt.Sprintf("Error: invalid JSON input. Expected a JSON object. Got: %s", truncateStr(input, 200)), nil
 	}
+
+	log.Info("writing rich context",
+		"type", action.Type,
+		"table", action.Table,
+		"column", action.Column,
+		"value_length", len(action.Value),
+	)
 
 	switch action.Type {
 	case "table_description":
@@ -77,8 +88,10 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			return "Error: 'table' and 'value' are required for table_description.", nil
 		}
 		if err := t.writer.SetTableDescription(ctx, t.dsID, action.Table, action.Value); err != nil {
+			log.Error("failed to save table description", "table", action.Table, "error", err)
 			return fmt.Sprintf("Error saving table description: %v", err), nil
 		}
+		log.Info("saved table description", "table", action.Table)
 		return fmt.Sprintf("Saved table description for '%s'.", action.Table), nil
 
 	case "column_description":
@@ -86,8 +99,10 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			return "Error: 'table', 'column', and 'value' are required for column_description.", nil
 		}
 		if err := t.writer.SetColumnDescription(ctx, t.dsID, action.Table, action.Column, action.Value); err != nil {
+			log.Error("failed to save column description", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving column description: %v", err), nil
 		}
+		log.Info("saved column description", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved column description for '%s.%s'.", action.Table, action.Column), nil
 
 	case "column_sample_values":
@@ -95,8 +110,10 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			return "Error: 'table', 'column', and 'value' are required for column_sample_values.", nil
 		}
 		if err := t.writer.SetColumnSampleValues(ctx, t.dsID, action.Table, action.Column, action.Value); err != nil {
+			log.Error("failed to save sample values", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving sample values: %v", err), nil
 		}
+		log.Info("saved column sample values", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved sample values for '%s.%s'.", action.Table, action.Column), nil
 
 	case "column_synonyms":
@@ -104,8 +121,10 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			return "Error: 'table', 'column', and 'value' are required for column_synonyms.", nil
 		}
 		if err := t.writer.SetColumnSynonyms(ctx, t.dsID, action.Table, action.Column, action.Value); err != nil {
+			log.Error("failed to save synonyms", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving synonyms: %v", err), nil
 		}
+		log.Info("saved column synonyms", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved synonyms for '%s.%s'.", action.Table, action.Column), nil
 
 	case "business_term":
@@ -113,8 +132,10 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			return "Error: 'value' (term name) and 'definition' are required for business_term.", nil
 		}
 		if err := t.writer.AddBusinessTerm(ctx, t.dsID, action.Value, action.Definition, action.Synonyms, action.Examples, action.Category); err != nil {
+			log.Error("failed to save business term", "term", action.Value, "error", err)
 			return fmt.Sprintf("Error saving business term: %v", err), nil
 		}
+		log.Info("saved business term", "term", action.Value, "category", action.Category)
 		return fmt.Sprintf("Saved business term '%s'.", action.Value), nil
 
 	default:

@@ -17,20 +17,20 @@ import {
   useMessage
 } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useContextGenerationStore } from '@/stores/contextGeneration'
 import { databaseApi } from '@/api/database'
 import type { RichContext, ContextType } from '@/types'
 import GenerateContextConsole from './GenerateContextConsole.vue'
 
 const workspaceStore = useWorkspaceStore()
+const ctxGenStore = useContextGenerationStore()
 const message = useMessage()
 const isPruning = ref(false)
 
 const searchKeyword = ref('')
 const filterTable = ref<string | null>(null)
 const filterType = ref<ContextType | null>(null)
-const showGenerateConsole = ref(false)
 const generateConsoleRef = ref<any>(null)
-const hasBackgroundTask = ref(false)
 
 // Edit dialog
 const showEditDialog = ref(false)
@@ -236,12 +236,12 @@ function openGenerateConsole() {
     message.warning('Please select a database first')
     return
   }
-  showGenerateConsole.value = true
+  ctxGenStore.openConsole(workspaceStore.currentDatabaseId)
 }
 
 // Handle generation complete
 async function handleGenerateComplete() {
-  hasBackgroundTask.value = false
+  ctxGenStore.reset()
   // Refresh contexts and schema
   await workspaceStore.fetchContexts()
   await workspaceStore.fetchSchema()
@@ -249,12 +249,7 @@ async function handleGenerateComplete() {
 
 // Handle minimize to background
 function handleMinimize() {
-  hasBackgroundTask.value = true
-}
-
-// Resume viewing background task
-function resumeBackgroundTask() {
-  showGenerateConsole.value = true
+  // Store handles minimization state
 }
 
 // Handle prune all context
@@ -547,28 +542,10 @@ async function handlePruneAll() {
       </template>
     </NModal>
 
-    <!-- Background Task Indicator -->
-    <div
-      v-if="hasBackgroundTask && !showGenerateConsole"
-      class="fixed bottom-6 right-6 z-50"
-    >
-      <NButton
-        type="info"
-        round
-        @click="resumeBackgroundTask"
-        class="shadow-lg animate-pulse"
-      >
-        <template #icon>
-          <div class="i-carbon-in-progress" />
-        </template>
-        Context Generation Running...
-      </NButton>
-    </div>
-
     <!-- Generate Context Console -->
     <GenerateContextConsole
       ref="generateConsoleRef"
-      v-model:show="showGenerateConsole"
+      v-model:show="ctxGenStore.showConsole"
       :database-id="workspaceStore.currentDatabaseId || ''"
       @complete="handleGenerateComplete"
       @minimize="handleMinimize"

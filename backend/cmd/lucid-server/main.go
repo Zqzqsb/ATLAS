@@ -19,6 +19,7 @@ import (
 	"lucid/internal/config"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"
+	"lucid/internal/logger"
 	"lucid/server/handlers"
 	"lucid/server/services"
 )
@@ -40,6 +41,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// Initialize structured logger
+	logLevel := "info"
+	logFormat := "text"
+	if cfg.Server.Mode == "release" {
+		logFormat = "json"
+	}
+	logger.Init(logLevel, logFormat)
 
 	// Set Gin mode
 	if cfg.Server.Mode == "release" {

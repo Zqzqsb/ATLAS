@@ -14,6 +14,8 @@ import (
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/tools"
+
+	"lucid/internal/logger"
 )
 
 // EngineConfig configures a ReAct engine instance for a specific scenario.
@@ -110,14 +112,18 @@ func (e *Engine) Execute(ctx context.Context, input string) (*Result, error) {
 		fullPrompt += "\n\n" + input
 	}
 
-	if e.config.Verbose {
-		fmt.Printf("[ReAct Engine] Starting (max_iter=%d, actual=%d, tools=%d)\n",
-			e.config.MaxIterations, actualMax, len(e.config.Tools))
-	}
+	log := logger.With("component", "react_engine")
+	log.Info("starting ReAct execution",
+		"max_iterations", e.config.MaxIterations,
+		"actual_max", actualMax,
+		"tools_count", len(e.config.Tools),
+		"log_mode", e.config.LogMode,
+	)
 
 	// Execute the agent
 	agentResult, err := executor.Call(ctx, map[string]any{"input": fullPrompt})
 	if err != nil {
+		log.Error("agent execution failed", "error", err)
 		return nil, fmt.Errorf("react engine: agent execution failed: %w", err)
 	}
 
@@ -130,9 +136,11 @@ func (e *Engine) Execute(ctx context.Context, input string) (*Result, error) {
 		result.Output = strings.TrimSpace(output)
 	}
 
-	if e.config.Verbose {
-		fmt.Printf("[ReAct Engine] Completed in %v (%d iterations)\n", result.Duration, result.Iterations)
-	}
+	log.Info("ReAct execution completed",
+		"duration", result.Duration,
+		"iterations", result.Iterations,
+		"output_length", len(result.Output),
+	)
 
 	return result, nil
 }

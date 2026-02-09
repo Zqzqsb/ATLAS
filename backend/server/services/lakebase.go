@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -720,6 +721,9 @@ type EmbeddingGenerationResult struct {
 // For column types: tableName + columnName identify the column.
 // For term types: tableName holds the term string.
 func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, contextType, tableName, columnName string) error {
+	log := slog.With("component", "embed_entity", "dsID", dsID, "type", contextType, "table", tableName, "column", columnName)
+	log.Info("embedding entity by name")
+
 	if !s.connected {
 		return fmt.Errorf("lakebase service: not connected")
 	}
@@ -793,12 +797,21 @@ func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, con
 	}
 
 	if entityID == 0 || embText == "" {
+		log.Warn("entity not found for embedding", "contextType", contextType, "table", tableName, "column", columnName)
 		return fmt.Errorf("entity not found: %s/%s/%s", contextType, tableName, columnName)
 	}
+
+	log.Info("generating embedding vector",
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"text_length", len(embText),
+		"model", s.config.Embedding.Model,
+	)
 
 	// Generate embedding
 	vec, err := s.embeddingProvider.Embed(ctx, embText)
 	if err != nil {
+		log.Error("embedding generation failed", "error", err)
 		return fmt.Errorf("embedding failed: %w", err)
 	}
 
@@ -812,9 +825,15 @@ func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, con
 		EmbeddingModel: s.config.Embedding.Model,
 	}
 	if err := s.vectorRepo.UpsertEmbedding(ctx, emb); err != nil {
+		log.Error("upsert embedding failed", "entity_id", entityID, "error", err)
 		return fmt.Errorf("upsert embedding failed: %w", err)
 	}
 
+	log.Info("embedding upserted successfully",
+		"entity_type", entityType,
+		"entity_id", entityID,
+		"vector_dim", len(vec),
+	)
 	return nil
 }
 

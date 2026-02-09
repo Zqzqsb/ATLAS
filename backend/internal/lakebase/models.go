@@ -88,24 +88,6 @@ type TermInfo struct {
 	UpdatedAt    time.Time      `json:"updated_at" db:"updated_at"`
 }
 
-// SchemaMetadata represents schema structure metadata (legacy)
-type SchemaMetadata struct {
-	ID           int64     `json:"id" db:"id"`
-	DatasourceID int64     `json:"datasource_id" db:"datasource_id"`
-	TableName    string    `json:"table_name" db:"table_name"`
-	ColumnName   string    `json:"column_name" db:"column_name"`
-	DataType     string    `json:"data_type" db:"data_type"`
-	IsPrimaryKey bool      `json:"is_primary_key" db:"is_primary_key"`
-	IsForeignKey bool      `json:"is_foreign_key" db:"is_foreign_key"`
-	FKRefTable   string    `json:"fk_ref_table" db:"fk_ref_table"`
-	FKRefColumn  string    `json:"fk_ref_column" db:"fk_ref_column"`
-	Nullable     bool      `json:"nullable" db:"nullable"`
-	DefaultValue string    `json:"default_value" db:"default_value"`
-	Comment      string    `json:"comment" db:"comment"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
-}
-
 // ContextType represents the type of business context
 type ContextType string
 

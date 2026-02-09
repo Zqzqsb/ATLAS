@@ -165,30 +165,7 @@ CREATE TABLE IF NOT EXISTS rc_business_context (
 COMMENT='Unified business context for tables and columns';
 
 -- ============================================================
--- 8. Schema Metadata (detailed table/column schema information)
--- ============================================================
-CREATE TABLE IF NOT EXISTS rc_schema_metadata (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    datasource_id INT NOT NULL,
-    table_name VARCHAR(255) NOT NULL,
-    column_name VARCHAR(255) NULL,
-    data_type VARCHAR(100),
-    is_nullable TINYINT(1) DEFAULT 1,
-    is_primary_key TINYINT(1) DEFAULT 0,
-    is_foreign_key TINYINT(1) DEFAULT 0,
-    foreign_key_ref VARCHAR(500),
-    default_value TEXT,
-    extra VARCHAR(255),
-    ordinal_position INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_table (datasource_id, table_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT='Detailed schema metadata for tables and columns';
-
--- ============================================================
--- 9. Statistics (column statistics for query optimization)
+-- 8. Statistics (column statistics for query optimization)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_statistics (
     id INT AUTO_INCREMENT PRIMARY KEY,

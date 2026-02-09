@@ -481,16 +481,16 @@ func (s *EvolutionService) ResetToInitial(ctx context.Context, dsID int64) error
 }
 
 // SyncSchemaToLakebase syncs the current business DB schema to lake-base
+// Uses UpsertTable/UpsertColumn to write into rc_tables and rc_columns.
 func (s *EvolutionService) SyncSchemaToLakebase(ctx context.Context, dsID int64) error {
 	businessDB, err := s.getBusinessDB(dsID)
 	if err != nil {
 		return fmt.Errorf("failed to get business DB: %w", err)
 	}
 
-	// Query current tables
+	// Query current columns
 	rows, err := businessDB.QueryContext(ctx, `
-		SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_KEY, IS_NULLABLE, COLUMN_DEFAULT,
-		       COLUMN_TYPE, EXTRA
+		SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_KEY, IS_NULLABLE
 		FROM INFORMATION_SCHEMA.COLUMNS
 		WHERE TABLE_SCHEMA = DATABASE()
 		ORDER BY TABLE_NAME, ORDINAL_POSITION
@@ -500,29 +500,32 @@ func (s *EvolutionService) SyncSchemaToLakebase(ctx context.Context, dsID int64)
 	}
 	defer rows.Close()
 
-	var metas []*lakebase.SchemaMetadata
+	if s.repo == nil {
+		return nil
+	}
+
+	seenTables := make(map[string]bool)
 	for rows.Next() {
 		var tableName, columnName, dataType, columnKey, isNullable string
-		var columnDefault, columnType, extra sql.NullString
-		if err := rows.Scan(&tableName, &columnName, &dataType, &columnKey, &isNullable, &columnDefault, &columnType, &extra); err != nil {
+		if err := rows.Scan(&tableName, &columnName, &dataType, &columnKey, &isNullable); err != nil {
 			continue
 		}
 
-		meta := &lakebase.SchemaMetadata{
-			DatasourceID:   dsID,
-			TableName:      tableName,
-			ColumnName:     columnName,
-			DataType:       dataType,
-			IsPrimaryKey:   columnKey == "PRI",
-			Nullable:       isNullable == "YES",
+		// Upsert table (once per table)
+		if !seenTables[tableName] {
+			seenTables[tableName] = true
+			if err := s.repo.UpsertTable(ctx, dsID, tableName, 0); err != nil {
+				return fmt.Errorf("failed to upsert table %s: %w", tableName, err)
+			}
 		}
-		metas = append(metas, meta)
-	}
 
-	if s.repo != nil && len(metas) > 0 {
-		// Delete old schema and save new
-		_ = s.repo.DeleteSchemaByDatasource(ctx, dsID)
-		return s.repo.SaveSchemaMetadata(ctx, metas)
+		// Upsert column
+		isPK := columnKey == "PRI"
+		isNull := isNullable == "YES"
+		isFK := columnKey == "MUL" // approximate FK detection
+		if err := s.repo.UpsertColumn(ctx, dsID, tableName, columnName, dataType, isNull, isPK, isFK); err != nil {
+			return fmt.Errorf("failed to upsert column %s.%s: %w", tableName, columnName, err)
+		}
 	}
 
 	return nil

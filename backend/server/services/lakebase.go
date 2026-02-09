@@ -464,28 +464,20 @@ func (s *LakebaseService) PruneAllContext(ctx context.Context, dsID int64) error
 	return nil
 }
 
-// GetSchemaByDatasource retrieves all schema metadata for a datasource (legacy)
-func (s *LakebaseService) GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*lakebase.SchemaMetadata, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.repo.GetSchemaByDatasource(ctx, dsID)
-}
-
-// GetTableSchema retrieves schema for a specific table
-func (s *LakebaseService) GetTableSchema(ctx context.Context, dsID int64, tableName string) ([]*lakebase.SchemaMetadata, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.repo.GetTableSchema(ctx, dsID, tableName)
-}
-
-// GetTableNames retrieves all table names for a datasource
+// GetTableNames retrieves all table names for a datasource from rc_tables
 func (s *LakebaseService) GetTableNames(ctx context.Context, dsID int64) ([]string, error) {
 	if !s.connected {
 		return nil, fmt.Errorf("lakebase service: not connected")
 	}
-	return s.repo.GetTableNames(ctx, dsID)
+	tables, err := s.repo.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(tables))
+	for _, t := range tables {
+		names = append(names, t.TableName)
+	}
+	return names, nil
 }
 
 // ===========================================
@@ -782,11 +774,11 @@ func (s *LakebaseService) GetStats(ctx context.Context) (*LakebaseStats, error) 
 	row.Scan(&stats.DatasourcesCount)
 
 	// Count distinct tables
-	row = db.QueryRowContext(ctx, "SELECT COUNT(DISTINCT table_name) FROM rc_schema_metadata")
+	row = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM rc_tables")
 	row.Scan(&stats.TablesCount)
 
 	// Count columns
-	row = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM rc_schema_metadata")
+	row = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM rc_columns")
 	row.Scan(&stats.ColumnsCount)
 
 	// Count context entries

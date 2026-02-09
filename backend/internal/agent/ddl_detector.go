@@ -71,14 +71,14 @@ type ColumnSnapshot struct {
 func (d *DDLDetector) DetectChanges(ctx context.Context, dsID int64, currentSchema map[string]*SchemaSnapshot) ([]SchemaChange, error) {
 	var changes []SchemaChange
 
-	// Get stored schema from lake-base
-	storedMeta, err := d.repo.GetSchemaByDatasource(ctx, dsID)
+	// Get stored schema from lake-base (rc_columns)
+	storedColumns, err := d.repo.GetColumnsByDatasource(ctx, dsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stored schema: %w", err)
 	}
 
 	// Build stored schema map
-	storedSchema := buildStoredSchemaMap(storedMeta)
+	storedSchema := buildStoredSchemaMapFromColumns(storedColumns)
 
 	// Detect changes
 	now := time.Now()
@@ -204,28 +204,31 @@ func (d *DDLDetector) detectColumnChanges(tableName string, stored, current *Sch
 	return changes
 }
 
-// buildStoredSchemaMap builds a map from stored metadata
-func buildStoredSchemaMap(metas []*lakebase.SchemaMetadata) map[string]*SchemaSnapshot {
+// buildStoredSchemaMapFromColumns builds a map from rc_columns data
+func buildStoredSchemaMapFromColumns(columns []*lakebase.ColumnInfo) map[string]*SchemaSnapshot {
 	result := make(map[string]*SchemaSnapshot)
 
-	for _, meta := range metas {
-		if _, exists := result[meta.TableName]; !exists {
-			result[meta.TableName] = &SchemaSnapshot{
-				TableName: meta.TableName,
+	for _, col := range columns {
+		if _, exists := result[col.TableName]; !exists {
+			result[col.TableName] = &SchemaSnapshot{
+				TableName: col.TableName,
 				Columns:   make(map[string]*ColumnSnapshot),
 			}
 		}
 
-		result[meta.TableName].Columns[meta.ColumnName] = &ColumnSnapshot{
-			Name:         meta.ColumnName,
-			DataType:     meta.DataType,
-			IsPrimaryKey: meta.IsPrimaryKey,
-			IsForeignKey: meta.IsForeignKey,
-			FKRefTable:   meta.FKRefTable,
-			FKRefColumn:  meta.FKRefColumn,
-			Nullable:     meta.Nullable,
-			DefaultValue: meta.DefaultValue,
+		snapshot := &ColumnSnapshot{
+			Name:         col.ColumnName,
+			DataType:     col.DataType.String,
+			IsPrimaryKey: col.IsPrimaryKey,
+			IsForeignKey: col.IsForeignKey,
+			Nullable:     col.IsNullable,
 		}
+		if col.ForeignKeyInfo != nil {
+			snapshot.FKRefTable = col.ForeignKeyInfo.RefTableName
+			snapshot.FKRefColumn = col.ForeignKeyInfo.RefColumnName
+		}
+
+		result[col.TableName].Columns[col.ColumnName] = snapshot
 	}
 
 	return result

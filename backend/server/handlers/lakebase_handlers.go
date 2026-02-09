@@ -378,8 +378,8 @@ func (h *Handler) GetLakebaseTableContext(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	// Get schema for this table
-	schemas, err := h.lakebaseService.GetTableSchema(ctx, dsID, tableName)
+	// Get columns for this table from rc_columns
+	colInfos, err := h.lakebaseService.GetColumnsByTable(ctx, dsID, tableName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -397,15 +397,15 @@ func (h *Handler) GetLakebaseTableContext(c *gin.Context) {
 	}
 
 	// Format columns
-	columns := make([]map[string]interface{}, len(schemas))
-	for i, s := range schemas {
+	columns := make([]map[string]interface{}, len(colInfos))
+	for i, col := range colInfos {
 		columns[i] = map[string]interface{}{
-			"name":           s.ColumnName,
-			"data_type":      s.DataType,
-			"is_primary_key": s.IsPrimaryKey,
-			"is_foreign_key": s.IsForeignKey,
-			"nullable":       s.Nullable,
-			"comment":        s.Comment,
+			"name":           col.ColumnName,
+			"data_type":      col.DataType.String,
+			"is_primary_key": col.IsPrimaryKey,
+			"is_foreign_key": col.IsForeignKey,
+			"nullable":       col.IsNullable,
+			"description":    col.Description.String,
 		}
 	}
 

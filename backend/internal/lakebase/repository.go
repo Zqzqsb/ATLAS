@@ -32,17 +32,11 @@ type Repository interface {
 	UpdateDatasourceLastSync(ctx context.Context, id int64) error
 
 	// Rich Context tables (rc_tables, rc_columns)
+	UpsertTable(ctx context.Context, dsID int64, tableName string, rowCount int64) error
+	UpsertColumn(ctx context.Context, dsID int64, tableName, columnName, dataType string, isNullable, isPK, isFK bool) error
 	GetTablesByDatasource(ctx context.Context, dsID int64) ([]*TableInfo, error)
 	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*ColumnInfo, error)
 	GetColumnsByTable(ctx context.Context, dsID int64, tableName string) ([]*ColumnInfo, error)
-
-	// Schema metadata operations (legacy)
-	SaveSchemaMetadata(ctx context.Context, metas []*SchemaMetadata) error
-	GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*SchemaMetadata, error)
-	GetTableSchema(ctx context.Context, dsID int64, tableName string) ([]*SchemaMetadata, error)
-	GetTableNames(ctx context.Context, dsID int64) ([]string, error)
-	DeleteSchemaByDatasource(ctx context.Context, dsID int64) error
-	DeleteTableSchema(ctx context.Context, dsID int64, tableName string) error
 
 	// Business context operations
 	SaveBusinessContext(ctx context.Context, bc *BusinessContext) (int64, error)
@@ -443,123 +437,6 @@ func (r *MySQLRepository) UpsertTerm(ctx context.Context, dsID int64, term, defi
 		return fmt.Errorf("lakebase: failed to upsert term: %w", err)
 	}
 	return nil
-}
-
-// ===========================================
-// Schema metadata operations (legacy)
-// ===========================================
-
-func (r *MySQLRepository) SaveSchemaMetadata(ctx context.Context, metas []*SchemaMetadata) error {
-	if len(metas) == 0 {
-		return nil
-	}
-
-	query := `
-		INSERT INTO rc_schema_metadata
-		(datasource_id, table_name, column_name, data_type, is_primary_key, is_foreign_key,
-		 fk_ref_table, fk_ref_column, nullable, default_value, comment)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-		data_type = VALUES(data_type),
-		is_primary_key = VALUES(is_primary_key),
-		is_foreign_key = VALUES(is_foreign_key),
-		fk_ref_table = VALUES(fk_ref_table),
-		fk_ref_column = VALUES(fk_ref_column),
-		nullable = VALUES(nullable),
-		default_value = VALUES(default_value),
-		comment = VALUES(comment)
-	`
-
-	return r.pool.WithTransaction(ctx, func(tx *sql.Tx) error {
-		stmt, err := tx.PrepareContext(ctx, query)
-		if err != nil {
-			return fmt.Errorf("lakebase: failed to prepare statement: %w", err)
-		}
-		defer stmt.Close()
-
-		for _, meta := range metas {
-			_, err := stmt.ExecContext(ctx,
-				meta.DatasourceID, meta.TableName, meta.ColumnName, meta.DataType,
-				meta.IsPrimaryKey, meta.IsForeignKey, meta.FKRefTable, meta.FKRefColumn,
-				meta.Nullable, meta.DefaultValue, meta.Comment)
-			if err != nil {
-				return fmt.Errorf("lakebase: failed to insert schema metadata: %w", err)
-			}
-		}
-		return nil
-	})
-}
-
-func (r *MySQLRepository) GetSchemaByDatasource(ctx context.Context, dsID int64) ([]*SchemaMetadata, error) {
-	query := `
-		SELECT id, datasource_id, table_name, column_name, data_type, is_primary_key, is_foreign_key,
-		       fk_ref_table, fk_ref_column, nullable, default_value, comment, created_at, updated_at
-		FROM rc_schema_metadata WHERE datasource_id = ?
-		ORDER BY table_name, id
-	`
-	return r.querySchemaMetadata(ctx, query, dsID)
-}
-
-func (r *MySQLRepository) GetTableSchema(ctx context.Context, dsID int64, tableName string) ([]*SchemaMetadata, error) {
-	query := `
-		SELECT id, datasource_id, table_name, column_name, data_type, is_primary_key, is_foreign_key,
-		       fk_ref_table, fk_ref_column, nullable, default_value, comment, created_at, updated_at
-		FROM rc_schema_metadata WHERE datasource_id = ? AND table_name = ?
-		ORDER BY id
-	`
-	return r.querySchemaMetadata(ctx, query, dsID, tableName)
-}
-
-func (r *MySQLRepository) GetTableNames(ctx context.Context, dsID int64) ([]string, error) {
-	query := `SELECT DISTINCT table_name FROM rc_schema_metadata WHERE datasource_id = ? ORDER BY table_name`
-	rows, err := r.pool.QueryContext(ctx, query, dsID)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to get table names: %w", err)
-	}
-	defer rows.Close()
-
-	var names []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("lakebase: failed to scan table name: %w", err)
-		}
-		names = append(names, name)
-	}
-	return names, rows.Err()
-}
-
-func (r *MySQLRepository) DeleteSchemaByDatasource(ctx context.Context, dsID int64) error {
-	query := `DELETE FROM rc_schema_metadata WHERE datasource_id = ?`
-	_, err := r.pool.ExecContext(ctx, query, dsID)
-	return err
-}
-
-func (r *MySQLRepository) DeleteTableSchema(ctx context.Context, dsID int64, tableName string) error {
-	query := `DELETE FROM rc_schema_metadata WHERE datasource_id = ? AND table_name = ?`
-	_, err := r.pool.ExecContext(ctx, query, dsID, tableName)
-	return err
-}
-
-func (r *MySQLRepository) querySchemaMetadata(ctx context.Context, query string, args ...interface{}) ([]*SchemaMetadata, error) {
-	rows, err := r.pool.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to query schema metadata: %w", err)
-	}
-	defer rows.Close()
-
-	var metas []*SchemaMetadata
-	for rows.Next() {
-		m := &SchemaMetadata{}
-		if err := rows.Scan(
-			&m.ID, &m.DatasourceID, &m.TableName, &m.ColumnName, &m.DataType,
-			&m.IsPrimaryKey, &m.IsForeignKey, &m.FKRefTable, &m.FKRefColumn,
-			&m.Nullable, &m.DefaultValue, &m.Comment, &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("lakebase: failed to scan schema metadata: %w", err)
-		}
-		metas = append(metas, m)
-	}
-	return metas, rows.Err()
 }
 
 // ===========================================

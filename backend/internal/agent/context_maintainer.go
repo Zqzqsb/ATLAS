@@ -144,7 +144,7 @@ func (m *ContextMaintainer) GetExpiredContext(ctx context.Context, dsID int64) (
 }
 
 // RefreshContext regenerates context for a specific entry using LLM
-func (m *ContextMaintainer) RefreshContext(ctx context.Context, dsID int64, contextID int64, tableSchema []*lakebase.SchemaMetadata) (*ContextUpdateResult, error) {
+func (m *ContextMaintainer) RefreshContext(ctx context.Context, dsID int64, contextID int64, tableSchema []*lakebase.ColumnInfo) (*ContextUpdateResult, error) {
 	result := &ContextUpdateResult{
 		ContextID: contextID,
 		UpdatedBy: "agent",
@@ -196,16 +196,16 @@ func (m *ContextMaintainer) RefreshContext(ctx context.Context, dsID int64, cont
 }
 
 // regenerateContent generates new content for a context entry
-func (m *ContextMaintainer) regenerateContent(ctx context.Context, bc *lakebase.BusinessContext, tableSchema []*lakebase.SchemaMetadata) (json.RawMessage, error) {
+func (m *ContextMaintainer) regenerateContent(ctx context.Context, bc *lakebase.BusinessContext, tableSchema []*lakebase.ColumnInfo) (json.RawMessage, error) {
 	// Build schema description
 	var schemaDesc strings.Builder
 	for _, col := range tableSchema {
-		schemaDesc.WriteString(fmt.Sprintf("- %s: %s", col.ColumnName, col.DataType))
+		schemaDesc.WriteString(fmt.Sprintf("- %s: %s", col.ColumnName, col.DataType.String))
 		if col.IsPrimaryKey {
 			schemaDesc.WriteString(" (PK)")
 		}
-		if col.IsForeignKey {
-			schemaDesc.WriteString(fmt.Sprintf(" -> %s.%s", col.FKRefTable, col.FKRefColumn))
+		if col.IsForeignKey && col.ForeignKeyInfo != nil {
+			schemaDesc.WriteString(fmt.Sprintf(" -> %s.%s", col.ForeignKeyInfo.RefTableName, col.ForeignKeyInfo.RefColumnName))
 		}
 		schemaDesc.WriteString("\n")
 	}
@@ -369,12 +369,12 @@ func (m *ContextMaintainer) RefreshAllExpiredContext(ctx context.Context, dsID i
 	}
 
 	// Get schema for reference
-	schemaMap := make(map[string][]*lakebase.SchemaMetadata)
+	schemaMap := make(map[string][]*lakebase.ColumnInfo)
 
 	for _, bc := range expired {
 		// Get table schema if not cached
 		if _, exists := schemaMap[bc.TableName]; !exists {
-			tableSchema, err := m.repo.GetTableSchema(ctx, dsID, bc.TableName)
+			tableSchema, err := m.repo.GetColumnsByTable(ctx, dsID, bc.TableName)
 			if err != nil {
 				continue
 			}

@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-// OpenAIProvider implements EmbeddingProvider using OpenAI API
+// OpenAIProvider implements EmbeddingProvider using OpenAI-compatible embedding APIs.
+// Works with OpenAI, Volcengine Ark (Doubao/Seed), and other compatible services.
 type OpenAIProvider struct {
 	apiKey     string
 	baseURL    string
@@ -19,25 +20,25 @@ type OpenAIProvider struct {
 	httpClient *http.Client
 }
 
-// OpenAIConfig holds configuration for OpenAI embedding provider
+// OpenAIConfig holds configuration for OpenAI-compatible embedding provider
 type OpenAIConfig struct {
 	APIKey    string
-	BaseURL   string // Default: https://api.openai.com/v1
-	Model     string // Default: text-embedding-3-small
-	Dimension int    // Default: 1536
+	BaseURL   string // e.g. "https://ark.cn-beijing.volces.com/api/v3"
+	Model     string // e.g. "doubao-embedding-large-text-250515"
+	Dimension int    // e.g. 2048
 	Timeout   time.Duration
 }
 
-// NewOpenAIProvider creates a new OpenAI embedding provider
+// NewOpenAIProvider creates a new OpenAI-compatible embedding provider
 func NewOpenAIProvider(config OpenAIConfig) *OpenAIProvider {
 	if config.BaseURL == "" {
-		config.BaseURL = "https://api.openai.com/v1"
+		config.BaseURL = "https://ark.cn-beijing.volces.com/api/v3"
 	}
 	if config.Model == "" {
-		config.Model = "text-embedding-3-small"
+		config.Model = "doubao-embedding-large-text-250515"
 	}
 	if config.Dimension == 0 {
-		config.Dimension = 1536
+		config.Dimension = 2048
 	}
 	if config.Timeout == 0 {
 		config.Timeout = 30 * time.Second
@@ -54,12 +55,11 @@ func NewOpenAIProvider(config OpenAIConfig) *OpenAIProvider {
 	}
 }
 
-// openAIEmbeddingRequest represents the request body for OpenAI embedding API
+// openAIEmbeddingRequest represents the request body for OpenAI-compatible embedding API
 type openAIEmbeddingRequest struct {
 	Input          interface{} `json:"input"`
 	Model          string      `json:"model"`
 	EncodingFormat string      `json:"encoding_format,omitempty"`
-	Dimensions     int         `json:"dimensions,omitempty"`
 }
 
 // openAIEmbeddingResponse represents the response from OpenAI embedding API
@@ -96,13 +96,9 @@ func (p *OpenAIProvider) EmbedBatch(ctx context.Context, texts []string) ([]Vect
 	}
 
 	reqBody := openAIEmbeddingRequest{
-		Input: texts,
-		Model: p.model,
-	}
-
-	// For text-embedding-3-* models, can specify dimensions
-	if p.dimension > 0 && (p.model == "text-embedding-3-small" || p.model == "text-embedding-3-large") {
-		reqBody.Dimensions = p.dimension
+		Input:          texts,
+		Model:          p.model,
+		EncodingFormat: "float",
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -159,114 +155,3 @@ func (p *OpenAIProvider) Name() string {
 	return fmt.Sprintf("openai/%s", p.model)
 }
 
-// ============================================
-// Local/Fallback Provider (Simple TF-IDF style)
-// ============================================
-
-// LocalProvider implements a simple local embedding provider
-// Uses character n-grams for basic text similarity (no external API needed)
-type LocalProvider struct {
-	dimension int
-	ngramSize int
-}
-
-// LocalConfig holds configuration for local embedding provider
-type LocalConfig struct {
-	Dimension int // Default: 384
-	NgramSize int // Default: 3
-}
-
-// NewLocalProvider creates a new local embedding provider
-func NewLocalProvider(config LocalConfig) *LocalProvider {
-	if config.Dimension == 0 {
-		config.Dimension = 384
-	}
-	if config.NgramSize == 0 {
-		config.NgramSize = 3
-	}
-
-	return &LocalProvider{
-		dimension: config.Dimension,
-		ngramSize: config.NgramSize,
-	}
-}
-
-// Embed converts a single text to an embedding vector using character n-grams
-func (p *LocalProvider) Embed(ctx context.Context, text string) (Vector, error) {
-	vector := make(Vector, p.dimension)
-
-	// Generate character n-grams
-	runes := []rune(text)
-	for i := 0; i <= len(runes)-p.ngramSize; i++ {
-		ngram := string(runes[i : i+p.ngramSize])
-		// Hash the n-gram to get a bucket index
-		hash := hashString(ngram)
-		idx := int(hash % uint64(p.dimension))
-		vector[idx] += 1.0
-	}
-
-	// Also add word-level features
-	words := splitWords(text)
-	for _, word := range words {
-		hash := hashString(word)
-		idx := int(hash % uint64(p.dimension))
-		vector[idx] += 0.5
-	}
-
-	// Normalize
-	return NormalizeVector(vector), nil
-}
-
-// EmbedBatch converts multiple texts to embedding vectors
-func (p *LocalProvider) EmbedBatch(ctx context.Context, texts []string) ([]Vector, error) {
-	vectors := make([]Vector, len(texts))
-	for i, text := range texts {
-		v, err := p.Embed(ctx, text)
-		if err != nil {
-			return nil, err
-		}
-		vectors[i] = v
-	}
-	return vectors, nil
-}
-
-// Dimension returns the dimension of embedding vectors
-func (p *LocalProvider) Dimension() int {
-	return p.dimension
-}
-
-// Name returns the name of the embedding provider
-func (p *LocalProvider) Name() string {
-	return "local/ngram"
-}
-
-// hashString computes a simple hash for a string
-func hashString(s string) uint64 {
-	var hash uint64 = 5381
-	for _, c := range s {
-		hash = ((hash << 5) + hash) + uint64(c)
-	}
-	return hash
-}
-
-// splitWords splits text into words (simple space-based split)
-func splitWords(text string) []string {
-	var words []string
-	var current []rune
-
-	for _, r := range text {
-		if r == ' ' || r == '\t' || r == '\n' || r == ',' || r == '.' || r == '(' || r == ')' {
-			if len(current) > 0 {
-				words = append(words, string(current))
-				current = nil
-			}
-		} else {
-			current = append(current, r)
-		}
-	}
-	if len(current) > 0 {
-		words = append(words, string(current))
-	}
-
-	return words
-}

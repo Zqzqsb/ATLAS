@@ -13,8 +13,10 @@ lakebase:
 
 embedding:
   enabled: true
-  model: text-embedding-3-small
-  dimension: 1536
+  api_key: "404b0d95-e938-4fbb-8724-34d2f0dadb00"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  model: "doubao-embedding-large-text-250515"
+  dimension: 2048
   batch_size: 100
 
 vector_search:

@@ -192,11 +192,11 @@ type EmbeddingWithDistance struct {
 	Distance float64 `json:"distance" db:"distance"`
 }
 
-// DefaultEmbeddingModel is the default embedding model
-const DefaultEmbeddingModel = "text-embedding-3-small"
+// DefaultEmbeddingModel is the default embedding model (Seed-1.5-Embedding via Volcengine Ark)
+const DefaultEmbeddingModel = "doubao-embedding-large-text-250515"
 
-// DefaultEmbeddingDimension is the dimension for OpenAI text-embedding-3-small
-const DefaultEmbeddingDimension = 1536
+// DefaultEmbeddingDimension is the native dimension for Seed-1.5-Embedding
+const DefaultEmbeddingDimension = 2048
 
 // ChangeType represents the type of change in change log
 type ChangeType string

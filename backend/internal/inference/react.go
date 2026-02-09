@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"lucid/internal/adapter"
+	"lucid/interfaces"
 
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/tools"
@@ -426,7 +426,7 @@ func (p *Pipeline) extractSQL(response string) string {
 
 // SQLTool SQL 执行工具
 type SQLTool struct {
-	adapter        adapter.DBAdapter
+	adapter        interfaces.DBAdapter
 	useDryRun      bool
 	ExecutionCount int
 }

@@ -15,9 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/bridge"
 	"lucid/config"
 	"lucid/interfaces"
+	"lucid/internal/adapter"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"
 	"lucid/server/handlers"
@@ -41,27 +41,12 @@ func main() {
 	}
 
 	// ========================================
-	// Initialize dependencies using bridge layer
+	// Initialize dependencies (no bridge layer)
 	// ========================================
 
-	// Create adapter factory
-	adapterFactory := bridge.NewAdapterFactory()
-
-	// Register database configs from system config
-	for _, dbCfg := range cfg.Databases {
-		adapterFactory.RegisterConfig(dbCfg.ID, &interfaces.DBConfig{
-			Type:     dbCfg.Type,
-			Host:     dbCfg.Host,
-			Port:     dbCfg.Port,
-			Database: dbCfg.Database,
-			User:     dbCfg.User,
-			Password: dbCfg.Password,
-			FilePath: dbCfg.Path,
-		})
-	}
-
-	// Create database service with adapter factory
-	dbService := services.NewDatabaseService(cfg, adapterFactory.Create)
+	// Create database service — adapter.NewAdapter directly implements interfaces.DBAdapter
+	dbService := services.NewDatabaseService(cfg, adapter.NewAdapter)
+	services.SetGlobalDatabaseService(dbService)
 
 	// Initialize LLM (optional - may fail if config not found)
 	var llmModel llms.Model
@@ -73,20 +58,20 @@ func main() {
 		log.Println("✅ LLM initialized successfully")
 	}
 
-	// Create inference engine
-	inferenceEngine := bridge.NewInferenceEngineBridge(llmModel, adapterFactory)
+	// Create inference engine (previously bridge.InferenceEngineBridge)
+	inferenceEngine := services.NewInferenceEngine(llmModel)
 
-	// Create rich context provider
-	richContextProvider := bridge.NewRichContextProviderBridge()
+	// Create rich context provider and field suggester
+	richContextProvider := services.NewFileRichContextProvider()
+	var fieldSuggester interfaces.FieldSuggester
+	if llmModel != nil {
+		fieldSuggester = services.NewFieldSuggester(llmModel, adapter.NewAdapter, cfg)
+	}
 
-	// Create field suggester
-	fieldSuggester := bridge.NewFieldSuggesterBridge(inferenceEngine.GetLLMModel(), adapterFactory.Create, cfg)
+	// Create translator
+	services.SetTranslator(services.NewPassthroughTranslator())
 
-	// Create translator and set it for services
-	translator := bridge.NewTranslatorBridge(inferenceEngine.GetLLMModel())
-	services.SetTranslator(translator)
-
-	// Create inference service with injected dependencies
+	// Create inference service
 	inferenceService := services.NewInferenceService(cfg, dbService, inferenceEngine, &services.InferenceServiceOptions{
 		RichContextProvider: richContextProvider,
 		FieldSuggester:      fieldSuggester,
@@ -197,7 +182,7 @@ func main() {
 	// ========================================
 	// System Warmup (background)
 	// ========================================
-	warmupService := services.NewWarmupService(cfg, llmModel, lakebaseService, adapterFactory.Create)
+	warmupService := services.NewWarmupService(cfg, llmModel, lakebaseService, adapter.NewAdapter)
 	go func() {
 		warmupCtx, warmupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer warmupCancel()

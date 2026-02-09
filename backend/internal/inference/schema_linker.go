@@ -10,7 +10,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/tools"
 
-	"lucid/internal/adapter"
+	"lucid/interfaces"
 	contextpkg "lucid/internal/context"
 )
 
@@ -33,13 +33,13 @@ type TableInfo struct {
 // LLMSchemaLinker 基于 LLM 的 Schema Linking
 type LLMSchemaLinker struct {
 	llm           llms.Model
-	adapter       adapter.DBAdapter
+	adapter       interfaces.DBAdapter
 	useReact      bool
 	tokenRecorder func(prompt, response string)
 }
 
 // NewLLMSchemaLinker 创建 LLM Schema Linker
-func NewLLMSchemaLinker(llm llms.Model, dbAdapter adapter.DBAdapter, useReact bool) *LLMSchemaLinker {
+func NewLLMSchemaLinker(llm llms.Model, dbAdapter interfaces.DBAdapter, useReact bool) *LLMSchemaLinker {
 	return &LLMSchemaLinker{
 		llm:      llm,
 		adapter:  dbAdapter,

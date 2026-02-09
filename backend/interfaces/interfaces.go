@@ -41,6 +41,10 @@ type DBConfig struct {
 	User     string
 	Password string
 	FilePath string // SQLite 文件路径
+
+	// 连接池配置（可选）
+	MaxOpenConns int
+	MaxIdleConns int
 }
 
 // QueryResult 查询结果

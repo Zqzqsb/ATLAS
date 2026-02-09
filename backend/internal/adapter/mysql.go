@@ -7,6 +7,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+
+	"lucid/interfaces"
 )
 
 // MySQLAdapter MySQL适配器
@@ -64,44 +66,36 @@ func (a *MySQLAdapter) Close() error {
 }
 
 // ExecuteQuery 执行查询
-func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryResult, error) {
+func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*interfaces.QueryResult, error) {
 	start := time.Now()
 
 	rows, err := a.db.QueryContext(ctx, query)
 	if err != nil {
-		return &QueryResult{
+		return &interfaces.QueryResult{
 			Error:         err.Error(),
 			ExecutionTime: time.Since(start).Milliseconds(),
-		}, err // 返回错误，让调用方能正确处理
+		}, err
 	}
 	defer rows.Close()
 
-	// 获取列名
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, err
 	}
 
-	// 读取数据
 	var result []map[string]interface{}
 	for rows.Next() {
-		// 创建扫描目标
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
-
-		// 扫描行
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-
-		// 构建map
 		row := make(map[string]interface{})
 		for i, col := range columns {
 			val := values[i]
-			// 处理[]byte类型
 			if b, ok := val.([]byte); ok {
 				row[col] = string(b)
 			} else {
@@ -115,7 +109,7 @@ func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryRe
 		return nil, err
 	}
 
-	return &QueryResult{
+	return &interfaces.QueryResult{
 		Columns:       columns,
 		Rows:          result,
 		RowCount:      len(result),
@@ -135,7 +129,7 @@ func (a *MySQLAdapter) GetDatabaseVersion(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if result.Error != "" {
-		return "", fmt.Errorf(result.Error)
+		return "", fmt.Errorf("%s", result.Error)
 	}
 	if len(result.Rows) > 0 {
 		if version, ok := result.Rows[0]["version"].(string); ok {

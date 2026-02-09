@@ -41,16 +41,27 @@ export const useDatabaseStore = defineStore('database', () => {
     }
   }
 
-  async function addDatabase(config: DatabaseConfig): Promise<Database | null> {
+  async function addDatabase(config: DatabaseConfig): Promise<{ success: boolean; error?: string }> {
     loading.value = true
     error.value = null
     try {
-      const newDb = await databaseApi.create(config)
-      databases.value.push(newDb)
-      return newDb
+      // Step 1: Add connection (pure connection management)
+      await databaseApi.create(config)
+      // Step 2: Sync schema (creates rc_datasources + discovers schema)
+      try {
+        await databaseApi.syncConnectionSchema(config.name)
+      } catch (syncErr: any) {
+        console.warn('Schema sync failed after connection:', syncErr)
+        // Connection succeeded but sync failed — still consider success
+      }
+      // Step 3: Refresh list to show updated data
+      await fetchDatabases()
+      return { success: true }
     } catch (e: any) {
-      error.value = e.message || 'Failed to add database'
-      return null
+      // Extract error message from backend response
+      const msg = e.response?.data?.error || e.message || 'Failed to add database'
+      error.value = msg
+      return { success: false, error: msg }
     } finally {
       loading.value = false
     }
@@ -67,6 +78,33 @@ export const useDatabaseStore = defineStore('database', () => {
     } catch (e: any) {
       error.value = e.message || 'Failed to remove database'
       return false
+    }
+  }
+
+  async function deleteDatasource(lakebaseId: number): Promise<boolean> {
+    try {
+      await databaseApi.deleteDatasource(lakebaseId)
+      // Remove from local state by matching lakebaseId
+      const index = databases.value.findIndex(db => db.metadata?.lakebaseId === lakebaseId)
+      if (index >= 0) {
+        databases.value.splice(index, 1)
+      }
+      return true
+    } catch (e: any) {
+      error.value = e.message || 'Failed to delete datasource'
+      return false
+    }
+  }
+
+  async function syncSchema(lakebaseId: number): Promise<{ success: boolean; tables?: number; columns?: number }> {
+    try {
+      const result = await databaseApi.syncSchema(lakebaseId)
+      // Refresh list to update counts
+      await fetchDatabases()
+      return { success: true, tables: result.tables, columns: result.columns }
+    } catch (e: any) {
+      error.value = e.message || 'Failed to sync schema'
+      return { success: false }
     }
   }
 
@@ -109,6 +147,8 @@ export const useDatabaseStore = defineStore('database', () => {
     fetchDatabases,
     addDatabase,
     removeDatabase,
+    deleteDatasource,
+    syncSchema,
     testConnection,
     getDatabaseById,
     updateDatabaseStatus

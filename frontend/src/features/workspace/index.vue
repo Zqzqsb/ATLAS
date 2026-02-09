@@ -25,12 +25,11 @@ const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
 ]
 
 // Spider 库名称模式
-const SPIDER_PATTERNS = ['tvshow', 'tv_show', 'spider_tvshow', 'lucid_flight', 'flight', 'lucid_wta', 'wta']
+const SPIDER_PATTERNS = ['spider_tvshow', 'spider_flight', 'spider_wta']
 
 // 判断是否是 Spider 库
 function isSpiderDatabase(name: string): boolean {
-  const lowerName = name.toLowerCase()
-  return SPIDER_PATTERNS.some(pattern => lowerName.includes(pattern))
+  return name.toLowerCase().startsWith('spider_')
 }
 
 // 当前是否在 Spider 模式

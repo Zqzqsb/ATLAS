@@ -14,12 +14,11 @@ const message = useMessage()
 const showAddDialog = ref(false)
 
 // Spider 库名称模式
-const SPIDER_PATTERNS = ['tvshow', 'tv_show', 'spider_tvshow', 'lucid_flight', 'flight', 'lucid_wta', 'wta']
+const SPIDER_PATTERNS = ['spider_tvshow', 'spider_flight', 'spider_wta']
 
 // 判断是否是 Spider 库
 function isSpiderDatabase(name: string): boolean {
-  const lowerName = name.toLowerCase()
-  return SPIDER_PATTERNS.some(pattern => lowerName.includes(pattern))
+  return name.toLowerCase().startsWith('spider_')
 }
 
 // 分离 Spider 库和其他库
@@ -48,11 +47,12 @@ async function handleTestConnection(id: string) {
 }
 
 async function handleAddDatabase(config: DatabaseConfig) {
-  const db = await databaseStore.addDatabase(config)
-  if (db) {
-    message.success('添加成功')
+  const result = await databaseStore.addDatabase(config)
+  showAddDialog.value = false
+  if (result.success) {
+    message.success('连接添加成功，Schema 已同步')
   } else {
-    message.error('添加失败')
+    message.error(result.error || '添加失败')
   }
 }
 </script>
@@ -98,13 +98,6 @@ async function handleAddDatabase(config: DatabaseConfig) {
               <div class="w-1.5 h-8 rounded-full bg-gradient-to-b from-primary-500 to-blue-600" />
               Databases
             </h2>
-            <button 
-              class="flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary-500 to-blue-600 text-white font-bold shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 hover:-translate-y-0.5 transition-all duration-200"
-              @click="showAddDialog = true"
-            >
-              <div class="i-carbon-add text-lg" />
-              Connect Database
-            </button>
           </div>
 
           <!-- Loading -->

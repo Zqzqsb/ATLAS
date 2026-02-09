@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NTag } from 'naive-ui'
+import { useMessage } from 'naive-ui'
+import { useDatabaseStore } from '@/stores/database'
 import type { Database } from '@/types'
 
 const props = defineProps<{
@@ -14,24 +15,9 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-
-const statusColor = computed(() => {
-  switch (props.database.status) {
-    case 'connected': return 'success'
-    case 'disconnected': return 'warning'
-    case 'error': return 'error'
-    default: return 'default'
-  }
-})
-
-const statusText = computed(() => {
-  switch (props.database.status) {
-    case 'connected': return 'Connected'
-    case 'disconnected': return 'Disconnected'
-    case 'error': return 'Error'
-    default: return 'Unknown'
-  }
-})
+const message = useMessage()
+const databaseStore = useDatabaseStore()
+const deleting = ref(false)
 
 const iconBgClass = computed(() => {
   switch (props.database.type) {
@@ -56,6 +42,23 @@ const typeIcon = computed(() => {
 function handleEnter() {
   if (props.database.status === 'connected') {
     router.push(`/workspace/${props.database.id}`)
+  }
+}
+
+async function handleDelete(e: Event) {
+  e.stopPropagation()
+  const lakebaseId = props.database.metadata?.lakebaseId
+  if (!lakebaseId) return
+  deleting.value = true
+  try {
+    const ok = await databaseStore.deleteDatasource(lakebaseId)
+    if (ok) {
+      message.success('Datasource deleted')
+    } else {
+      message.error('Failed to delete datasource')
+    }
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -128,7 +131,7 @@ function handleEnter() {
 
       <!-- Footer -->
       <div class="mt-auto flex items-center justify-between">
-        <div v-if="database.tags?.length" class="flex flex-wrap gap-1.5">
+        <div class="flex flex-wrap gap-1.5">
           <span 
             v-for="tag in database.tags" 
             :key="tag"
@@ -138,12 +141,25 @@ function handleEnter() {
           </span>
         </div>
         
-        <button 
-          v-if="database.status === 'connected'" 
-          class="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-primary-500 to-blue-600 text-white text-xs font-bold flex items-center gap-1.5 opacity-0 group-hover:opacity-100 shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all duration-300"
-        >
-          Open <div class="i-carbon-arrow-right" />
-        </button>
+        <div class="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <!-- Delete button -->
+          <button 
+            :disabled="deleting"
+            class="px-3 py-2 rounded-lg bg-gradient-to-r from-red-400 to-rose-500 text-white text-xs font-bold flex items-center gap-1 shadow-md hover:shadow-lg transition-all"
+            @click="handleDelete"
+          >
+            <div v-if="deleting" class="i-carbon-renew animate-spin" />
+            <div v-else class="i-carbon-trash-can" />
+          </button>
+
+          <!-- Open button -->
+          <button 
+            v-if="database.status === 'connected'" 
+            class="px-4 py-2 rounded-lg bg-gradient-to-r from-primary-500 to-blue-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all"
+          >
+            Open <div class="i-carbon-arrow-right" />
+          </button>
+        </div>
       </div>
     </div>
   </div>

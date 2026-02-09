@@ -4,142 +4,123 @@ import { useRouter } from 'vue-router'
 import type { Database } from '@/types'
 
 const props = defineProps<{
-  databases: Database[]  // Spider 子库列表
+  databases: Database[]
 }>()
 
 const router = useRouter()
 
-// 计算汇总信息
-const totalTables = computed(() => 
+const totalTables = computed(() =>
   props.databases.reduce((sum, db) => sum + (db.tableCount || 0), 0)
 )
 
-const totalContext = computed(() => 
+const totalContext = computed(() =>
   props.databases.reduce((sum, db) => sum + (db.contextCount || 0), 0)
 )
 
-const isConnected = computed(() => 
+const isConnected = computed(() =>
   props.databases.some(db => db.status === 'connected')
 )
 
-// 场景列表
-const scenarios = computed(() => 
-  props.databases.map(db => ({
-    id: db.id,
-    name: getScenarioName(db.name),
-    icon: getScenarioIcon(db.name),
-    tag: getScenarioTag(db.name)
-  }))
+// Scenario definitions with descriptions
+const SCENARIO_META: Record<string, { name: string; icon: string; desc: string }> = {
+  tvshow:  { name: 'TV Show',    icon: '📺', desc: 'TV channels, series ratings and cartoon metadata' },
+  flight:  { name: 'Flight',     icon: '✈️', desc: 'Airlines, airports and flight route networks' },
+  wta:     { name: 'WTA Tennis', icon: '🎾', desc: 'Players, matches, rankings and tournament data' },
+}
+
+function matchScenarioKey(dbName: string): string {
+  const n = dbName.toLowerCase()
+  if (n.includes('tvshow') || n.includes('tv_show')) return 'tvshow'
+  if (n.includes('flight')) return 'flight'
+  if (n.includes('wta')) return 'wta'
+  return 'unknown'
+}
+
+const scenarios = computed(() =>
+  props.databases.map((db, idx) => {
+    const key = matchScenarioKey(db.name)
+    const meta = SCENARIO_META[key] || { name: db.name, icon: '📊', desc: '' }
+    return {
+      id: db.id,
+      index: idx + 1,
+      ...meta,
+      tables: db.tableCount || 0,
+      connected: db.status === 'connected',
+    }
+  })
 )
 
-function getScenarioName(dbName: string): string {
-  if (dbName.includes('tvshow') || dbName.includes('tv_show')) return 'TV Show'
-  if (dbName.includes('flight')) return 'Flight'
-  if (dbName.includes('wta')) return 'WTA Tennis'
-  return dbName
-}
-
-function getScenarioIcon(dbName: string): string {
-  if (dbName.includes('tvshow') || dbName.includes('tv_show')) return '📺'
-  if (dbName.includes('flight')) return '✈️'
-  if (dbName.includes('wta')) return '🎾'
-  return '📊'
-}
-
-function getScenarioTag(_dbName: string): string {
-  // 所有 Spider 库都是脏库场景，不做区分
-  return ''
-}
-
-function handleEnter() {
-  // 进入第一个已连接的 Spider 库
-  const connectedDb = props.databases.find(db => db.status === 'connected')
-  if (connectedDb) {
-    router.push(`/workspace/${connectedDb.id}`)
-  }
+function enterScenario(scenarioId: string) {
+  router.push(`/workspace/${scenarioId}`)
 }
 </script>
 
 <template>
-  <div 
-    class="spider-card group relative overflow-hidden rounded-2xl cursor-pointer bg-white/80 backdrop-blur-sm border border-white/60 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:shadow-gray-300/50 hover:-translate-y-1 hover:bg-white/95 transition-all duration-300"
+  <div
+    class="spider-card group relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/60 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:shadow-gray-300/50 transition-all duration-300"
     :class="{ 'opacity-60 grayscale': !isConnected }"
-    @click="handleEnter"
   >
-    <!-- Top accent bar - Spider themed gradient -->
+    <!-- Top accent bar -->
     <div class="h-1.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
-    
-    <!-- Content -->
+
     <div class="p-5 flex flex-col h-full">
       <!-- Header -->
-      <div class="flex items-center gap-3 mb-4">
-        <!-- Spider icon -->
+      <div class="flex items-center gap-3 mb-5">
         <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
           <span class="text-2xl">🕷️</span>
         </div>
-        
         <div class="flex-1 min-w-0">
-          <h3 class="font-bold text-base text-gray-800 leading-tight group-hover:text-violet-600 transition-colors">
-            Spider Dataset
-          </h3>
-          <p class="text-xs text-gray-500 mt-1">
-            Text-to-SQL Benchmark
-          </p>
+          <h3 class="font-bold text-base text-gray-800 leading-tight">Spider Dataset</h3>
+          <p class="text-xs text-gray-500 mt-0.5">Text-to-SQL Benchmark</p>
         </div>
-
-        <!-- Status indicator -->
-        <div 
+        <div
           class="w-3 h-3 rounded-full flex-shrink-0 ring-4"
-          :class="isConnected 
-            ? 'bg-green-500 ring-green-500/20 animate-pulse' 
+          :class="isConnected
+            ? 'bg-green-500 ring-green-500/20 animate-pulse'
             : 'bg-yellow-500 ring-yellow-500/20'"
         />
       </div>
 
-      <!-- Scenarios -->
-      <div class="mb-4">
-        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Databases</div>
-        <div class="flex flex-wrap gap-2">
-          <div 
-            v-for="scenario in scenarios" 
-            :key="scenario.id"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50/80 hover:bg-violet-50 transition-colors"
-          >
-            <span class="text-sm">{{ scenario.icon }}</span>
-            <span class="text-xs font-medium text-gray-700">{{ scenario.name }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats -->
-      <div class="flex gap-4 mb-4 p-3 rounded-xl bg-gradient-to-br from-violet-50 to-purple-50">
-        <div class="flex-1 text-center">
-          <div class="text-2xl font-extrabold text-gray-800">{{ totalTables }}</div>
-          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tables</div>
-        </div>
-        
-        <div class="w-px bg-gradient-to-b from-transparent via-violet-200 to-transparent" />
-        
-        <div class="flex-1 text-center">
-          <div class="text-2xl font-extrabold" :class="totalContext > 0 ? 'text-violet-600' : 'text-gray-300'">
-            {{ totalContext }}
-          </div>
-          <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Context</div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="mt-auto flex items-center justify-between">
-        <span class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-violet-100 text-violet-700">
-          {{ databases.length }} databases
-        </span>
-        
-        <button 
-          v-if="isConnected" 
-          class="px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-bold flex items-center gap-1.5 opacity-0 group-hover:opacity-100 shadow-lg shadow-violet-500/30 hover:shadow-xl transition-all duration-300"
+      <!-- Scenario list -->
+      <div class="flex-1 space-y-2 mb-4">
+        <div
+          v-for="s in scenarios"
+          :key="s.id"
+          class="scenario-row flex items-center gap-3 p-3 rounded-xl border border-transparent cursor-pointer transition-all duration-200"
+          :class="s.connected
+            ? 'hover:bg-violet-50 hover:border-violet-200 active:scale-[0.99]'
+            : 'opacity-50 cursor-not-allowed'"
+          @click="s.connected && enterScenario(s.id)"
         >
-          Explore <div class="i-carbon-arrow-right" />
-        </button>
+          <!-- Number badge -->
+          <div class="w-7 h-7 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-extrabold flex-shrink-0">
+            {{ s.index }}
+          </div>
+          <!-- Icon -->
+          <span class="text-lg flex-shrink-0">{{ s.icon }}</span>
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-gray-800">{{ s.name }}</span>
+              <span class="text-[10px] font-semibold text-gray-400">{{ s.tables }} tables</span>
+            </div>
+            <p class="text-xs text-gray-500 leading-snug mt-0.5 truncate">{{ s.desc }}</p>
+          </div>
+          <!-- Arrow -->
+          <div class="i-carbon-chevron-right text-gray-300 text-sm flex-shrink-0 group-hover/row:text-violet-400 transition-colors" />
+        </div>
+      </div>
+
+      <!-- Footer stats -->
+      <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+        <div class="flex items-center gap-4 text-xs font-semibold text-gray-500">
+          <span>{{ totalTables }} tables</span>
+          <span class="w-1 h-1 rounded-full bg-gray-300" />
+          <span :class="totalContext > 0 ? 'text-violet-600' : ''">{{ totalContext }} context</span>
+        </div>
+        <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-100 text-violet-600 uppercase tracking-wide">
+          {{ databases.length }} scenarios
+        </span>
       </div>
     </div>
   </div>

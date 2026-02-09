@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { 
   NModal, 
   NForm, 
@@ -27,7 +27,7 @@ const message = useMessage()
 const formRef = ref()
 const loading = ref(false)
 
-const formData = ref<DatabaseConfig>({
+const defaultForm = (): DatabaseConfig => ({
   name: '',
   type: 'mariadb',
   host: 'localhost',
@@ -37,6 +37,8 @@ const formData = ref<DatabaseConfig>({
   database: ''
 })
 
+const formData = ref<DatabaseConfig>(defaultForm())
+
 const typeOptions = [
   { label: 'MariaDB', value: 'mariadb' },
   { label: 'MySQL', value: 'mysql' },
@@ -44,12 +46,46 @@ const typeOptions = [
   { label: 'SQLite', value: 'sqlite' }
 ]
 
-const rules = {
-  name: { required: true, message: '请输入连接名称', trigger: 'blur' },
-  type: { required: true, message: '请选择数据库类型', trigger: 'change' },
-  host: { required: true, message: '请输入主机地址', trigger: 'blur' },
-  database: { required: true, message: '请输入数据库名', trigger: 'blur' }
+// Preset connections
+const presetOptions = [
+  { label: 'Custom (Manual)', value: 'custom' },
+  { label: 'Evolution Demo DB', value: 'lucid_evolution' }
+]
+
+const selectedPreset = ref('custom')
+
+function applyPreset(preset: string) {
+  if (preset === 'lucid_evolution') {
+    formData.value = {
+      name: 'lucid_evolution',
+      type: 'mariadb',
+      host: 'lucid-mariadb',
+      port: 3306,
+      username: 'root',
+      password: 'lucid_root_2024',
+      database: 'lucid_evolution'
+    }
+  } else {
+    formData.value = defaultForm()
+  }
 }
+
+const rules = {
+  name: { required: true, message: '请输入连接名称', trigger: ['blur', 'input'] },
+  type: { required: true, message: '请选择数据库类型', trigger: 'change' },
+  host: { required: true, message: '请输入主机地址', trigger: ['blur', 'input'] },
+  database: { required: true, message: '请输入数据库名', trigger: ['blur', 'input'] }
+}
+
+// Reset form when dialog opens
+watch(() => props.show, (val) => {
+  if (val) {
+    selectedPreset.value = 'custom'
+    formData.value = defaultForm()
+    // Clear validation on next tick
+    setTimeout(() => formRef.value?.restoreValidation(), 0)
+  }
+})
 
 function handleClose() {
   emit('update:show', false)
@@ -58,31 +94,16 @@ function handleClose() {
 async function handleSubmit() {
   try {
     await formRef.value?.validate()
-    loading.value = true
-    
-    emit('submit', { ...formData.value })
-    
-    // Reset form
-    formData.value = {
-      name: '',
-      type: 'mariadb',
-      host: 'localhost',
-      port: 3306,
-      username: '',
-      password: '',
-      database: ''
-    }
-    
-    handleClose()
   } catch (e) {
-    // Validation failed
-  } finally {
-    loading.value = false
+    return // Validation failed
   }
+  // Emit and let parent handle the async request.
+  // Parent will close the dialog via v-model:show when done.
+  loading.value = true
+  emit('submit', { ...formData.value })
 }
 
 function updatePort() {
-  // Set default port based on database type
   switch (formData.value.type) {
     case 'mariadb':
     case 'mysql':
@@ -114,6 +135,15 @@ function updatePort() {
       label-placement="left"
       label-width="100"
     >
+      <!-- Preset selector -->
+      <NFormItem label="快速选择" :show-feedback="false">
+        <NSelect
+          v-model:value="selectedPreset"
+          :options="presetOptions"
+          @update:value="applyPreset"
+        />
+      </NFormItem>
+
       <NFormItem label="连接名称" path="name">
         <NInput 
           v-model:value="formData.name" 

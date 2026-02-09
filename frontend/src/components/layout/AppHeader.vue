@@ -1,27 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NDropdown } from 'naive-ui'
+import { NButton } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useDatabaseStore } from '@/stores/database'
 
 const router = useRouter()
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
-const databaseStore = useDatabaseStore()
 
 // Computed
 const currentDatabase = computed(() => workspaceStore.currentDatabase)
 const isInWorkspace = computed(() => route.name?.toString().startsWith('Workspace'))
-
-const databaseOptions = computed(() => 
-  databaseStore.databases
-    .filter(db => db.status === 'connected')
-    .map(db => ({
-      label: db.displayName || db.name,
-      key: db.id
-    }))
-)
 
 // Methods
 function goHome() {
@@ -30,10 +19,6 @@ function goHome() {
 
 function goToDemo() {
   router.push('/demo')
-}
-
-function handleDatabaseSelect(key: string) {
-  router.push(`/workspace/${key}`)
 }
 </script>
 
@@ -58,25 +43,16 @@ function handleDatabaseSelect(key: string) {
       <!-- Divider -->
       <div class="h-6 w-px bg-gray-200" v-if="isInWorkspace && currentDatabase"></div>
 
-      <!-- Database indicator (when in workspace) -->
-      <template v-if="isInWorkspace && currentDatabase">
-        <NDropdown 
-          :options="databaseOptions" 
-          trigger="click"
-          @select="handleDatabaseSelect"
-        >
-          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors border border-transparent hover:border-gray-200">
-            <div 
-              class="w-2.5 h-2.5 rounded-full shadow-sm"
-              :class="currentDatabase.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
-            />
-            <span class="font-bold text-gray-700">
-              {{ currentDatabase.displayName || currentDatabase.name }}
-            </span>
-            <div class="i-carbon-chevron-down text-gray-400 text-xs stroke-2" />
-          </div>
-        </NDropdown>
-      </template>
+      <!-- Database indicator (read-only, switch via homepage) -->
+      <div v-if="isInWorkspace && currentDatabase" class="flex items-center gap-2 px-3 py-1.5">
+        <div 
+          class="w-2.5 h-2.5 rounded-full shadow-sm"
+          :class="currentDatabase.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
+        />
+        <span class="font-bold text-gray-700">
+          {{ currentDatabase.displayName || currentDatabase.name }}
+        </span>
+      </div>
     </div>
 
     <!-- Right: Actions -->

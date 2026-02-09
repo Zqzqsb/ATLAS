@@ -126,10 +126,11 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
     datasource_id INT NOT NULL,
     entity_type ENUM('table', 'column', 'term', 'query') NOT NULL,
     entity_id INT NOT NULL COMMENT 'ID in the corresponding rc_* table',
-    text_content TEXT NOT NULL COMMENT 'Text that was embedded',
+    entity_text TEXT NOT NULL COMMENT 'Text that was embedded',
     embedding VECTOR(2048) NOT NULL COMMENT 'Vector embedding',
-    model VARCHAR(100) DEFAULT 'doubao-embedding-large-text-250515',
+    embedding_model VARCHAR(100) DEFAULT 'doubao-embedding-large-text-250515',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
     INDEX idx_entity (entity_type, entity_id),
     VECTOR INDEX idx_embedding_hnsw (embedding) DISTANCE=COSINE

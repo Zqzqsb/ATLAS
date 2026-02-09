@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
+	"strings"
+
+	"lucid/config"
 	"lucid/interfaces"
 	"lucid/internal/lakebase"
-	"lucid/server/services"
+	"lucid/internal/react"
+	"lucid/internal/react/scenarios"
+	reacttools "lucid/internal/react/tools"
 )
 
 // ===========================================
@@ -221,7 +224,7 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 		}
 	}
 
-	// Build column details and collect contexts from descriptions
+	// Build column details and collect contexts from descriptions, sample_values, synonyms
 	columns := make([]map[string]interface{}, 0, len(columnInfos))
 	for _, c := range columnInfos {
 		desc := ""
@@ -258,6 +261,52 @@ func (h *Handler) GetLakebaseDatasource(c *gin.Context) {
 			})
 			contextID++
 		}
+
+		// Add sample_values as "example" context
+		if c.SampleValues.Valid && c.SampleValues.String != "" {
+			contextList = append(contextList, map[string]interface{}{
+				"id":           contextID,
+				"table_name":   c.TableName,
+				"column_name":  c.ColumnName,
+				"context_type": "example",
+				"content":      c.SampleValues.String,
+				"source":       c.Source,
+				"confidence":   c.Confidence,
+				"created_at":   c.UpdatedAt,
+			})
+			contextID++
+		}
+
+		// Add synonyms as "synonym" context
+		if c.Synonyms.Valid && c.Synonyms.String != "" {
+			contextList = append(contextList, map[string]interface{}{
+				"id":           contextID,
+				"table_name":   c.TableName,
+				"column_name":  c.ColumnName,
+				"context_type": "synonym",
+				"content":      c.Synonyms.String,
+				"source":       c.Source,
+				"confidence":   c.Confidence,
+				"created_at":   c.UpdatedAt,
+			})
+			contextID++
+		}
+	}
+
+	// Add business terms as "business_rule" context
+	termInfos, _ := h.lakebaseService.GetTermsByDatasource(ctx, id)
+	for _, t := range termInfos {
+		contextList = append(contextList, map[string]interface{}{
+			"id":           contextID,
+			"table_name":   "",
+			"column_name":  nil,
+			"context_type": "business_rule",
+			"content":      t.Term + ": " + t.Definition,
+			"source":       "llm",
+			"confidence":   0.80,
+			"created_at":   t.CreatedAt,
+		})
+		contextID++
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -694,7 +743,8 @@ type GenerateContextEvent struct {
 	Timestamp int64       `json:"timestamp"` // unix timestamp ms
 }
 
-// GenerateRichContextStream generates Rich Context with SSE progress streaming
+// GenerateRichContextStream generates Rich Context using a ReAct agent with SSE progress streaming.
+// The agent autonomously explores the database via execute_sql and writes context via set_rich_context.
 // POST /api/v1/lakebase/datasources/:id/generate-context/stream
 func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	// Validate services
@@ -719,32 +769,23 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	// Parse request
 	var req struct {
-		Concurrency   int  `json:"concurrency"`    // Number of parallel workers
 		Force         bool `json:"force"`          // Force regenerate even if exists
-		MinIterations int  `json:"min_iterations"` // Min exploration iterations per item
-		MaxIterations int  `json:"max_iterations"` // Max exploration iterations per item
+		MinIterations int  `json:"min_iterations"` // Min exploration iterations
+		MaxIterations int  `json:"max_iterations"` // Max exploration iterations
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		req.Concurrency = 3
 		req.Force = false
-		req.MinIterations = 1
-		req.MaxIterations = 3
-	}
-	if req.Concurrency < 1 {
-		req.Concurrency = 1
-	}
-	if req.Concurrency > 10 {
-		req.Concurrency = 10
+		req.MinIterations = 3
+		req.MaxIterations = 20
 	}
 	if req.MinIterations < 1 {
-		req.MinIterations = 1
+		req.MinIterations = 3
 	}
-	if req.MaxIterations <= req.MinIterations {
-		req.MaxIterations = req.MinIterations + 1
+	if req.MaxIterations < req.MinIterations {
+		req.MaxIterations = req.MinIterations * 3
 	}
-	// No upper limit on iterations - let users set as needed for large databases
 
-	// Resolve datasource ID
+	// Resolve datasource
 	idStr := c.Param("id")
 	ctx := c.Request.Context()
 
@@ -767,32 +808,32 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		}
 	}
 
-	// Try to get business database adapter for data quality checks
+	// Get business database adapter
 	var businessDB interfaces.DBAdapter
 	if h.dbService != nil && ds.Name != "" {
-		// Use datasource name to get the adapter (matches config.databases[].id)
 		if adp, adpErr := h.dbService.GetAdapter(ds.Name); adpErr == nil {
 			businessDB = adp
 		}
 	}
+	if businessDB == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Cannot connect to business database '%s'", ds.Name)})
+		return
+	}
 
-	// Get tables and columns
+	// Load schema from lakebase
 	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, dsID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tables: " + err.Error()})
 		return
 	}
-
 	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, dsID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get columns: " + err.Error()})
 		return
 	}
-
-	// Group columns by table
-	columnsByTable := make(map[string][]*lakebase.ColumnInfo)
-	for _, col := range columns {
-		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col)
+	relations, err := h.lakebaseService.GetRelationsByDatasource(ctx, dsID)
+	if err != nil {
+		relations = nil // non-fatal
 	}
 
 	// Set SSE headers
@@ -802,11 +843,10 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	// Event channel for thread-safe sending
+	// Event channel for thread-safe SSE sending
 	eventChan := make(chan GenerateContextEvent, 100)
 	done := make(chan struct{})
 
-	// Event sender goroutine
 	go func() {
 		for event := range eventChan {
 			event.Timestamp = time.Now().UnixMilli()
@@ -824,245 +864,63 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	startTime := time.Now()
 
-	// Phase 1: Coordinator - Discovery
+	// Phase 1: Announce start
 	sendEvent("agent_start", GenerateContextEvent{
-		Agent:   "coordinator",
-		Phase:   "discovery",
+		Agent:   "rc_gen",
+		Phase:   "init",
 		Status:  "running",
-		Message: "Starting table discovery...",
+		Message: fmt.Sprintf("Starting ReAct Rich Context generation for %s (%d tables, %d columns)", ds.Name, len(tables), len(columns)),
 	})
 
-	tableNames := make([]string, len(tables))
-	for i, t := range tables {
-		tableNames[i] = t.TableName
-	}
-
-	sendEvent("agent_step", GenerateContextEvent{
-		Agent:   "coordinator",
-		Phase:   "discovery",
-		Message: fmt.Sprintf("Found %d tables", len(tables)),
-		Data:    map[string]interface{}{"tables": tableNames, "total_columns": len(columns)},
-	})
-
-	sendEvent("agent_done", GenerateContextEvent{
-		Agent:   "coordinator",
-		Phase:   "discovery",
-		Status:  "success",
-		Message: "Discovery complete",
-	})
-
-	// Phase 2: Worker Agents - Process tables with concurrency control (Multi-phase ReAct Exploration)
-	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, req.Concurrency)
-
-	var mu sync.Mutex
-	tablesUpdated := 0
-	columnsUpdated := 0
-
-	for i, table := range tables {
-		wg.Add(1)
-		workerID := fmt.Sprintf("worker-%d", i+1)
-
-		go func(wID string, tbl *lakebase.TableInfo, cols []*lakebase.ColumnInfo) {
-			defer wg.Done()
-
-			// Acquire semaphore
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			// Start worker
-			sendEvent("agent_start", GenerateContextEvent{
-				Agent:   wID,
-				Table:   tbl.TableName,
-				Phase:   "schema",
-				Status:  "running",
-				Message: fmt.Sprintf("Analyzing %s...", tbl.TableName),
-			})
-
-			// Check if needs update
-			needsTableUpdate := req.Force || !tbl.Description.Valid || tbl.Description.String == ""
-
-			// Phase: Schema analysis
+	// Phase 2: Run ReAct agent
+	rcWriter := reacttools.NewLakebaseRCWriter(h.lakebaseService.GetRepository())
+	engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
+		DatasourceID:  dsID,
+		Tables:        tables,
+		Columns:       columns,
+		Relations:     relations,
+		MaxIterations: req.MaxIterations,
+		MinIterations: req.MinIterations,
+		Force:         req.Force,
+		StepCallback: func(step react.Step, eventType string) {
+			// Map ReAct steps to SSE events
 			sendEvent("agent_step", GenerateContextEvent{
-				Agent:   wID,
-				Table:   tbl.TableName,
-				Phase:   "schema",
-				Message: fmt.Sprintf("Found %d columns", len(cols)),
-				Data:    map[string]interface{}{"column_count": len(cols)},
+				Agent:   "rc_gen",
+				Phase:   eventType,
+				Message: step.Thought,
+				Data: map[string]interface{}{
+					"iteration":    step.Iteration,
+					"action":       step.Action,
+					"action_input": step.ActionInput,
+					"observation":  step.Observation,
+				},
 			})
+		},
+	})
 
-			// Phase: Multi-phase Rich Context Exploration using ContextWorker
-			if needsTableUpdate {
-				// Create ContextWorker for multi-phase exploration
-				worker := services.NewContextWorker(
-					wID,
-					tbl.TableName,
-					dsID,
-					model,
-					nil, // lakebaseRepo not needed for now
-					businessDB,
-					services.WorkerConfig{
-						MinIterations: req.MinIterations,
-						MaxIterations: req.MaxIterations,
-						Force:         req.Force,
-					},
-					func(event services.WorkerEvent) {
-						// Forward worker events to SSE stream
-						sendEvent("agent_step", GenerateContextEvent{
-							Agent:   wID,
-							Table:   tbl.TableName,
-							Phase:   event.Phase,
-							Message: event.Message,
-							Data: map[string]interface{}{
-								"worker_event_type": event.Type,
-								"sql":               event.SQL,
-								"result":            event.Result,
-								"context_key":       event.ContextKey,
-								"context_value":     event.ContextValue,
-								"extra":             event.Data,
-							},
-						})
-					},
-				)
+	engine := react.New(model, engineCfg)
+	result, execErr := engine.Execute(ctx, "")
 
-				// Execute multi-phase exploration
-				description, workerErr := worker.Execute(ctx, cols)
-				if workerErr != nil {
-					sendEvent("agent_step", GenerateContextEvent{
-						Agent:   wID,
-						Table:   tbl.TableName,
-						Phase:   "rich_context",
-						Status:  "error",
-						Message: fmt.Sprintf("Worker error: %v", workerErr),
-					})
-				} else if description != "" {
-					// Send LLM response for transparency
-					sendEvent("agent_step", GenerateContextEvent{
-						Agent:   wID,
-						Table:   tbl.TableName,
-						Phase:   "rich_context",
-						Status:  "success",
-						Message: "Multi-phase analysis complete",
-						Data: map[string]interface{}{
-							"llm_response": description,
-						},
-					})
-
-					// Save to database
-					sendEvent("agent_step", GenerateContextEvent{
-						Agent:   wID,
-						Table:   tbl.TableName,
-						Phase:   "storage",
-						Message: "Saving to rc_tables...",
-					})
-
-					err = h.lakebaseService.UpdateTableDescription(ctx, dsID, tbl.TableName, description, "llm", 0.85)
-					if err == nil {
-						mu.Lock()
-						tablesUpdated++
-						mu.Unlock()
-
-						sendEvent("storage", GenerateContextEvent{
-							Agent:   wID,
-							Table:   tbl.TableName,
-							Phase:   "storage",
-							Status:  "success",
-							Message: fmt.Sprintf("Saved table: %s", tbl.TableName),
-							Data:    map[string]interface{}{"target": "rc_tables", "description": description},
-						})
-					}
-				}
-			} else {
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   wID,
-					Table:   tbl.TableName,
-					Phase:   "rich_context",
-					Message: "Already has description, skipping",
-				})
-			}
-
-			// Process columns (still uses direct LLM for simplicity)
-			for _, col := range cols {
-				needsColUpdate := req.Force || !col.Description.Valid || col.Description.String == ""
-				if !needsColUpdate {
-					continue
-				}
-
-				// Determine column role
-				colRole := "regular column"
-				if col.IsPrimaryKey {
-					colRole = "primary key"
-				} else if col.IsForeignKey {
-					colRole = "foreign key"
-				}
-
-				// Build sample values hint if available
-				sampleHint := ""
-				if col.SampleValues.Valid && col.SampleValues.String != "" {
-					sampleHint = fmt.Sprintf("\nSample Values: %s", col.SampleValues.String)
-				}
-
-				// Enhanced prompt with rich context exploration
-				prompt := fmt.Sprintf(`Analyze this database column and generate a description.
-
-## Column: %s.%s
-## Data Type: %s
-## Role: %s%s
-
-## Your Task:
-Generate a 1-sentence description that captures:
-1. **Semantic Meaning**: What does this column represent in business terms?
-2. **Data Characteristics**: Any notable patterns, constraints, or quality considerations
-
-## Rich Context Dimensions (what we look for):
-- For TEXT columns: potential whitespace issues, type mismatches (storing numbers as text)
-- For FK columns: relationship semantics, potential orphan records
-- For enum-like columns: value distribution and meanings
-- For numeric columns: units, ranges, NULL semantics
-
-Output ONLY the description text.`,
-					tbl.TableName, col.ColumnName,
-					col.DataType.String, colRole, sampleHint)
-
-				response, err := llms.GenerateFromSinglePrompt(ctx, model, prompt)
-				if err != nil {
-					continue
-				}
-
-				description := strings.TrimSpace(response)
-				if description != "" {
-					err = h.lakebaseService.UpdateColumnDescription(ctx, dsID, tbl.TableName, col.ColumnName, description, "llm", 0.85)
-					if err == nil {
-						mu.Lock()
-						columnsUpdated++
-						mu.Unlock()
-
-						sendEvent("storage", GenerateContextEvent{
-							Agent:   wID,
-							Table:   tbl.TableName,
-							Phase:   "storage",
-							Status:  "success",
-							Message: fmt.Sprintf("Saved column: %s.%s", tbl.TableName, col.ColumnName),
-							Data:    map[string]interface{}{"target": "rc_columns", "column": col.ColumnName, "description": description},
-						})
-					}
-				}
-			}
-
-			// Worker done
-			sendEvent("agent_done", GenerateContextEvent{
-				Agent:   wID,
-				Table:   tbl.TableName,
-				Status:  "success",
-				Message: fmt.Sprintf("Completed %s", tbl.TableName),
-			})
-		}(workerID, table, columnsByTable[table.TableName])
+	if execErr != nil {
+		sendEvent("agent_done", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Status:  "error",
+			Message: fmt.Sprintf("ReAct agent error: %v", execErr),
+		})
+	} else {
+		sendEvent("agent_done", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Status:  "success",
+			Message: fmt.Sprintf("ReAct agent completed in %d iterations (%.1fs)", result.Iterations, result.Duration.Seconds()),
+			Data: map[string]interface{}{
+				"iterations": result.Iterations,
+				"duration":   result.Duration.Seconds(),
+				"output":     result.Output,
+			},
+		})
 	}
 
-	// Wait for all workers
-	wg.Wait()
-
-	// Phase 3: Generate embeddings for all context (one-stop pipeline)
+	// Phase 3: Generate embeddings
 	sendEvent("agent_start", GenerateContextEvent{
 		Agent:   "embedding",
 		Phase:   "embedding",
@@ -1081,23 +939,16 @@ Output ONLY the description text.`,
 		})
 	} else if embResult != nil {
 		embeddingsGenerated = embResult.TotalEmbeddings
-		sendEvent("storage", GenerateContextEvent{
-			Agent:   "embedding",
-			Phase:   "embedding",
-			Status:  "success",
-			Message: fmt.Sprintf("Saved %d embeddings to rc_embeddings", embeddingsGenerated),
-			Data: map[string]interface{}{
-				"tables_embedded":   embResult.TablesProcessed,
-				"columns_embedded":  embResult.ColumnsProcessed,
-				"contexts_embedded": embResult.ContextsProcessed,
-				"total_embeddings":  embeddingsGenerated,
-			},
-		})
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "embedding",
 			Phase:   "embedding",
 			Status:  "success",
-			Message: "Embeddings generated successfully",
+			Message: fmt.Sprintf("Generated %d embeddings", embeddingsGenerated),
+			Data: map[string]interface{}{
+				"tables_embedded":  embResult.TablesProcessed,
+				"columns_embedded": embResult.ColumnsProcessed,
+				"total_embeddings": embeddingsGenerated,
+			},
 		})
 	}
 
@@ -1107,16 +958,21 @@ Output ONLY the description text.`,
 		Status:  "success",
 		Message: "Generation complete",
 		Data: map[string]interface{}{
-			"tables_updated":       tablesUpdated,
-			"columns_updated":      columnsUpdated,
 			"total_tables":         len(tables),
 			"total_columns":        len(columns),
+			"react_iterations":     0,
 			"embeddings_generated": embeddingsGenerated,
 			"duration_ms":          duration.Milliseconds(),
 		},
 	})
+	if result != nil {
+		// Update with actual iterations
+		sendEvent("complete", GenerateContextEvent{
+			Status: "success",
+			Data:   map[string]interface{}{"react_iterations": result.Iterations},
+		})
+	}
 
-	// Close event channel and wait for sender to finish
 	close(eventChan)
 	<-done
 }
@@ -1167,6 +1023,117 @@ func (h *Handler) PruneContext(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,
 		"message":    fmt.Sprintf("All rich context pruned for datasource '%s'", ds.Name),
+		"datasource": ds.Name,
+	})
+}
+
+// ===========================================
+// Schema Sync API
+// ===========================================
+
+// SyncSchema discovers schema from the target business database and upserts into rc_tables/rc_columns/rc_relations
+// POST /api/v1/lakebase/datasources/:id/sync-schema
+func (h *Handler) SyncSchema(c *gin.Context) {
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Lake-base service not available",
+		})
+		return
+	}
+
+	dsID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid datasource ID"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+
+	// Get datasource to find its name (used as adapter key)
+	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found"})
+		return
+	}
+
+	// Get adapter for the target database
+	adapter, err := h.dbService.GetAdapter(ds.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Cannot connect to database '%s': %v. Make sure the connection is configured.", ds.Name, err),
+		})
+		return
+	}
+
+	result, err := h.lakebaseService.SyncSchema(ctx, dsID, adapter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Schema sync failed: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"datasource": ds.Name,
+		"tables":     result.TablesCount,
+		"columns":    result.ColumnsCount,
+		"relations":  result.RelationsCount,
+	})
+}
+
+// ===========================================
+// Delete Datasource API
+// ===========================================
+
+// DeleteDatasource removes a datasource and all its associated RC data
+// DELETE /api/v1/lakebase/datasources/:id
+func (h *Handler) DeleteDatasource(c *gin.Context) {
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Lake-base service not available",
+		})
+		return
+	}
+
+	dsID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid datasource ID"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	ds, err := h.lakebaseService.GetDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Datasource not found"})
+		return
+	}
+
+	// Delete the datasource record (CASCADE will remove all associated rc_* data)
+	if err := h.lakebaseService.DeleteDatasource(ctx, dsID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to delete datasource: %v", err),
+		})
+		return
+	}
+
+	// Also remove from in-memory connection config so it can be re-added
+	connID := ds.Name
+	h.dbService.CloseAdapter(connID)
+	newDatabases := make([]config.DatabaseConfig, 0, len(h.config.Databases))
+	for _, db := range h.config.Databases {
+		if db.ID != connID {
+			newDatabases = append(newDatabases, db)
+		}
+	}
+	h.config.Databases = newDatabases
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    fmt.Sprintf("Datasource '%s' and all associated data deleted", ds.Name),
 		"datasource": ds.Name,
 	})
 }

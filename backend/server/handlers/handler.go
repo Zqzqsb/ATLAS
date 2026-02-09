@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"lucid/internal/agent"
 	"lucid/internal/config"
 	"lucid/internal/grounding"
 	"lucid/server/services"
@@ -18,6 +19,9 @@ type Handler struct {
 	inferenceService *services.InferenceService
 	lakebaseService  *services.LakebaseService
 	groundingService *grounding.Service
+	groundingReady   bool // true when grounding routes are available
+	agentService     *agent.AgentService
+	evolutionService *agent.EvolutionService
 }
 
 // HandlerDependencies holds all dependencies needed to create handlers.
@@ -47,7 +51,25 @@ func New(deps *HandlerDependencies) (*Handler, error) {
 		inferenceService: deps.InferenceService,
 		lakebaseService:  deps.LakebaseService,
 		groundingService: deps.GroundingService,
+		groundingReady:   deps.GroundingService != nil,
 	}, nil
+}
+
+// InitEvolution sets up the agent and evolution services on the handler.
+// Call after the handler and lakebase service are ready.
+func (h *Handler) InitEvolution() {
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		return
+	}
+	pool := h.lakebaseService.GetPool()
+	repo := h.lakebaseService.GetRepository()
+	if pool == nil || repo == nil {
+		return
+	}
+	h.agentService = agent.NewAgentService(pool, nil)
+	if h.agentService != nil {
+		h.evolutionService = agent.NewEvolutionService(pool, repo, h.agentService)
+	}
 }
 
 // Close cleans up resources.

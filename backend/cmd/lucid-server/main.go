@@ -115,22 +115,18 @@ func main() {
 	// Initialize Semantic Grounding Service
 	// ========================================
 	var groundingService *grounding.Service
-	var groundingHandlers *handlers.GroundingHandlers
 	if lakebaseService != nil {
-		// Get vector repository from lakebase service
 		vectorRepo := lakebaseService.GetVectorRepository()
 		embedder := lakebaseService.GetEmbeddingProvider()
 
 		if vectorRepo != nil && embedder != nil {
-			// Create grounding service (works with or without LLM for coarse-only mode)
 			groundingService = grounding.NewService(&grounding.ServiceConfig{
-				DatasourceID: 1, // Default datasource, can be changed per request
+				DatasourceID: 1,
 				VectorRepo:   vectorRepo,
 				Embedder:     embedder,
-				LLMModel:     llmModel, // Can be nil for coarse-only mode
+				LLMModel:     llmModel,
 				Config:       grounding.DefaultGroundingConfig(),
 			})
-			groundingHandlers = handlers.NewGroundingHandlers(groundingService)
 			if llmModel != nil {
 				log.Println("✅ Semantic Grounding service initialized (full mode)")
 			} else {
@@ -138,22 +134,6 @@ func main() {
 			}
 		} else {
 			log.Println("⚠️  Semantic Grounding skipped: missing vector repo or embedder")
-		}
-	}
-
-	// ========================================
-	// Initialize Agent & Evolution Services
-	// ========================================
-	if lakebaseService != nil {
-		pool := lakebaseService.GetPool()
-		repo := lakebaseService.GetRepository()
-		if pool != nil && repo != nil {
-			handlers.InitAgentService(pool, nil)
-			agentSvc := handlers.GetAgentService()
-			if agentSvc != nil {
-				handlers.InitEvolutionService(pool, repo, agentSvc)
-				log.Println("✅ Agent & Evolution services initialized")
-			}
 		}
 	}
 
@@ -169,6 +149,9 @@ func main() {
 		log.Fatalf("Failed to initialize handlers: %v", err)
 	}
 
+	// Initialize Agent & Evolution services (depends on handler + lakebase)
+	h.InitEvolution()
+	log.Println("✅ Agent & Evolution services initialized")
 
 	// ========================================
 	// Create Gin router
@@ -247,8 +230,7 @@ func main() {
 		api.GET("/lakebase/datasources/:id/changelog", h.GetLakebaseChangeLogs)
 		api.POST("/lakebase/datasources/:id/sync-schema", h.SyncSchema)
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
-		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContext)
-		api.POST("/lakebase/datasources/:id/generate-context/stream", h.GenerateRichContextStream)
+		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContextStream)
 		api.DELETE("/lakebase/datasources/:id", h.DeleteDatasource)
 		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
 
@@ -260,14 +242,12 @@ func main() {
 		api.POST("/evolution/reset", h.ResetEvolution)
 		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
-		// Semantic Grounding routes
-		if groundingHandlers != nil {
-			api.POST("/grounding/ground", groundingHandlers.Ground)
-			api.GET("/grounding/stream", groundingHandlers.GroundStream)
-			api.GET("/grounding/config", groundingHandlers.GetConfig)
-			api.PUT("/grounding/config", groundingHandlers.UpdateConfig)
-			api.POST("/grounding/format", groundingHandlers.FormatPrompt)
-		}
+		// Semantic Grounding routes (each handler checks groundingService availability)
+		api.POST("/grounding/ground", h.Ground)
+		api.GET("/grounding/stream", h.GroundStream)
+		api.GET("/grounding/config", h.GetGroundingConfig)
+		api.PUT("/grounding/config", h.UpdateGroundingConfig)
+		api.POST("/grounding/format", h.FormatGroundingPrompt)
 	}
 
 	// Serve static frontend files from web-new/dist (production)

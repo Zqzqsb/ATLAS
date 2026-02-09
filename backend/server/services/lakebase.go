@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
@@ -794,87 +793,6 @@ func (s *LakebaseService) GetStats(ctx context.Context) (*LakebaseStats, error) 
 	row.Scan(&stats.ChangeLogsCount)
 
 	return stats, nil
-}
-
-// ===========================================
-// Helper Methods for Context Building
-// ===========================================
-
-// BuildRichContextContent creates JSON content for rich context from analysis results
-func BuildRichContextContent(contextType lakebase.ContextType, data map[string]interface{}) (json.RawMessage, error) {
-	return json.Marshal(data)
-}
-
-// CreateEnumContext creates an enum_meaning context entry
-func CreateEnumContext(dsID int64, tableName, columnName string, values map[string]string) *lakebase.BusinessContext {
-	content, _ := lakebase.NewEnumMeaningContent(values)
-	return &lakebase.BusinessContext{
-		DatasourceID: dsID,
-		TableName:    tableName,
-		ColumnName:   sql.NullString{String: columnName, Valid: true},
-		ContextType:  lakebase.ContextTypeEnumMeaning,
-		Content:      content,
-		Source:       lakebase.SourceLLM,
-		Confidence:   0.8,
-		Version:      1,
-		CreatedBy:    "system",
-		UpdatedBy:    "system",
-	}
-}
-
-// CreateSemanticContext creates a semantic context entry
-func CreateSemanticContext(dsID int64, tableName, columnName, description string, synonyms []string) *lakebase.BusinessContext {
-	content, _ := lakebase.NewSemanticContent(description, synonyms, nil)
-	colName := sql.NullString{}
-	if columnName != "" {
-		colName = sql.NullString{String: columnName, Valid: true}
-	}
-	return &lakebase.BusinessContext{
-		DatasourceID: dsID,
-		TableName:    tableName,
-		ColumnName:   colName,
-		ContextType:  lakebase.ContextTypeSemantic,
-		Content:      content,
-		Source:       lakebase.SourceLLM,
-		Confidence:   0.8,
-		Version:      1,
-		CreatedBy:    "system",
-		UpdatedBy:    "system",
-	}
-}
-
-// CreateBusinessRuleContext creates a business_rule context entry
-func CreateBusinessRuleContext(dsID int64, tableName string, rules []string) *lakebase.BusinessContext {
-	content, _ := lakebase.NewBusinessRuleContent(rules, nil)
-	return &lakebase.BusinessContext{
-		DatasourceID: dsID,
-		TableName:    tableName,
-		ColumnName:   sql.NullString{},
-		ContextType:  lakebase.ContextTypeBusinessRule,
-		Content:      content,
-		Source:       lakebase.SourceLLM,
-		Confidence:   0.8,
-		Version:      1,
-		CreatedBy:    "system",
-		UpdatedBy:    "system",
-	}
-}
-
-// CreateDataQualityContext creates a data_quality context entry
-func CreateDataQualityContext(dsID int64, tableName, columnName string, issues []string) *lakebase.BusinessContext {
-	content, _ := json.Marshal(lakebase.DataQualityContent{Anomalies: issues})
-	return &lakebase.BusinessContext{
-		DatasourceID: dsID,
-		TableName:    tableName,
-		ColumnName:   sql.NullString{String: columnName, Valid: columnName != ""},
-		ContextType:  lakebase.ContextTypeDataQuality,
-		Content:      content,
-		Source:       lakebase.SourceLLM,
-		Confidence:   0.9,
-		Version:      1,
-		CreatedBy:    "system",
-		UpdatedBy:    "system",
-	}
 }
 
 // ===========================================

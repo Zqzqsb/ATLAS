@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,41 +10,20 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"lucid/internal/agent"
-	"lucid/internal/lakebase"
 )
-
-var (
-	agentService     *agent.AgentService
-	evolutionService *agent.EvolutionService
-)
-
-// InitAgentService initializes the agent service singleton.
-func InitAgentService(pool *lakebase.ConnectionPool, agentCfg *agent.AgentConfig) {
-	agentService = agent.NewAgentService(pool, agentCfg)
-}
-
-// GetAgentService returns the agent service.
-func GetAgentService() *agent.AgentService {
-	return agentService
-}
-
-// InitEvolutionService initializes the evolution service.
-func InitEvolutionService(pool *lakebase.ConnectionPool, repo *lakebase.MySQLRepository, agentSvc *agent.AgentService) {
-	evolutionService = agent.NewEvolutionService(pool, repo, agentSvc)
-}
 
 // GetEvolutionStatus returns the current evolution demo state
 // GET /api/v1/evolution/status
 func (h *Handler) GetEvolutionStatus(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
 		return
 	}
 
-	status := evolutionService.GetStatus()
-	stages := evolutionService.GetStages()
+	status := h.evolutionService.GetStatus()
+	stages := h.evolutionService.GetStages()
 
 	// Enrich with stage details
 	stageDetails := make([]map[string]interface{}, len(stages))
@@ -76,7 +54,7 @@ func (h *Handler) GetEvolutionStatus(c *gin.Context) {
 // GetEvolutionStagePreview returns details about what a stage will do
 // GET /api/v1/evolution/stages/:stage_id
 func (h *Handler) GetEvolutionStagePreview(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
@@ -92,7 +70,7 @@ func (h *Handler) GetEvolutionStagePreview(c *gin.Context) {
 		return
 	}
 
-	stage, err := evolutionService.GetStagePreview(stageID)
+	stage, err := h.evolutionService.GetStagePreview(stageID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -106,7 +84,7 @@ func (h *Handler) GetEvolutionStagePreview(c *gin.Context) {
 // ExecuteEvolutionStage executes the next evolution stage (non-streaming)
 // POST /api/v1/evolution/execute-stage
 func (h *Handler) ExecuteEvolutionStage(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
@@ -127,7 +105,7 @@ func (h *Handler) ExecuteEvolutionStage(c *gin.Context) {
 	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
 	defer cancel()
 
-	execution, err := evolutionService.ExecuteStage(reqCtx, req.DatasourceID, req.Stage, nil)
+	execution, err := h.evolutionService.ExecuteStage(reqCtx, req.DatasourceID, req.Stage, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":     err.Error(),
@@ -154,7 +132,7 @@ func (h *Handler) ExecuteEvolutionStage(c *gin.Context) {
 // ExecuteEvolutionStageStream executes a stage with SSE event streaming
 // POST /api/v1/evolution/execute-stage/stream
 func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
@@ -197,7 +175,7 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 
 	go func() {
 		defer close(events)
-		execution, execErr = evolutionService.ExecuteStage(reqCtx, req.DatasourceID, req.Stage, events)
+		execution, execErr = h.evolutionService.ExecuteStage(reqCtx, req.DatasourceID, req.Stage, events)
 	}()
 
 	// Stream events
@@ -234,7 +212,7 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 // ResetEvolution resets the demo to initial state
 // POST /api/v1/evolution/reset
 func (h *Handler) ResetEvolution(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
@@ -254,7 +232,7 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 	defer cancel()
 
-	if err := evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
+	if err := h.evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Reset failed: " + err.Error(),
 		})
@@ -262,7 +240,7 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 	}
 
 	// Re-sync schema to lake-base
-	if err := evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
+	if err := h.evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
 		// Non-fatal: log warning
 		fmt.Printf("Warning: failed to sync schema after reset: %v\n", err)
 	}
@@ -277,7 +255,7 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 // ResetEvolutionStream resets with SSE streaming for frontend feedback
 // POST /api/v1/evolution/reset/stream
 func (h *Handler) ResetEvolutionStream(c *gin.Context) {
-	if evolutionService == nil {
+	if h.evolutionService == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "Evolution service not initialized",
 		})
@@ -322,7 +300,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	// Step 1: Reset database
 	sendStep("reset_db", "Dropping and recreating evolution database tables...")
 
-	if err := evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
+	if err := h.evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
 		sendSSEEvent(c.Writer, "error", map[string]string{
 			"error": "Reset failed: " + err.Error(),
 		})
@@ -333,7 +311,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 
 	// Step 2: Sync schema
 	sendStep("sync_schema", "Syncing schema to lake-base...")
-	if err := evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
+	if err := h.evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
 		sendStep("sync_schema_warn", "Schema sync warning: "+err.Error())
 	} else {
 		sendStep("sync_schema_done", "Schema synced to lake-base")
@@ -352,9 +330,3 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	flusher.Flush()
 }
 
-// sendSSEEventJSON sends an SSE event with proper JSON serialization
-func sendSSEEventJSON(w http.ResponseWriter, eventType string, data interface{}) {
-	jsonData, _ := json.Marshal(data)
-	fmt.Fprintf(w, "event: %s\n", eventType)
-	fmt.Fprintf(w, "data: %s\n\n", jsonData)
-}

@@ -13,14 +13,12 @@ import (
 )
 
 // FieldSuggester suggests output fields based on LLM analysis.
-// Previously lived in bridge/context_bridge.go as FieldSuggesterBridge.
 type FieldSuggester struct {
 	llmModel       llms.Model
 	adapterFactory interfaces.AdapterFactory
 	config         *config.Config
 }
 
-// NewFieldSuggester creates a field suggester.
 func NewFieldSuggester(llmModel llms.Model, factory interfaces.AdapterFactory, cfg *config.Config) *FieldSuggester {
 	return &FieldSuggester{
 		llmModel:       llmModel,
@@ -29,10 +27,10 @@ func NewFieldSuggester(llmModel llms.Model, factory interfaces.AdapterFactory, c
 	}
 }
 
-func (s *FieldSuggester) SuggestFields(c context.Context, req *interfaces.SuggestFieldsRequest) (*interfaces.SuggestFieldsResult, error) {
+func (s *FieldSuggester) SuggestFields(c context.Context, req *SuggestFieldsRequest) (*SuggestFieldsResult, error) {
 	if s.llmModel == nil {
-		return &interfaces.SuggestFieldsResult{
-			SuggestedFields: []interfaces.SuggestedField{},
+		return &SuggestFieldsResult{
+			SuggestedFields: []SuggestedField{},
 			AnalysisNote:    "LLM not available for field suggestion",
 		}, nil
 	}
@@ -43,7 +41,6 @@ func (s *FieldSuggester) SuggestFields(c context.Context, req *interfaces.Sugges
 	}
 
 	prompt := s.buildFieldSuggestionPrompt(req.Question, schema, req.Language)
-
 	response, err := s.llmModel.Call(c, prompt)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)
@@ -62,24 +59,15 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 		for _, db := range s.config.Databases {
 			if db.ID == dbID {
 				adapterCfg = &interfaces.DBConfig{
-					Type:     db.Type,
-					Host:     db.Host,
-					Port:     db.Port,
-					Database: database,
-					User:     db.User,
-					Password: db.Password,
-					FilePath: db.Path,
+					Type: db.Type, Host: db.Host, Port: db.Port,
+					Database: database, User: db.User, Password: db.Password, FilePath: db.Path,
 				}
 				break
 			}
 		}
 	}
-
 	if adapterCfg == nil {
-		adapterCfg = &interfaces.DBConfig{
-			Type:     "mariadb",
-			Database: database,
-		}
+		adapterCfg = &interfaces.DBConfig{Type: "mariadb", Database: database}
 	}
 
 	adp, err := s.adapterFactory(adapterCfg)
@@ -92,16 +80,13 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 		return "", fmt.Errorf("failed to connect: %w", err)
 	}
 
-	var schemaBuilder strings.Builder
-	schemaBuilder.WriteString("Database Schema:\n\n")
+	var sb strings.Builder
+	sb.WriteString("Database Schema:\n\n")
 
-	tablesQuery := `
-		SELECT TABLE_NAME 
-		FROM information_schema.TABLES 
-		WHERE TABLE_SCHEMA = DATABASE() 
-		AND TABLE_TYPE = 'BASE TABLE'
-	`
-	tablesResult, err := adp.ExecuteQuery(c, tablesQuery)
+	tablesResult, err := adp.ExecuteQuery(c, `
+		SELECT TABLE_NAME FROM information_schema.TABLES 
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+	`)
 	if err != nil {
 		return "", fmt.Errorf("failed to get tables: %w", err)
 	}
@@ -111,38 +96,32 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 		if !ok {
 			continue
 		}
+		sb.WriteString(fmt.Sprintf("Table: %s\n  Columns:\n", tableName))
 
-		schemaBuilder.WriteString(fmt.Sprintf("Table: %s\n", tableName))
-
-		columnsQuery := fmt.Sprintf(`
+		columnsResult, err := adp.ExecuteQuery(c, fmt.Sprintf(`
 			SELECT COLUMN_NAME, DATA_TYPE, COLUMN_COMMENT
 			FROM information_schema.COLUMNS 
-			WHERE TABLE_SCHEMA = DATABASE() 
-			AND TABLE_NAME = '%s'
+			WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '%s'
 			ORDER BY ORDINAL_POSITION
-		`, tableName)
-
-		columnsResult, err := adp.ExecuteQuery(c, columnsQuery)
+		`, tableName))
 		if err != nil {
 			continue
 		}
 
-		schemaBuilder.WriteString("  Columns:\n")
 		for _, colRow := range columnsResult.Rows {
 			colName, _ := colRow["COLUMN_NAME"].(string)
 			dataType, _ := colRow["DATA_TYPE"].(string)
 			comment, _ := colRow["COLUMN_COMMENT"].(string)
-
 			if comment != "" {
-				schemaBuilder.WriteString(fmt.Sprintf("    - %s (%s): %s\n", colName, dataType, comment))
+				sb.WriteString(fmt.Sprintf("    - %s (%s): %s\n", colName, dataType, comment))
 			} else {
-				schemaBuilder.WriteString(fmt.Sprintf("    - %s (%s)\n", colName, dataType))
+				sb.WriteString(fmt.Sprintf("    - %s (%s)\n", colName, dataType))
 			}
 		}
-		schemaBuilder.WriteString("\n")
+		sb.WriteString("\n")
 	}
 
-	return schemaBuilder.String(), nil
+	return sb.String(), nil
 }
 
 func (s *FieldSuggester) buildFieldSuggestionPrompt(question, schema, language string) string {
@@ -150,38 +129,34 @@ func (s *FieldSuggester) buildFieldSuggestionPrompt(question, schema, language s
 	if language == "Chinese" || language == "zh" {
 		langNote = "Chinese"
 	}
-
 	return fmt.Sprintf(`You are a database expert. Analyze the user's question and the database schema to suggest which fields (columns) should appear in the SELECT statement output.
 
 User Question: %s
 
 %s
 
-Task: Based on the question, identify the most relevant output fields that the user would want to see in the query result.
+Task: Based on the question, identify the most relevant output fields.
 
 Instructions:
 1. Consider what information the user is asking for
 2. Include fields that directly answer the question
-3. Include helpful context fields (e.g., names, descriptions) that make results meaningful
+3. Include helpful context fields that make results meaningful
 4. Don't include internal IDs unless specifically requested
 5. Provide the response in %s
 
 Output Format (JSON):
 {
   "suggested_fields": [
-    {"table": "table_name", "column": "column_name", "reason": "why this field is relevant"},
-    ...
+    {"table": "table_name", "column": "column_name", "reason": "why this field is relevant"}
   ],
-  "analysis_note": "Brief explanation of the analysis"
+  "analysis_note": "Brief explanation"
 }
 
 Only output valid JSON, no other text.`, question, schema, langNote)
 }
 
-func (s *FieldSuggester) parseFieldSuggestionResponse(response string) *interfaces.SuggestFieldsResult {
-	result := &interfaces.SuggestFieldsResult{
-		SuggestedFields: []interfaces.SuggestedField{},
-	}
+func (s *FieldSuggester) parseFieldSuggestionResponse(response string) *SuggestFieldsResult {
+	result := &SuggestFieldsResult{SuggestedFields: []SuggestedField{}}
 
 	response = strings.TrimSpace(response)
 	startIdx := strings.Index(response, "{")
@@ -207,7 +182,7 @@ func (s *FieldSuggester) parseFieldSuggestionResponse(response string) *interfac
 	}
 
 	for _, field := range llmResp.SuggestedFields {
-		result.SuggestedFields = append(result.SuggestedFields, interfaces.SuggestedField{
+		result.SuggestedFields = append(result.SuggestedFields, SuggestedField{
 			Name:        fmt.Sprintf("%s.%s", field.Table, field.Column),
 			Description: field.Reason,
 			Selected:    true,

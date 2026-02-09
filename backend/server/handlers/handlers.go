@@ -14,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"lucid/config"
-	"lucid/interfaces"
 	"lucid/internal/grounding"
 	"lucid/internal/lakebase"
 	"lucid/server/services"
@@ -354,7 +353,7 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 
 	// Perform semantic grounding if enabled and service is available
 	var groundingInfo *GroundingInfo
-	var groundingResult *interfaces.GroundingResult
+	var groundingResult *services.GroundingResult
 	if req.Options.UseGrounding && h.groundingService != nil {
 		// Set datasource ID if lakebase service is available
 		if h.lakebaseService != nil {
@@ -480,17 +479,17 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 }
 
 // convertToInterfaceGrounding converts grounding result to interfaces format
-func convertToInterfaceGrounding(result *grounding.GroundingResult) *interfaces.GroundingResult {
+func convertToInterfaceGrounding(result *grounding.GroundingResult) *services.GroundingResult {
 	if result == nil || result.Context == nil {
 		return nil
 	}
 
-	gr := &interfaces.GroundingResult{
+	gr := &services.GroundingResult{
 		ExecutionTimeMs: result.TotalDuration.Milliseconds(),
 	}
 
 	for _, t := range result.Context.Tables {
-		gr.Tables = append(gr.Tables, interfaces.GroundedTable{
+		gr.Tables = append(gr.Tables, services.GroundedTable{
 			Name:       t.Name,
 			Reason:     t.Reason,
 			Confidence: float64(t.Relevance),
@@ -498,7 +497,7 @@ func convertToInterfaceGrounding(result *grounding.GroundingResult) *interfaces.
 	}
 
 	for _, col := range result.Context.Columns {
-		gr.Columns = append(gr.Columns, interfaces.GroundedColumn{
+		gr.Columns = append(gr.Columns, services.GroundedColumn{
 			TableName:  col.TableName,
 			ColumnName: col.ColumnName,
 			Reason:     col.Reason,
@@ -507,7 +506,7 @@ func convertToInterfaceGrounding(result *grounding.GroundingResult) *interfaces.
 	}
 
 	for _, rel := range result.Context.Relationships {
-		gr.JoinPaths = append(gr.JoinPaths, interfaces.JoinPath{
+		gr.JoinPaths = append(gr.JoinPaths, services.JoinPath{
 			FromTable:  rel.FromTable,
 			FromColumn: rel.FromColumn,
 			ToTable:    rel.ToTable,
@@ -520,7 +519,7 @@ func convertToInterfaceGrounding(result *grounding.GroundingResult) *interfaces.
 }
 
 // convertReactSteps converts service ReactSteps to handler ReactSteps
-func convertReactSteps(steps []services.ReactStep) []ReactStep {
+func convertReactSteps(steps []services.ReActStep) []ReactStep {
 	result := make([]ReactStep, len(steps))
 	for i, s := range steps {
 		result[i] = ReactStep{
@@ -570,7 +569,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 
 	// Perform semantic grounding if enabled and service is available
 	var groundingInfo *GroundingInfo
-	var groundingResult *interfaces.GroundingResult
+	var groundingResult *services.GroundingResult
 	if req.Options.UseGrounding && h.groundingService != nil {
 		// Send grounding_start event
 		sendSSEEvent(c.Writer, "grounding_start", map[string]string{
@@ -614,7 +613,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 	}
 
 	// Create event channel for streaming
-	events := make(chan interfaces.StreamEvent, 100)
+	events := make(chan services.StreamEvent, 100)
 
 	// Start streaming inference in goroutine
 	go func() {
@@ -639,9 +638,9 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 
 		if err != nil {
 			// Send error event
-			events <- interfaces.StreamEvent{
-				Type:      interfaces.EventError,
-				Data:      interfaces.ErrorEventData{Error: err.Error()},
+			events <- services.StreamEvent{
+				Type:      services.EventError,
+				Data:      services.ErrorEventData{Error: err.Error()},
 				Timestamp: time.Now().UnixMilli(),
 			}
 		}

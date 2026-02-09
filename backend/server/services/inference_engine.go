@@ -20,13 +20,12 @@ type LakebaseContextLoader interface {
 	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.ColumnInfo, error)
 }
 
-// InferenceEngine wraps internal/inference.Pipeline to implement interfaces.InferenceEngine.
-// Previously lived in bridge/inference_bridge.go.
+// InferenceEngine wraps internal/inference.Pipeline to implement InferenceEngineInterface.
 type InferenceEngine struct {
-	llm            llms.Model
-	currentModel   string
-	modelConfigs   map[string]interfaces.ModelInfo
-	lakebaseSvc    LakebaseContextLoader
+	llm          llms.Model
+	currentModel string
+	modelConfigs map[string]ModelInfo
+	lakebaseSvc  LakebaseContextLoader
 }
 
 // NewInferenceEngine creates a new inference engine.
@@ -34,7 +33,7 @@ func NewInferenceEngine(llm llms.Model) *InferenceEngine {
 	return &InferenceEngine{
 		llm:          llm,
 		currentModel: "default",
-		modelConfigs: make(map[string]interfaces.ModelInfo),
+		modelConfigs: make(map[string]ModelInfo),
 	}
 }
 
@@ -49,7 +48,7 @@ func (e *InferenceEngine) SetLLM(llm llms.Model) {
 }
 
 // Execute runs inference using internal Pipeline.
-func (e *InferenceEngine) Execute(ctx context.Context, req *interfaces.InferenceRequest) (*interfaces.InferenceResult, error) {
+func (e *InferenceEngine) Execute(ctx context.Context, req *InferenceRequest) (*InferenceResult, error) {
 	if e.llm == nil {
 		return nil, fmt.Errorf("LLM not initialized")
 	}
@@ -82,7 +81,7 @@ func (e *InferenceEngine) Execute(ctx context.Context, req *interfaces.Inference
 }
 
 // ExecuteStream runs streaming inference.
-func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *interfaces.InferenceRequest, events chan<- interfaces.StreamEvent) error {
+func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *InferenceRequest, events chan<- StreamEvent) error {
 	if e.llm == nil {
 		return fmt.Errorf("LLM not initialized")
 	}
@@ -108,9 +107,9 @@ func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *interfaces.Inf
 	}
 
 	pipeline.SetStepCallback(func(step inference.ReActStep, eventType string) {
-		events <- interfaces.StreamEvent{
-			Type: interfaces.EventType(eventType),
-			Data: interfaces.ReActStep{
+		events <- StreamEvent{
+			Type: EventType(eventType),
+			Data: ReActStep{
 				Step:        step.Step,
 				Thought:     step.Thought,
 				Action:      step.Action,
@@ -123,28 +122,27 @@ func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *interfaces.Inf
 
 	result, err := pipeline.Execute(ctx, req.Question)
 	if err != nil {
-		events <- interfaces.StreamEvent{
-			Type: interfaces.EventError,
-			Data: interfaces.ErrorEventData{Error: err.Error()},
+		events <- StreamEvent{
+			Type: EventError,
+			Data: ErrorEventData{Error: err.Error()},
 		}
 		return err
 	}
 
-	events <- interfaces.StreamEvent{
-		Type: interfaces.EventComplete,
+	events <- StreamEvent{
+		Type: EventComplete,
 		Data: e.convertResult(result),
 	}
 	return nil
 }
 
-// GetAvailableModels returns configured models.
-func (e *InferenceEngine) GetAvailableModels() []interfaces.ModelInfo {
-	models := make([]interfaces.ModelInfo, 0, len(e.modelConfigs))
+func (e *InferenceEngine) GetAvailableModels() []ModelInfo {
+	models := make([]ModelInfo, 0, len(e.modelConfigs))
 	for _, m := range e.modelConfigs {
 		models = append(models, m)
 	}
 	if len(models) == 0 {
-		return []interfaces.ModelInfo{
+		return []ModelInfo{
 			{ID: "default", Name: "Default Model", Provider: "unknown", IsDefault: true},
 		}
 	}
@@ -169,21 +167,14 @@ func (e *InferenceEngine) GetLLMModelInterface() interface{} {
 	return e.llm
 }
 
-func (e *InferenceEngine) SetModelConfigs(configs map[string]interfaces.ModelInfo) {
-	e.modelConfigs = configs
-}
-
 // --- Internal helpers ---
 
 func (e *InferenceEngine) createAdapter(databaseID string) (interfaces.DBAdapter, error) {
-	// Look up from global database service — the caller passes databaseID
-	// which maps to a config.Databases entry. We create a fresh adapter each time.
 	svc := GetGlobalDatabaseService()
 	if svc == nil {
 		return nil, fmt.Errorf("database service not available")
 	}
 
-	// Find config
 	var dbCfg *interfaces.DBConfig
 	for _, db := range svc.config.Databases {
 		if db.ID == databaseID {
@@ -202,11 +193,10 @@ func (e *InferenceEngine) createAdapter(databaseID string) (interfaces.DBAdapter
 	if dbCfg == nil {
 		return nil, fmt.Errorf("database config not found: %s", databaseID)
 	}
-
 	return adapter.NewAdapter(dbCfg)
 }
 
-func (e *InferenceEngine) buildConfig(req *interfaces.InferenceRequest, dbType string) *inference.Config {
+func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inference.Config {
 	config := &inference.Config{
 		UseRichContext:  req.UseRichContext,
 		UseReact:        req.UseReact,
@@ -235,12 +225,10 @@ func (e *InferenceEngine) loadContextFromLakebase(ctx context.Context, dbName st
 	if err != nil {
 		return nil
 	}
-
 	tables, err := e.lakebaseSvc.GetTablesByDatasource(ctx, ds.ID)
 	if err != nil {
 		return nil
 	}
-
 	columns, err := e.lakebaseSvc.GetColumnsByDatasource(ctx, ds.ID)
 	if err != nil {
 		return nil
@@ -297,10 +285,10 @@ func (e *InferenceEngine) loadContextFromLakebase(ctx context.Context, dbName st
 	return sharedCtx
 }
 
-func (e *InferenceEngine) convertResult(r *inference.Result) *interfaces.InferenceResult {
-	steps := make([]interfaces.ReActStep, len(r.ReActSteps))
+func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
+	steps := make([]ReActStep, len(r.ReActSteps))
 	for i, s := range r.ReActSteps {
-		steps[i] = interfaces.ReActStep{
+		steps[i] = ReActStep{
 			Step:        s.Step,
 			Thought:     s.Thought,
 			Action:      s.Action,
@@ -310,9 +298,9 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *interfaces.Inferen
 		}
 	}
 
-	result := &interfaces.InferenceResult{
+	result := &InferenceResult{
 		SQL: r.GeneratedSQL,
-		Metadata: interfaces.InferenceMetadata{
+		Metadata: InferenceMetadata{
 			SelectedTables: r.SelectedTables,
 			Iterations:     r.LLMCalls,
 			TotalTokens:    r.TotalTokens,
@@ -327,11 +315,10 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *interfaces.Inferen
 			result.ExecutionResult = qr
 		}
 	}
-
 	return result
 }
 
-// --- Global database service accessor (set during initialization) ---
+// --- Global database service accessor ---
 
 var globalDBService *DatabaseService
 

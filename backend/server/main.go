@@ -16,7 +16,6 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/config"
-	"lucid/interfaces"
 	"lucid/internal/adapter"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"
@@ -63,7 +62,7 @@ func main() {
 
 	// Create rich context provider and field suggester
 	richContextProvider := services.NewFileRichContextProvider()
-	var fieldSuggester interfaces.FieldSuggester
+	var fieldSuggester services.FieldSuggesterInterface
 	if llmModel != nil {
 		fieldSuggester = services.NewFieldSuggester(llmModel, adapter.NewAdapter, cfg)
 	}

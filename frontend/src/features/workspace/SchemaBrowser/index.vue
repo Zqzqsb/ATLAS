@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { NTree, NInput, NEmpty, NSpin, NTag, NScrollbar, NTabs, NTabPane } from 'naive-ui'
+import { NTree, NInput, NEmpty, NSpin, NTag } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import type { TableInfo, ColumnInfo } from '@/types'
 import mermaid from 'mermaid'
@@ -9,7 +9,7 @@ const workspaceStore = useWorkspaceStore()
 
 const searchKeyword = ref('')
 const selectedTable = ref<TableInfo | null>(null)
-const activePane = ref('tree')
+const rightView = ref<'table' | 'er'>('table')
 
 // Initialize mermaid
 mermaid.initialize({
@@ -30,28 +30,33 @@ const erDiagramCode = computed(() => {
   
   // Add tables with their columns
   for (const table of workspaceStore.schemaCache.tables) {
-    code += `    ${table.name} {\n`
-    for (const col of table.columns.slice(0, 8)) { // Limit columns for readability
+    // Sanitize table name for mermaid (no spaces/special chars)
+    const safeName = table.name.replace(/[^a-zA-Z0-9_]/g, '_')
+    code += `    ${safeName} {\n`
+    for (const col of table.columns) {
       const pkMark = col.isPrimaryKey ? 'PK' : col.isForeignKey ? 'FK' : ''
-      // Clean data type: remove parentheses, commas, and special chars for Mermaid compatibility
+      // Clean data type: remove parentheses, commas, quotes and special chars for Mermaid compatibility
       const colType = (col.type || 'VARCHAR')
-        .replace(/[(),]/g, '')  // Remove parentheses and commas
-        .replace(/\s+/g, '_')   // Replace spaces with underscore
-        .substring(0, 12)
-      code += `        ${colType} ${col.name}${pkMark ? ' ' + pkMark : ''}\n`
-    }
-    if (table.columns.length > 8) {
-      code += `        ... ${table.columns.length - 8}_more\n`
+        .replace(/[(),"']/g, '')  // Remove parens, commas, quotes
+        .replace(/\s+/g, '_')     // Replace spaces with underscore
+        .replace(/[^a-zA-Z0-9_]/g, '') // Remove any remaining special chars
+        .substring(0, 20) || 'unknown'
+      // Sanitize column name
+      const safeCol = col.name.replace(/[^a-zA-Z0-9_]/g, '_')
+      code += `        ${colType} ${safeCol}${pkMark ? ' ' + pkMark : ''}\n`
     }
     code += `    }\n`
   }
   
   // Add relationships
   for (const rel of workspaceStore.relations) {
+    const safeFrom = rel.fromTable.replace(/[^a-zA-Z0-9_]/g, '_')
+    const safeTo = rel.toTable.replace(/[^a-zA-Z0-9_]/g, '_')
+    const safeLabel = rel.fromColumn.replace(/"/g, '')
     const relSymbol = rel.relationType === 'many_to_one' ? '}o--||' : 
                       rel.relationType === 'one_to_many' ? '||--o{' :
                       rel.relationType === 'many_to_many' ? '}o--o{' : '||--||'
-    code += `    ${rel.fromTable} ${relSymbol} ${rel.toTable} : "${rel.fromColumn}"\n`
+    code += `    ${safeFrom} ${relSymbol} ${safeTo} : "${safeLabel}"\n`
   }
   
   return code
@@ -78,13 +83,13 @@ async function renderERDiagram() {
 }
 
 watch(erDiagramCode, () => {
-  if (activePane.value === 'er') {
+  if (rightView.value === 'er') {
     nextTick(renderERDiagram)
   }
 })
 
-watch(activePane, (pane) => {
-  if (pane === 'er' && !erDiagramSvg.value) {
+watch(rightView, (view) => {
+  if (view === 'er' && !erDiagramSvg.value) {
     nextTick(renderERDiagram)
   }
 })
@@ -175,40 +180,78 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         </NInput>
       </div>
 
-      <!-- Tabs: Tree / ER Diagram -->
-      <NTabs v-model:value="activePane" type="segment" size="small" class="px-4 pt-2">
-        <NTabPane name="tree" tab="Tables">
-          <div class="overflow-auto" style="height: calc(100vh - 240px);">
-            <NSpin v-if="workspaceStore.loadingSchema" class="mt-8" />
-            <NEmpty v-else-if="treeData.length === 0" description="No data" class="mt-8" />
-            <NTree
-              v-else
-              :data="treeData"
-              block-line
-              selectable
-              expand-on-click
-              @update:selected-keys="handleSelect"
-            />
-          </div>
-        </NTabPane>
-        <NTabPane name="er" tab="ER Diagram">
-          <div class="overflow-auto p-2" style="height: calc(100vh - 240px);">
-            <NSpin v-if="!erDiagramSvg && !erError" class="mt-8" />
-            <div v-else-if="erError" class="text-red-500 text-sm p-4 font-medium">
-              {{ erError }}
-            </div>
-            <div 
-              v-else 
-              class="er-diagram-container"
-              v-html="erDiagramSvg"
-            />
-          </div>
-        </NTabPane>
-      </NTabs>
+      <!-- Table list -->
+      <div class="overflow-auto flex-1">
+        <NSpin v-if="workspaceStore.loadingSchema" class="mt-8" />
+        <NEmpty v-else-if="treeData.length === 0" description="No data" class="mt-8" />
+        <NTree
+          v-else
+          :data="treeData"
+          block-line
+          selectable
+          expand-on-click
+          @update:selected-keys="handleSelect"
+        />
+      </div>
+
+      <!-- Bottom: ER Diagram toggle -->
+      <div class="border-t border-gray-200 p-3">
+        <button
+          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+          :class="rightView === 'er'
+            ? 'bg-primary-50 text-primary-700 border border-primary-200'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'"
+          @click="rightView = rightView === 'er' ? 'table' : 'er'"
+        >
+          <div class="i-carbon-diagram-reference" />
+          ER Diagram
+        </button>
+      </div>
     </div>
 
-    <!-- Right: Table detail -->
-    <div class="flex-1 p-8 overflow-auto bg-white">
+    <!-- Right: Main content area -->
+    <div class="flex-1 overflow-auto bg-white">
+      <!-- ER Diagram View -->
+      <div v-if="rightView === 'er'" class="h-full flex flex-col">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50/50">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+              <div class="i-carbon-diagram-reference text-lg text-primary-600" />
+            </div>
+            <h2 class="text-xl font-bold text-gray-900">Entity Relationship Diagram</h2>
+            <span class="text-sm text-gray-400">
+              {{ workspaceStore.schemaCache?.tables?.length || 0 }} tables · {{ workspaceStore.relations.length }} relations
+            </span>
+          </div>
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            @click="rightView = 'table'"
+          >
+            <div class="i-carbon-close" />
+            Close
+          </button>
+        </div>
+        <div class="flex-1 overflow-auto p-6">
+          <NSpin v-if="!erDiagramSvg && !erError" class="mt-12" />
+          <div v-else-if="erError" class="flex flex-col items-center justify-center h-full">
+            <div class="text-red-500 text-sm p-6 font-mono bg-red-50 rounded-lg border border-red-200 max-w-xl">
+              <div class="font-bold mb-2 flex items-center gap-2">
+                <div class="i-carbon-warning-alt" />
+                Diagram Parse Error
+              </div>
+              {{ erError }}
+            </div>
+          </div>
+          <div
+            v-else
+            class="er-diagram-container flex items-center justify-center min-h-full"
+            v-html="erDiagramSvg"
+          />
+        </div>
+      </div>
+
+      <!-- Table Detail View -->
+      <div v-else class="h-full p-8">
       <template v-if="selectedTable">
         <div class="mb-8 pb-6 border-b border-gray-100">
           <div class="flex items-center gap-3 mb-2">
@@ -320,6 +363,14 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <div class="i-carbon-data-table text-3xl opacity-50" />
         </div>
         <p class="font-medium">Select a table to view details</p>
+        <button
+          class="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors cursor-pointer"
+          @click="rightView = 'er'"
+        >
+          <div class="i-carbon-diagram-reference" />
+          View ER Diagram
+        </button>
+      </div>
       </div>
     </div>
   </div>

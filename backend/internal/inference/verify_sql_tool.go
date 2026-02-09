@@ -6,12 +6,12 @@ import (
 	"regexp"
 	"strings"
 
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // VerifySQLTool SQL 语法验证工具
 type VerifySQLTool struct {
-	adapter interfaces.DBAdapter
+	adapter adapter.DBAdapter
 	dbType  string
 }
 
@@ -137,9 +137,9 @@ func (t *VerifySQLTool) checkParentheses(sql string) error {
 }
 
 // NewVerifySQLTool 创建验证工具
-func NewVerifySQLTool(adapter interfaces.DBAdapter, dbType string) *VerifySQLTool {
+func NewVerifySQLTool(dbAdapter adapter.DBAdapter, dbType string) *VerifySQLTool {
 	return &VerifySQLTool{
-		adapter: adapter,
+		adapter: dbAdapter,
 		dbType:  dbType,
 	}
 }

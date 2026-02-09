@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 	"lucid/internal/lakebase"
 	"lucid/internal/react"
 	"lucid/internal/react/scenarios"
@@ -809,7 +809,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	}
 
 	// Get business database adapter
-	var businessDB interfaces.DBAdapter
+	var businessDB adapter.DBAdapter
 	if h.dbService != nil && ds.Name != "" {
 		if adp, adpErr := h.dbService.GetAdapter(ds.Name); adpErr == nil {
 			businessDB = adp

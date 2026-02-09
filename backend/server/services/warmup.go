@@ -10,7 +10,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // WarmupService handles pre-warming of various services for better first-request performance
@@ -18,7 +18,7 @@ type WarmupService struct {
 	config         *config.Config
 	llmModel       llms.Model
 	lakebaseService *LakebaseService
-	adapterFactory interfaces.AdapterFactory
+	adapterFactory adapter.AdapterFactory
 	
 	// Cache for warmed resources
 	schemaCache    map[string]interface{}
@@ -30,7 +30,7 @@ type WarmupService struct {
 }
 
 // NewWarmupService creates a new warmup service
-func NewWarmupService(cfg *config.Config, llm llms.Model, lakebase *LakebaseService, factory interfaces.AdapterFactory) *WarmupService {
+func NewWarmupService(cfg *config.Config, llm llms.Model, lakebase *LakebaseService, factory adapter.AdapterFactory) *WarmupService {
 	return &WarmupService{
 		config:          cfg,
 		llmModel:        llm,
@@ -146,7 +146,7 @@ func (s *WarmupService) warmupDatabaseConnections(ctx context.Context) error {
 
 	// Warmup configured databases
 	for _, dbCfg := range s.config.Databases {
-		cfg := &interfaces.DBConfig{
+		cfg := &adapter.DBConfig{
 			Type:     dbCfg.Type,
 			Host:     dbCfg.Host,
 			Port:     dbCfg.Port,

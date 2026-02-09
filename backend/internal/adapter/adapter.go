@@ -1,12 +1,55 @@
-// Package adapter provides concrete database adapter implementations.
-// All adapters implement interfaces.DBAdapter directly.
+// Package adapter provides the database adapter interface and concrete implementations.
+// This is the single source of truth for DBAdapter, DBConfig, QueryResult.
 package adapter
 
 import (
-	"lucid/interfaces"
+	"context"
 )
 
-// DatabaseType 数据库类型枚举
+// ============================================
+// Core types — used across internal/ and server/
+// ============================================
+
+// DBAdapter 数据库适配器接口
+type DBAdapter interface {
+	Connect(ctx context.Context) error
+	Close() error
+	ExecuteQuery(ctx context.Context, query string) (*QueryResult, error)
+	GetDatabaseType() string
+	GetDatabaseVersion(ctx context.Context) (string, error)
+	DryRunSQL(ctx context.Context, sql string) error
+}
+
+// DBConfig 数据库连接配置
+type DBConfig struct {
+	Type     string // "mysql", "mariadb", "postgresql", "sqlite"
+	Host     string
+	Port     int
+	Database string
+	User     string
+	Password string
+	FilePath string // SQLite 文件路径
+
+	MaxOpenConns int
+	MaxIdleConns int
+}
+
+// QueryResult 查询结果
+type QueryResult struct {
+	Columns       []string                 `json:"columns"`
+	Rows          []map[string]interface{} `json:"rows"`
+	RowCount      int                      `json:"row_count"`
+	ExecutionTime int64                    `json:"execution_time"`
+	Error         string                   `json:"error,omitempty"`
+}
+
+// AdapterFactory 适配器工厂函数类型
+type AdapterFactory func(config *DBConfig) (DBAdapter, error)
+
+// ============================================
+// DatabaseType enum
+// ============================================
+
 type DatabaseType string
 
 const (
@@ -15,8 +58,12 @@ const (
 	SQLite     DatabaseType = "sqlite"
 )
 
+// ============================================
+// Factory
+// ============================================
+
 // NewAdapter 工厂函数：根据配置创建对应的适配器
-func NewAdapter(config *interfaces.DBConfig) (interfaces.DBAdapter, error) {
+func NewAdapter(config *DBConfig) (DBAdapter, error) {
 	switch config.Type {
 	case "mysql", "mariadb":
 		return NewMySQLAdapter(&MySQLConfig{

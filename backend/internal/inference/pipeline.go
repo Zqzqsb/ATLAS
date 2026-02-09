@@ -11,7 +11,7 @@ import (
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 	contextpkg "lucid/internal/context"
 )
 
@@ -43,7 +43,7 @@ type StepCallback func(step ReActStep, eventType string)
 // Pipeline 推理管线
 type Pipeline struct {
 	llm          llms.Model
-	adapter      interfaces.DBAdapter
+	adapter      adapter.DBAdapter
 	config       *Config
 	context      *contextpkg.SharedContext
 	schemaLinker SchemaLinker
@@ -105,7 +105,7 @@ func (p *Pipeline) notifyStep(step ReActStep, eventType string) {
 }
 
 // NewPipeline 创建推理管线
-func NewPipeline(llm llms.Model, adapter interfaces.DBAdapter, config *Config) *Pipeline {
+func NewPipeline(llm llms.Model, dbAdapter adapter.DBAdapter, config *Config) *Pipeline {
 	// 初始化 tokenizer (使用 cl100k_base，适用于 GPT-3.5/GPT-4/DeepSeek)
 	tokenizer, err := tiktoken.GetEncoding("cl100k_base")
 	if err != nil {
@@ -114,11 +114,11 @@ func NewPipeline(llm llms.Model, adapter interfaces.DBAdapter, config *Config) *
 	}
 
 	// Schema Linking 使用 ReAct 模式（由 ReactLinking 配置控制）
-	linker := NewLLMSchemaLinker(llm, adapter, config.ReactLinking)
+	linker := NewLLMSchemaLinker(llm, dbAdapter, config.ReactLinking)
 
 	p := &Pipeline{
 		llm:          llm,
-		adapter:      adapter,
+		adapter:      dbAdapter,
 		config:       config,
 		schemaLinker: linker,
 		tokenizer:    tokenizer,

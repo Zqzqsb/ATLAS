@@ -7,8 +7,6 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-
-	"lucid/interfaces"
 )
 
 // MySQLAdapter MySQL适配器
@@ -66,12 +64,12 @@ func (a *MySQLAdapter) Close() error {
 }
 
 // ExecuteQuery 执行查询
-func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*interfaces.QueryResult, error) {
+func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryResult, error) {
 	start := time.Now()
 
 	rows, err := a.db.QueryContext(ctx, query)
 	if err != nil {
-		return &interfaces.QueryResult{
+		return &QueryResult{
 			Error:         err.Error(),
 			ExecutionTime: time.Since(start).Milliseconds(),
 		}, err
@@ -109,7 +107,7 @@ func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*interfa
 		return nil, err
 	}
 
-	return &interfaces.QueryResult{
+	return &QueryResult{
 		Columns:       columns,
 		Rows:          result,
 		RowCount:      len(result),

@@ -7,29 +7,29 @@ import (
 	"sync"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 	ctx "lucid/internal/context"
 )
 
 // DatabaseService manages multiple database connections
 type DatabaseService struct {
 	config         *config.Config
-	adapters       map[string]interfaces.DBAdapter
-	adapterFactory interfaces.AdapterFactory
+	adapters       map[string]adapter.DBAdapter
+	adapterFactory adapter.AdapterFactory
 	mu             sync.RWMutex
 }
 
 // NewDatabaseService creates a new database service
-func NewDatabaseService(cfg *config.Config, factory interfaces.AdapterFactory) *DatabaseService {
+func NewDatabaseService(cfg *config.Config, factory adapter.AdapterFactory) *DatabaseService {
 	return &DatabaseService{
 		config:         cfg,
-		adapters:       make(map[string]interfaces.DBAdapter),
+		adapters:       make(map[string]adapter.DBAdapter),
 		adapterFactory: factory,
 	}
 }
 
 // GetAdapter returns adapter for a specific database ID
-func (s *DatabaseService) GetAdapter(dbID string) (interfaces.DBAdapter, error) {
+func (s *DatabaseService) GetAdapter(dbID string) (adapter.DBAdapter, error) {
 	s.mu.RLock()
 	if a, ok := s.adapters[dbID]; ok {
 		s.mu.RUnlock()
@@ -42,7 +42,7 @@ func (s *DatabaseService) GetAdapter(dbID string) (interfaces.DBAdapter, error) 
 }
 
 // createAdapter creates a new database adapter
-func (s *DatabaseService) createAdapter(dbID string) (interfaces.DBAdapter, error) {
+func (s *DatabaseService) createAdapter(dbID string) (adapter.DBAdapter, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -65,7 +65,7 @@ func (s *DatabaseService) createAdapter(dbID string) (interfaces.DBAdapter, erro
 	}
 
 	// Create adapter using factory
-	adapterCfg := &interfaces.DBConfig{
+	adapterCfg := &adapter.DBConfig{
 		Type:     dbConfig.Type,
 		Host:     dbConfig.Host,
 		Port:     dbConfig.Port,
@@ -90,8 +90,8 @@ func (s *DatabaseService) createAdapter(dbID string) (interfaces.DBAdapter, erro
 }
 
 // CreateCustomAdapter creates an adapter from custom configuration (not stored in config)
-func (s *DatabaseService) CreateCustomAdapter(cfg *AdapterConfig) (interfaces.DBAdapter, error) {
-	dbConfig := &interfaces.DBConfig{
+func (s *DatabaseService) CreateCustomAdapter(cfg *AdapterConfig) (adapter.DBAdapter, error) {
+	dbConfig := &adapter.DBConfig{
 		Type:     cfg.Type,
 		Host:     cfg.Host,
 		Port:     cfg.Port,
@@ -135,7 +135,7 @@ func (s *DatabaseService) GetSchema(ctx context.Context, dbID string) (*SchemaIn
 }
 
 // getTables returns list of all tables in the database
-func (s *DatabaseService) getTables(ctx context.Context, adp interfaces.DBAdapter) ([]string, error) {
+func (s *DatabaseService) getTables(ctx context.Context, adp adapter.DBAdapter) ([]string, error) {
 	var query string
 	switch adp.GetDatabaseType() {
 	case "MySQL":
@@ -167,7 +167,7 @@ func (s *DatabaseService) getTables(ctx context.Context, adp interfaces.DBAdapte
 }
 
 // getTableSchema returns schema for a single table
-func (s *DatabaseService) getTableSchema(ctx context.Context, adp interfaces.DBAdapter, tableName string) (*TableSchema, error) {
+func (s *DatabaseService) getTableSchema(ctx context.Context, adp adapter.DBAdapter, tableName string) (*TableSchema, error) {
 	schema := &TableSchema{
 		Name:    tableName,
 		Columns: []ColumnInfo{},
@@ -235,7 +235,7 @@ func parseColumnInfo(row map[string]interface{}, dbType string) ColumnInfo {
 }
 
 // ExecuteSQL executes a SQL query
-func (s *DatabaseService) ExecuteSQL(ctx context.Context, dbID, sql string) (*interfaces.QueryResult, error) {
+func (s *DatabaseService) ExecuteSQL(ctx context.Context, dbID, sql string) (*adapter.QueryResult, error) {
 	adp, err := s.GetAdapter(dbID)
 	if err != nil {
 		return nil, err
@@ -252,7 +252,7 @@ func (s *DatabaseService) Close() {
 	for _, adp := range s.adapters {
 		adp.Close()
 	}
-	s.adapters = make(map[string]interfaces.DBAdapter)
+	s.adapters = make(map[string]adapter.DBAdapter)
 }
 
 // CloseAdapter closes a specific database adapter

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
 )
@@ -234,7 +234,7 @@ type SyncSchemaResult struct {
 
 // SyncSchema discovers schema from a target business database and upserts into rc_tables/rc_columns/rc_relations.
 // It connects to the target DB via the provided DBAdapter, reads information_schema, and writes to lakebase.
-func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB interfaces.DBAdapter) (*SyncSchemaResult, error) {
+func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB adapter.DBAdapter) (*SyncSchemaResult, error) {
 	if !s.connected {
 		return nil, fmt.Errorf("lakebase service: not connected")
 	}
@@ -371,7 +371,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB i
 // SyncAllSchemas iterates over all configured databases, ensures each has an rc_datasources record,
 // and syncs physical schema from information_schema into rc_tables/rc_columns/rc_relations.
 // Called once at startup. Connection management (config.Databases) is untouched.
-func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config.DatabaseConfig, adapterFactory func(string) (interfaces.DBAdapter, error)) {
+func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config.DatabaseConfig, adapterFactory func(string) (adapter.DBAdapter, error)) {
 	if !s.connected {
 		log.Println("[SyncAllSchemas] Lakebase not connected, skipping")
 		return

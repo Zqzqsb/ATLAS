@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // ExecuteSQL is a ReAct tool that lets the agent run read-only SQL on the business database.
 type ExecuteSQL struct {
-	adapter interfaces.DBAdapter
+	adapter adapter.DBAdapter
 	callCount int
 }
 
-func NewExecuteSQL(adapter interfaces.DBAdapter) *ExecuteSQL {
-	return &ExecuteSQL{adapter: adapter}
+func NewExecuteSQL(dbAdapter adapter.DBAdapter) *ExecuteSQL {
+	return &ExecuteSQL{adapter: dbAdapter}
 }
 
 func (t *ExecuteSQL) Name() string        { return "execute_sql" }

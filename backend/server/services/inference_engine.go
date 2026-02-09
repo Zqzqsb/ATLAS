@@ -6,7 +6,6 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/interfaces"
 	"lucid/internal/adapter"
 	contextpkg "lucid/internal/context"
 	"lucid/internal/inference"
@@ -169,16 +168,16 @@ func (e *InferenceEngine) GetLLMModelInterface() interface{} {
 
 // --- Internal helpers ---
 
-func (e *InferenceEngine) createAdapter(databaseID string) (interfaces.DBAdapter, error) {
+func (e *InferenceEngine) createAdapter(databaseID string) (adapter.DBAdapter, error) {
 	svc := GetGlobalDatabaseService()
 	if svc == nil {
 		return nil, fmt.Errorf("database service not available")
 	}
 
-	var dbCfg *interfaces.DBConfig
+	var dbCfg *adapter.DBConfig
 	for _, db := range svc.config.Databases {
 		if db.ID == databaseID {
-			dbCfg = &interfaces.DBConfig{
+			dbCfg = &adapter.DBConfig{
 				Type:     db.Type,
 				Host:     db.Host,
 				Port:     db.Port,
@@ -311,7 +310,7 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
 	}
 
 	if r.ExecutionResult != nil {
-		if qr, ok := r.ExecutionResult.(*interfaces.QueryResult); ok {
+		if qr, ok := r.ExecutionResult.(*adapter.QueryResult); ok {
 			result.ExecutionResult = qr
 		}
 	}

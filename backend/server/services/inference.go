@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // InferenceService handles Text2SQL inference.
@@ -106,7 +106,7 @@ type Text2SQLRequest struct {
 // Text2SQLResult represents the result of text2sql
 type Text2SQLResult struct {
 	SQL             string                 `json:"sql"`
-	ExecutionResult *interfaces.QueryResult `json:"execution_result,omitempty"`
+	ExecutionResult *adapter.QueryResult `json:"execution_result,omitempty"`
 	Metadata        Text2SQLMetadata       `json:"metadata"`
 }
 
@@ -428,7 +428,7 @@ func (s *InferenceService) TranslateTexts(ctx context.Context, texts []string, t
 // Spider Adapter Creation
 // ============================================
 
-func (s *InferenceService) CreateSpiderAdapter(dbID, database string) (interfaces.DBAdapter, error) {
+func (s *InferenceService) CreateSpiderAdapter(dbID, database string) (adapter.DBAdapter, error) {
 	var dbConfig *config.DatabaseConfig
 	for _, db := range s.config.Databases {
 		if db.ID == dbID {
@@ -440,18 +440,18 @@ func (s *InferenceService) CreateSpiderAdapter(dbID, database string) (interface
 		return nil, fmt.Errorf("database config not found: %s", dbID)
 	}
 
-	var adapterCfg *interfaces.DBConfig
+	var adapterCfg *adapter.DBConfig
 	switch dbConfig.Type {
 	case "sqlite":
 		dbPath := filepath.Join(dbConfig.Path, database, database+".sqlite")
-		adapterCfg = &interfaces.DBConfig{Type: "sqlite", FilePath: dbPath}
+		adapterCfg = &adapter.DBConfig{Type: "sqlite", FilePath: dbPath}
 	case "mysql":
-		adapterCfg = &interfaces.DBConfig{
+		adapterCfg = &adapter.DBConfig{
 			Type: "mysql", Host: dbConfig.Host, Port: dbConfig.Port,
 			Database: database, User: dbConfig.User, Password: dbConfig.Password,
 		}
 	case "postgres":
-		adapterCfg = &interfaces.DBConfig{
+		adapterCfg = &adapter.DBConfig{
 			Type: "postgresql", Host: dbConfig.Host, Port: dbConfig.Port,
 			Database: database, User: dbConfig.User, Password: dbConfig.Password,
 		}

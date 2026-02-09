@@ -9,17 +9,17 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/config"
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // FieldSuggester suggests output fields based on LLM analysis.
 type FieldSuggester struct {
 	llmModel       llms.Model
-	adapterFactory interfaces.AdapterFactory
+	adapterFactory adapter.AdapterFactory
 	config         *config.Config
 }
 
-func NewFieldSuggester(llmModel llms.Model, factory interfaces.AdapterFactory, cfg *config.Config) *FieldSuggester {
+func NewFieldSuggester(llmModel llms.Model, factory adapter.AdapterFactory, cfg *config.Config) *FieldSuggester {
 	return &FieldSuggester{
 		llmModel:       llmModel,
 		adapterFactory: factory,
@@ -54,11 +54,11 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 		return "", fmt.Errorf("adapter factory not available")
 	}
 
-	var adapterCfg *interfaces.DBConfig
+	var adapterCfg *adapter.DBConfig
 	if s.config != nil {
 		for _, db := range s.config.Databases {
 			if db.ID == dbID {
-				adapterCfg = &interfaces.DBConfig{
+				adapterCfg = &adapter.DBConfig{
 					Type: db.Type, Host: db.Host, Port: db.Port,
 					Database: database, User: db.User, Password: db.Password, FilePath: db.Path,
 				}
@@ -67,7 +67,7 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 		}
 	}
 	if adapterCfg == nil {
-		adapterCfg = &interfaces.DBConfig{Type: "mariadb", Database: database}
+		adapterCfg = &adapter.DBConfig{Type: "mariadb", Database: database}
 	}
 
 	adp, err := s.adapterFactory(adapterCfg)

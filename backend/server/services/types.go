@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 )
 
 // ============================================
@@ -37,7 +37,7 @@ type InferenceRequest struct {
 // InferenceResult 推理结果
 type InferenceResult struct {
 	SQL             string               `json:"sql"`
-	ExecutionResult *interfaces.QueryResult `json:"execution_result,omitempty"`
+	ExecutionResult *adapter.QueryResult `json:"execution_result,omitempty"`
 	Metadata        InferenceMetadata    `json:"metadata"`
 }
 

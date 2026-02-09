@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/interfaces"
+	"lucid/internal/adapter"
 	"lucid/internal/lakebase"
 	"lucid/internal/react"
 	reacttools "lucid/internal/react/tools"
@@ -29,7 +29,7 @@ type RCGenConfig struct {
 // The agent is given execute_sql + set_rich_context tools and told to explore the database
 // then write structured context for each table and column.
 func BuildRCGenEngine(
-	businessDB interfaces.DBAdapter,
+	businessDB adapter.DBAdapter,
 	rcWriter reacttools.RCWriter,
 	cfg RCGenConfig,
 ) *react.EngineConfig {

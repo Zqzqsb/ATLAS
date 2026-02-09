@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"lucid/config"
+	"lucid/interfaces"
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
 )
@@ -75,14 +77,9 @@ func (s *LakebaseService) Connect(ctx context.Context) error {
 			Dimension: s.config.Embedding.Dimension,
 		})
 		s.embeddingProvider = provider
+		log.Printf("[Lakebase] Embedding provider initialized: %s (dim=%d)", s.config.Embedding.Model, s.config.Embedding.Dimension)
 	} else {
-		// Use mock embedder for development/demo purposes
-		// This allows grounding to work without a real embedding API
-		dimension := s.config.Embedding.Dimension
-		if dimension <= 0 {
-			dimension = 768 // default dimension for mock
-		}
-		s.embeddingProvider = embedding.NewMockEmbeddingProvider(dimension)
+		log.Println("[Lakebase] ⚠️  Embedding provider not configured (no API key). Grounding will not work.")
 	}
 
 	s.connected = true
@@ -175,6 +172,14 @@ func (s *LakebaseService) GetDatasource(ctx context.Context, id int64) (*lakebas
 	return s.repo.GetDatasource(ctx, id)
 }
 
+// DeleteDatasource deletes a datasource record from rc_datasources
+func (s *LakebaseService) DeleteDatasource(ctx context.Context, id int64) error {
+	if !s.connected {
+		return fmt.Errorf("lakebase service: not connected")
+	}
+	return s.repo.DeleteDatasource(ctx, id)
+}
+
 // GetDatasourceByName retrieves a datasource by name
 func (s *LakebaseService) GetDatasourceByName(ctx context.Context, name string) (*lakebase.Datasource, error) {
 	if !s.connected {
@@ -220,12 +225,191 @@ func (s *LakebaseService) ListDatasources(ctx context.Context) ([]*lakebase.Data
 // Schema Operations
 // ===========================================
 
-// SaveSchemaMetadata saves schema metadata for a datasource
-func (s *LakebaseService) SaveSchemaMetadata(ctx context.Context, metas []*lakebase.SchemaMetadata) error {
+// SyncSchemaResult holds the result of a schema sync operation
+type SyncSchemaResult struct {
+	TablesCount   int `json:"tables_count"`
+	ColumnsCount  int `json:"columns_count"`
+	RelationsCount int `json:"relations_count"`
+}
+
+// SyncSchema discovers schema from a target business database and upserts into rc_tables/rc_columns/rc_relations.
+// It connects to the target DB via the provided DBAdapter, reads information_schema, and writes to lakebase.
+func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB interfaces.DBAdapter) (*SyncSchemaResult, error) {
 	if !s.connected {
-		return fmt.Errorf("lakebase service: not connected")
+		return nil, fmt.Errorf("lakebase service: not connected")
 	}
-	return s.repo.SaveSchemaMetadata(ctx, metas)
+
+	result := &SyncSchemaResult{}
+
+	// 1. Discover tables from information_schema
+	tablesResult, err := targetDB.ExecuteQuery(ctx, `
+		SELECT TABLE_NAME, TABLE_ROWS
+		FROM information_schema.TABLES
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+		ORDER BY TABLE_NAME
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("sync schema: failed to query tables: %w", err)
+	}
+
+	for _, row := range tablesResult.Rows {
+		tableName := ""
+		var rowCount int64
+		for k, v := range row {
+			switch k {
+			case "TABLE_NAME":
+				if s, ok := v.(string); ok {
+					tableName = s
+				}
+			case "TABLE_ROWS":
+				switch n := v.(type) {
+				case int64:
+					rowCount = n
+				case float64:
+					rowCount = int64(n)
+				}
+			}
+		}
+		if tableName == "" {
+			continue
+		}
+		if err := s.repo.UpsertTable(ctx, dsID, tableName, rowCount); err != nil {
+			log.Printf("[SyncSchema] Warning: failed to upsert table %s: %v", tableName, err)
+			continue
+		}
+		result.TablesCount++
+	}
+
+	// 2. Discover columns from information_schema
+	columnsResult, err := targetDB.ExecuteQuery(ctx, `
+		SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+		ORDER BY TABLE_NAME, ORDINAL_POSITION
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("sync schema: failed to query columns: %w", err)
+	}
+
+	for _, row := range columnsResult.Rows {
+		var tableName, colName, colType, nullable, colKey string
+		for k, v := range row {
+			if s, ok := v.(string); ok {
+				switch k {
+				case "TABLE_NAME":
+					tableName = s
+				case "COLUMN_NAME":
+					colName = s
+				case "COLUMN_TYPE":
+					colType = s
+				case "IS_NULLABLE":
+					nullable = s
+				case "COLUMN_KEY":
+					colKey = s
+				}
+			}
+		}
+		if tableName == "" || colName == "" {
+			continue
+		}
+		isPK := colKey == "PRI"
+		isFK := colKey == "MUL" // MUL typically indicates a foreign key index
+		isNullable := nullable == "YES"
+		if err := s.repo.UpsertColumn(ctx, dsID, tableName, colName, colType, isNullable, isPK, isFK); err != nil {
+			log.Printf("[SyncSchema] Warning: failed to upsert column %s.%s: %v", tableName, colName, err)
+			continue
+		}
+		result.ColumnsCount++
+	}
+
+	// 3. Discover foreign key relations from information_schema
+	fkResult, err := targetDB.ExecuteQuery(ctx, `
+		SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+		FROM information_schema.KEY_COLUMN_USAGE
+		WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL
+		ORDER BY TABLE_NAME, COLUMN_NAME
+	`)
+	if err != nil {
+		log.Printf("[SyncSchema] Warning: failed to query foreign keys: %v", err)
+	} else {
+		for _, row := range fkResult.Rows {
+			var fromTable, fromCol, toTable, toCol string
+			for k, v := range row {
+				if s, ok := v.(string); ok {
+					switch k {
+					case "TABLE_NAME":
+						fromTable = s
+					case "COLUMN_NAME":
+						fromCol = s
+					case "REFERENCED_TABLE_NAME":
+						toTable = s
+					case "REFERENCED_COLUMN_NAME":
+						toCol = s
+					}
+				}
+			}
+			if fromTable == "" || toTable == "" {
+				continue
+			}
+			if err := s.repo.UpsertRelation(ctx, dsID, fromTable, fromCol, toTable, toCol); err != nil {
+				log.Printf("[SyncSchema] Warning: failed to upsert relation %s.%s → %s.%s: %v", fromTable, fromCol, toTable, toCol, err)
+				continue
+			}
+			result.RelationsCount++
+		}
+	}
+
+	// Update last sync timestamp
+	_ = s.repo.UpdateDatasourceLastSync(ctx, dsID)
+
+	log.Printf("[SyncSchema] Completed for datasource %d: %d tables, %d columns, %d relations",
+		dsID, result.TablesCount, result.ColumnsCount, result.RelationsCount)
+
+	return result, nil
+}
+
+// SyncAllSchemas iterates over all configured databases, ensures each has an rc_datasources record,
+// and syncs physical schema from information_schema into rc_tables/rc_columns/rc_relations.
+// Called once at startup. Connection management (config.Databases) is untouched.
+func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config.DatabaseConfig, adapterFactory func(string) (interfaces.DBAdapter, error)) {
+	if !s.connected {
+		log.Println("[SyncAllSchemas] Lakebase not connected, skipping")
+		return
+	}
+
+	for _, dbCfg := range databases {
+		// 1. Get or create rc_datasources record
+		ds, err := s.GetOrCreateDatasource(ctx, &lakebase.Datasource{
+			Name:         dbCfg.ID,
+			DBType:       dbCfg.Type,
+			Host:         sql.NullString{String: dbCfg.Host, Valid: dbCfg.Host != ""},
+			Port:         sql.NullInt32{Int32: int32(dbCfg.Port), Valid: dbCfg.Port > 0},
+			Username:     sql.NullString{String: dbCfg.User, Valid: dbCfg.User != ""},
+			DatabaseName: sql.NullString{String: dbCfg.Database, Valid: dbCfg.Database != ""},
+			Status:       "active",
+		})
+		if err != nil {
+			log.Printf("[SyncAllSchemas] Failed to get/create datasource for %s: %v", dbCfg.ID, err)
+			continue
+		}
+
+		// 2. Connect to the target business database
+		adapter, err := adapterFactory(dbCfg.ID)
+		if err != nil {
+			log.Printf("[SyncAllSchemas] Failed to connect to %s: %v", dbCfg.ID, err)
+			continue
+		}
+
+		// 3. Sync physical schema
+		result, err := s.SyncSchema(ctx, ds.ID, adapter)
+		if err != nil {
+			log.Printf("[SyncAllSchemas] Failed to sync schema for %s: %v", dbCfg.ID, err)
+			continue
+		}
+
+		log.Printf("[SyncAllSchemas] ✅ %s: %d tables, %d columns, %d relations",
+			dbCfg.ID, result.TablesCount, result.ColumnsCount, result.RelationsCount)
+	}
 }
 
 // GetTablesByDatasource retrieves all tables from rc_tables
@@ -412,72 +596,50 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		DatasourceID: dsID,
 	}
 
-	var embeddings []*lakebase.Embedding
+	// Collect all texts and their metadata for batch embedding
+	type embItem struct {
+		entityType lakebase.EntityType
+		entityID   int64
+		text       string
+	}
+	var items []embItem
 
-	// 1. Generate embeddings for tables from rc_tables
+	// 1. Tables from rc_tables
 	tables, err := s.repo.GetTablesByDatasource(ctx, dsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tables: %w", err)
 	}
-
 	for _, table := range tables {
-		// Build embedding text from table description
 		var embText string
 		if table.Description.Valid && table.Description.String != "" {
 			embText = fmt.Sprintf("Table %s: %s", table.TableName, table.Description.String)
 		} else {
 			embText = fmt.Sprintf("Table %s", table.TableName)
 		}
-
-		tableVector, err := s.embeddingProvider.Embed(ctx, embText)
-		if err == nil {
-			embeddings = append(embeddings, &lakebase.Embedding{
-				DatasourceID:   dsID,
-				EntityType:     lakebase.EntityTypeTable,
-				EntityID:       table.ID,
-				EntityText:     embText,
-				Embedding:      tableVector,
-				EmbeddingModel: s.config.Embedding.Model,
-			})
-			result.TablesProcessed++
-		}
+		items = append(items, embItem{lakebase.EntityTypeTable, table.ID, embText})
+		result.TablesProcessed++
 	}
 
-	// 2. Generate embeddings for columns from rc_columns
+	// 2. Columns from rc_columns
 	columns, err := s.repo.GetColumnsByDatasource(ctx, dsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get columns: %w", err)
 	}
-
 	for _, col := range columns {
-		// Build embedding text from column info
 		var embText string
 		if col.Description.Valid && col.Description.String != "" {
 			embText = fmt.Sprintf("Column %s.%s (%s): %s", col.TableName, col.ColumnName, col.DataType.String, col.Description.String)
 		} else {
 			embText = fmt.Sprintf("Column %s.%s (%s)", col.TableName, col.ColumnName, col.DataType.String)
 		}
-
-		// Add sample values if available
 		if col.SampleValues.Valid && col.SampleValues.String != "" {
 			embText += fmt.Sprintf(". Sample values: %s", col.SampleValues.String)
 		}
-
-		colVector, err := s.embeddingProvider.Embed(ctx, embText)
-		if err == nil {
-			embeddings = append(embeddings, &lakebase.Embedding{
-				DatasourceID:   dsID,
-				EntityType:     lakebase.EntityTypeColumn,
-				EntityID:       col.ID,
-				EntityText:     embText,
-				Embedding:      colVector,
-				EmbeddingModel: s.config.Embedding.Model,
-			})
-			result.ColumnsProcessed++
-		}
+		items = append(items, embItem{lakebase.EntityTypeColumn, col.ID, embText})
+		result.ColumnsProcessed++
 	}
 
-	// 3. Generate embeddings for business terms from rc_terms
+	// 3. Terms from rc_terms
 	terms, err := s.repo.GetTermsByDatasource(ctx, dsID)
 	if err == nil {
 		for _, term := range terms {
@@ -485,82 +647,64 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 			if term.Synonyms.Valid && term.Synonyms.String != "" {
 				embText += fmt.Sprintf(". Synonyms: %s", term.Synonyms.String)
 			}
+			items = append(items, embItem{lakebase.EntityTypeTerm, term.ID, embText})
+			result.ContextsProcessed++
+		}
+	}
 
-			termVector, err := s.embeddingProvider.Embed(ctx, embText)
-			if err == nil {
-				embeddings = append(embeddings, &lakebase.Embedding{
-					DatasourceID:   dsID,
-					EntityType:     lakebase.EntityTypeTerm,
-					EntityID:       term.ID,
-					EntityText:     embText,
-					Embedding:      termVector,
-					EmbeddingModel: s.config.Embedding.Model,
-				})
-				result.ContextsProcessed++
+	if len(items) == 0 {
+		log.Printf("[Embedding] Warning: No entities to embed for datasource %d", dsID)
+		return result, nil
+	}
+
+	// Batch embed all texts
+	batchSize := s.config.Embedding.BatchSize
+	if batchSize <= 0 {
+		batchSize = 100
+	}
+
+	log.Printf("[Embedding] Embedding %d entities in batches of %d (tables: %d, columns: %d, terms: %d)",
+		len(items), batchSize, result.TablesProcessed, result.ColumnsProcessed, result.ContextsProcessed)
+
+	for i := 0; i < len(items); i += batchSize {
+		end := i + batchSize
+		if end > len(items) {
+			end = len(items)
+		}
+		batch := items[i:end]
+
+		// Collect texts for this batch
+		texts := make([]string, len(batch))
+		for j, item := range batch {
+			texts[j] = item.text
+		}
+
+		vectors, err := s.embeddingProvider.EmbedBatch(ctx, texts)
+		if err != nil {
+			log.Printf("[Embedding] Error in batch [%d:%d]: %v", i, end, err)
+			return nil, fmt.Errorf("embedding batch failed at offset %d: %w", i, err)
+		}
+
+		// Upsert each embedding individually (incremental update)
+		for j, vec := range vectors {
+			emb := &lakebase.Embedding{
+				DatasourceID:   dsID,
+				EntityType:     batch[j].entityType,
+				EntityID:       batch[j].entityID,
+				EntityText:     batch[j].text,
+				Embedding:      vec,
+				EmbeddingModel: s.config.Embedding.Model,
+			}
+			if err := s.vectorRepo.UpsertEmbedding(ctx, emb); err != nil {
+				log.Printf("[Embedding] Warning: failed to upsert embedding for %s/%d: %v",
+					batch[j].entityType, batch[j].entityID, err)
+			} else {
+				result.TotalEmbeddings++
 			}
 		}
 	}
 
-	// 4. Generate embeddings for business context from rc_business_context (if any)
-	businessContexts, err := s.repo.GetContextByDatasource(ctx, dsID)
-	if err == nil {
-		for _, bc := range businessContexts {
-			var contextText string
-			switch bc.ContextType {
-			case lakebase.ContextTypeSemantic:
-				var content lakebase.SemanticContent
-				if json.Unmarshal(bc.Content, &content) == nil {
-					contextText = content.Description
-				}
-			case lakebase.ContextTypeBusinessRule:
-				var content lakebase.BusinessRuleContent
-				if json.Unmarshal(bc.Content, &content) == nil {
-					contextText = fmt.Sprintf("Business rules: %v", content.Rules)
-				}
-			case lakebase.ContextTypeEnumMeaning:
-				var content lakebase.EnumMeaningContent
-				if json.Unmarshal(bc.Content, &content) == nil {
-					contextText = fmt.Sprintf("Enum values for %s.%s: %v", bc.TableName, bc.ColumnName.String, content.Values)
-				}
-			}
-
-			if contextText != "" {
-				bcVector, err := s.embeddingProvider.Embed(ctx, contextText)
-				if err == nil {
-					embeddings = append(embeddings, &lakebase.Embedding{
-						DatasourceID:   dsID,
-						EntityType:     lakebase.EntityTypeContext,
-						EntityID:       bc.ID,
-						EntityText:     contextText,
-						Embedding:      bcVector,
-						EmbeddingModel: s.config.Embedding.Model,
-					})
-					result.ContextsProcessed++
-				}
-			}
-		}
-	}
-
-	// Clear old embeddings and save new ones
-	log.Printf("[Embedding] Prepared %d embeddings (tables: %d, columns: %d, contexts: %d)",
-		len(embeddings), result.TablesProcessed, result.ColumnsProcessed, result.ContextsProcessed)
-
-	if len(embeddings) > 0 {
-		// Delete existing embeddings for this datasource first
-		if err := s.vectorRepo.DeleteEmbeddingsByDatasource(ctx, dsID); err != nil {
-			log.Printf("[Embedding] Warning: failed to delete old embeddings: %v", err)
-		}
-
-		if err := s.vectorRepo.SaveEmbeddingBatch(ctx, embeddings); err != nil {
-			log.Printf("[Embedding] Error: failed to save embeddings: %v", err)
-			return nil, fmt.Errorf("failed to save embeddings: %w", err)
-		}
-		result.TotalEmbeddings = len(embeddings)
-		log.Printf("[Embedding] Successfully saved %d embeddings for datasource %d", len(embeddings), dsID)
-	} else {
-		log.Printf("[Embedding] Warning: No embeddings to save for datasource %d", dsID)
-	}
-
+	log.Printf("[Embedding] Successfully upserted %d embeddings for datasource %d", result.TotalEmbeddings, dsID)
 	return result, nil
 }
 
@@ -599,106 +743,6 @@ func (s *LakebaseService) GetChangeLogsByDatasource(ctx context.Context, dsID in
 		return nil, fmt.Errorf("lakebase service: not connected")
 	}
 	return s.repo.GetChangeLogsByDatasource(ctx, dsID, limit)
-}
-
-// ===========================================
-// High-Level Onboarding Operations
-// ===========================================
-
-// OnboardingResult holds the result of an onboarding operation
-type OnboardingResult struct {
-	DatasourceID    int64  `json:"datasource_id"`
-	DatasourceName  string `json:"datasource_name"`
-	TablesCount     int    `json:"tables_count"`
-	ColumnsCount    int    `json:"columns_count"`
-	ContextCount    int    `json:"context_count"`
-	EmbeddingsCount int    `json:"embeddings_count"`
-}
-
-// SaveOnboardingData saves all onboarding data to lake-base storage
-func (s *LakebaseService) SaveOnboardingData(
-	ctx context.Context,
-	datasource *lakebase.Datasource,
-	schemas []*lakebase.SchemaMetadata,
-	contexts []*lakebase.BusinessContext,
-	embeddings []*lakebase.Embedding,
-) (*OnboardingResult, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-
-	result := &OnboardingResult{
-		DatasourceName: datasource.Name,
-	}
-
-	// 1. Get or create datasource
-	ds, err := s.GetOrCreateDatasource(ctx, datasource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create datasource: %w", err)
-	}
-	result.DatasourceID = ds.ID
-
-	// Update datasource_id in all related records
-	for _, schema := range schemas {
-		schema.DatasourceID = ds.ID
-	}
-	for _, bc := range contexts {
-		bc.DatasourceID = ds.ID
-	}
-	for _, emb := range embeddings {
-		emb.DatasourceID = ds.ID
-	}
-
-	// 2. Save schema metadata
-	if len(schemas) > 0 {
-		if err := s.repo.SaveSchemaMetadata(ctx, schemas); err != nil {
-			return nil, fmt.Errorf("failed to save schema metadata: %w", err)
-		}
-		result.ColumnsCount = len(schemas)
-		// Count unique tables
-		tableSet := make(map[string]bool)
-		for _, schema := range schemas {
-			tableSet[schema.TableName] = true
-		}
-		result.TablesCount = len(tableSet)
-	}
-
-	// 3. Save business context
-	if len(contexts) > 0 {
-		if err := s.repo.SaveBusinessContextBatch(ctx, contexts); err != nil {
-			return nil, fmt.Errorf("failed to save business context: %w", err)
-		}
-		result.ContextCount = len(contexts)
-	}
-
-	// 4. Save embeddings
-	if len(embeddings) > 0 {
-		if err := s.vectorRepo.SaveEmbeddingBatch(ctx, embeddings); err != nil {
-			return nil, fmt.Errorf("failed to save embeddings: %w", err)
-		}
-		result.EmbeddingsCount = len(embeddings)
-	}
-
-	// 5. Update last sync time
-	_ = s.repo.UpdateDatasourceLastSync(ctx, ds.ID)
-
-	// 6. Create change log for onboarding
-	changeDetail, _ := json.Marshal(map[string]interface{}{
-		"tables":     result.TablesCount,
-		"columns":    result.ColumnsCount,
-		"contexts":   result.ContextCount,
-		"embeddings": result.EmbeddingsCount,
-	})
-
-	_, _ = s.repo.CreateChangeLog(ctx, &lakebase.ChangeLog{
-		DatasourceID:  ds.ID,
-		ChangeType:    lakebase.ChangeTypeContextUpdate,
-		ChangeDetail:  changeDetail,
-		TriggerSource: lakebase.TriggerSourceSystem,
-		ChangeReason:  "Initial onboarding",
-	})
-
-	return result, nil
 }
 
 // ===========================================
@@ -867,6 +911,22 @@ func (s *LakebaseService) UpdateColumnSynonyms(ctx context.Context, dsID int64, 
 		return fmt.Errorf("lakebase: service not connected")
 	}
 	return s.repo.UpdateColumnSynonyms(ctx, dsID, tableName, columnName, synonyms)
+}
+
+// UpdateColumnSampleValues updates sample values for a column
+func (s *LakebaseService) UpdateColumnSampleValues(ctx context.Context, dsID int64, tableName, columnName, sampleValues string) error {
+	if !s.IsConnected() {
+		return fmt.Errorf("lakebase: service not connected")
+	}
+	return s.repo.UpdateColumnSampleValues(ctx, dsID, tableName, columnName, sampleValues)
+}
+
+// UpsertTerm inserts or updates a business term
+func (s *LakebaseService) UpsertTerm(ctx context.Context, dsID int64, term, definition, synonyms, examples, category string) error {
+	if !s.IsConnected() {
+		return fmt.Errorf("lakebase: service not connected")
+	}
+	return s.repo.UpsertTerm(ctx, dsID, term, definition, synonyms, examples, category)
 }
 
 // Global singleton for lakebase service

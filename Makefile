@@ -32,8 +32,6 @@ clean-build:
 	-docker compose -f deploy/docker-compose.yml down -v --rmi local
 	@# Clean local build artifacts
 	rm -rf bin/ frontend/dist/ frontend/node_modules/.tmp/ frontend/.vite-cache/
-	@# Clear Docker build cache
-	-docker builder prune -f
 	@echo "✅ Cleaned. Starting fresh build..."
 	@# Rebuild from scratch
 	docker compose -f deploy/docker-compose.yml build --no-cache

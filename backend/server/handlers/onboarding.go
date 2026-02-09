@@ -1408,37 +1408,24 @@ func (h *Handler) saveOnboardingToLakebase(
 	}
 	result.DatasourceID = existingDS.ID
 
-	// 2. Build schema metadata from tables
-	var schemaMetas []*lakebase.SchemaMetadata
+	// 2. Upsert tables and columns into rc_tables / rc_columns
+	repo := h.lakebaseService.GetRepository()
 	for _, table := range tables {
-		for _, col := range table.Columns {
-			meta := &lakebase.SchemaMetadata{
-				DatasourceID: existingDS.ID,
-				TableName:    table.Name,
-				ColumnName:   col.Name,
-				DataType:     col.Type,
-				IsPrimaryKey: col.IsPrimaryKey,
-				Nullable:     col.Nullable,
-			}
-			schemaMetas = append(schemaMetas, meta)
-		}
-	}
-
-	// Save schema metadata
-	if len(schemaMetas) > 0 {
-		if err := h.lakebaseService.SaveSchemaMetadata(ctx, schemaMetas); err != nil {
-			result.Error = fmt.Sprintf("Failed to save schema metadata: %v", err)
+		if err := repo.UpsertTable(ctx, existingDS.ID, table.Name, table.RowCount); err != nil {
+			result.Error = fmt.Sprintf("Failed to upsert table %s: %v", table.Name, err)
 			sendLakebaseError(events, result.Error)
 			return result
 		}
-		result.ColumnsCount = len(schemaMetas)
+		result.TablesCount++
 
-		// Count unique tables
-		tableSet := make(map[string]bool)
-		for _, meta := range schemaMetas {
-			tableSet[meta.TableName] = true
+		for _, col := range table.Columns {
+			if err := repo.UpsertColumn(ctx, existingDS.ID, table.Name, col.Name, col.Type, col.Nullable, col.IsPrimaryKey, false); err != nil {
+				result.Error = fmt.Sprintf("Failed to upsert column %s.%s: %v", table.Name, col.Name, err)
+				sendLakebaseError(events, result.Error)
+				return result
+			}
+			result.ColumnsCount++
 		}
-		result.TablesCount = len(tableSet)
 	}
 
 	events <- OnboardingEvent{
@@ -1451,123 +1438,30 @@ func (h *Handler) saveOnboardingToLakebase(
 		Timestamp: time.Now().UnixMilli(),
 	}
 
-	// 3. Build business context from analysis results
-	var contexts []*lakebase.BusinessContext
+	// 3. Write analysis results as descriptions into rc_tables / rc_columns
+	contextCount := 0
 	for tableName, analysis := range analysisResults {
 		if analysis == nil {
 			continue
 		}
 
-		// Save table-level semantic description
+		// Save table-level description
 		if analysis.Description != "" {
-			content, _ := lakebase.NewSemanticContent(analysis.Description, nil, nil)
-			contexts = append(contexts, &lakebase.BusinessContext{
-				DatasourceID: existingDS.ID,
-				TableName:    tableName,
-				ColumnName:   sql.NullString{},
-				ContextType:  lakebase.ContextTypeSemantic,
-				Content:      content,
-				Source:       lakebase.SourceLLM,
-				Confidence:   0.8,
-				Version:      1,
-				CreatedBy:    "onboarding",
-				UpdatedBy:    "onboarding",
-			})
-		}
-
-		// Save business purpose as business rule
-		if analysis.BusinessPurpose != "" {
-			content, _ := lakebase.NewBusinessRuleContent([]string{analysis.BusinessPurpose}, nil)
-			contexts = append(contexts, &lakebase.BusinessContext{
-				DatasourceID: existingDS.ID,
-				TableName:    tableName,
-				ColumnName:   sql.NullString{},
-				ContextType:  lakebase.ContextTypeBusinessRule,
-				Content:      content,
-				Source:       lakebase.SourceLLM,
-				Confidence:   0.8,
-				Version:      1,
-				CreatedBy:    "onboarding",
-				UpdatedBy:    "onboarding",
-			})
-		}
-
-		// Save rich context entries
-		for key, value := range analysis.RichContext {
-			// Determine context type based on key patterns
-			contextType := lakebase.ContextTypeSemantic
-			if strings.Contains(key, "value_distribution") || strings.Contains(key, "enum") {
-				contextType = lakebase.ContextTypeEnumMeaning
-			} else if strings.Contains(key, "quality") || strings.Contains(key, "whitespace") || strings.Contains(key, "null") {
-				contextType = lakebase.ContextTypeDataQuality
-			} else if strings.Contains(key, "join") || strings.Contains(key, "relationship") {
-				contextType = lakebase.ContextTypeJoinHint
+			if err := h.lakebaseService.UpdateTableDescription(ctx, existingDS.ID, tableName, analysis.Description, "llm", 0.8); err == nil {
+				contextCount++
 			}
+		}
 
-			// Extract column name from key if present (format: columnName_contextInfo)
-			columnName := sql.NullString{}
-			if parts := strings.SplitN(key, "_", 2); len(parts) >= 1 {
-				// Check if first part looks like a column name
-				for _, table := range tables {
-					if table.Name == tableName {
-						for _, col := range table.Columns {
-							if strings.EqualFold(col.Name, parts[0]) {
-								columnName = sql.NullString{String: col.Name, Valid: true}
-								break
-							}
-						}
-						break
-					}
+		// Save column-level notes as descriptions
+		for colName, note := range analysis.ColumnNotes {
+			if note != "" {
+				if err := h.lakebaseService.UpdateColumnDescription(ctx, existingDS.ID, tableName, colName, note, "llm", 0.8); err == nil {
+					contextCount++
 				}
 			}
-
-			content, _ := json.Marshal(map[string]string{
-				"key":   key,
-				"value": value,
-			})
-			contexts = append(contexts, &lakebase.BusinessContext{
-				DatasourceID: existingDS.ID,
-				TableName:    tableName,
-				ColumnName:   columnName,
-				ContextType:  contextType,
-				Content:      content,
-				Source:       lakebase.SourceLLM,
-				Confidence:   0.75,
-				Version:      1,
-				CreatedBy:    "onboarding",
-				UpdatedBy:    "onboarding",
-			})
-		}
-
-		// Save data quality issues
-		for _, issue := range analysis.QualityIssues {
-			content, _ := json.Marshal(lakebase.DataQualityContent{
-				Anomalies: []string{issue},
-			})
-			contexts = append(contexts, &lakebase.BusinessContext{
-				DatasourceID: existingDS.ID,
-				TableName:    tableName,
-				ColumnName:   sql.NullString{},
-				ContextType:  lakebase.ContextTypeDataQuality,
-				Content:      content,
-				Source:       lakebase.SourceLLM,
-				Confidence:   0.9,
-				Version:      1,
-				CreatedBy:    "onboarding",
-				UpdatedBy:    "onboarding",
-			})
 		}
 	}
-
-	// Save business contexts
-	if len(contexts) > 0 {
-		if err := h.lakebaseService.SaveBusinessContextBatch(ctx, contexts); err != nil {
-			result.Error = fmt.Sprintf("Failed to save business context: %v", err)
-			sendLakebaseError(events, result.Error)
-			return result
-		}
-		result.ContextCount = len(contexts)
-	}
+	result.ContextCount = contextCount
 
 	events <- OnboardingEvent{
 		Type: "lakebase_progress",

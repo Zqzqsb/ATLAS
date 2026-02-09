@@ -120,6 +120,15 @@ func main() {
 	}
 
 	// ========================================
+	// Startup Schema Sync (populate rc_tables/rc_columns from information_schema)
+	// ========================================
+	if lakebaseService != nil {
+		syncCtx, syncCancel := context.WithTimeout(context.Background(), 60*time.Second)
+		lakebaseService.SyncAllSchemas(syncCtx, cfg.Databases, dbService.GetAdapter)
+		syncCancel()
+	}
+
+	// ========================================
 	// Initialize Semantic Grounding Service
 	// ========================================
 	var groundingService *grounding.Service
@@ -254,6 +263,7 @@ func main() {
 		api.POST("/connections", h.AddConnection)
 		api.POST("/connections/test", h.TestConnection)
 		api.DELETE("/connections/:id", h.RemoveConnection)
+		api.POST("/connections/:id/sync-schema", h.SyncConnectionSchema)
 		api.POST("/connections/load-demo", h.LoadDemoDatabases)
 		api.POST("/connections/release-all", h.ReleaseAllDemoConnections)
 
@@ -300,9 +310,11 @@ func main() {
 		api.GET("/lakebase/datasources/:id", h.GetLakebaseDatasource)
 		api.GET("/lakebase/datasources/:id/context/:table", h.GetLakebaseTableContext)
 		api.GET("/lakebase/datasources/:id/changelog", h.GetLakebaseChangeLogs)
+		api.POST("/lakebase/datasources/:id/sync-schema", h.SyncSchema)
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
 		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContext)
 		api.POST("/lakebase/datasources/:id/generate-context/stream", h.GenerateRichContextStream)
+		api.DELETE("/lakebase/datasources/:id", h.DeleteDatasource)
 		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
 
 		// Agent Maintenance routes (VLDB Demo V3)

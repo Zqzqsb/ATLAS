@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"lucid/config"
 	"lucid/interfaces"
 	"lucid/internal/grounding"
+	"lucid/internal/lakebase"
 	"lucid/server/services"
 )
 
@@ -932,9 +934,9 @@ func (h *Handler) AddConnection(c *gin.Context) {
 	}
 
 	// Validate connection type
-	if conn.Type != "mysql" && conn.Type != "postgresql" && conn.Type != "sqlite" {
+	if conn.Type != "mysql" && conn.Type != "mariadb" && conn.Type != "postgresql" && conn.Type != "sqlite" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid database type. Must be mysql, postgresql, or sqlite",
+			"error": "Invalid database type. Must be mysql, mariadb, postgresql, or sqlite",
 		})
 		return
 	}
@@ -949,11 +951,17 @@ func (h *Handler) AddConnection(c *gin.Context) {
 		}
 	}
 
-	// Add to config
+	// Normalize type: "mariadb" -> "mysql" for adapter
+	adapterType := conn.Type
+	if adapterType == "mariadb" {
+		adapterType = "mysql"
+	}
+
+	// Step 1: Add to config so GetAdapter can find it
 	newDB := config.DatabaseConfig{
 		ID:       conn.ID,
 		Name:     conn.Name,
-		Type:     conn.Type,
+		Type:     adapterType,
 		Host:     conn.Host,
 		Port:     conn.Port,
 		User:     conn.User,
@@ -962,6 +970,16 @@ func (h *Handler) AddConnection(c *gin.Context) {
 		Path:     conn.Path,
 	}
 	h.config.Databases = append(h.config.Databases, newDB)
+
+	// Step 2: Actually connect — this is synchronous, must succeed
+	if _, err := h.dbService.GetAdapter(conn.ID); err != nil {
+		// Rollback: remove from config since connection failed
+		h.config.Databases = h.config.Databases[:len(h.config.Databases)-1]
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Failed to connect to database: %v", err),
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Connection added successfully",
@@ -998,6 +1016,70 @@ func (h *Handler) RemoveConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Connection removed successfully",
 		"id":      connID,
+	})
+}
+
+// SyncConnectionSchema creates/updates an rc_datasources record for a connection and syncs its physical schema.
+// POST /connections/:id/sync-schema
+// This is the bridge between connection management and RC — called explicitly by the frontend, not implicitly.
+func (h *Handler) SyncConnectionSchema(c *gin.Context) {
+	connID := c.Param("id")
+
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Lake-base service not available"})
+		return
+	}
+
+	// Find connection config
+	var dbCfg *config.DatabaseConfig
+	for _, db := range h.config.Databases {
+		if db.ID == connID {
+			dbCfg = &db
+			break
+		}
+	}
+	if dbCfg == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Connection not found"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+
+	// Get or create rc_datasources record
+	ds, err := h.lakebaseService.GetOrCreateDatasource(ctx, &lakebase.Datasource{
+		Name:         dbCfg.ID,
+		DBType:       dbCfg.Type,
+		Host:         sql.NullString{String: dbCfg.Host, Valid: dbCfg.Host != ""},
+		Port:         sql.NullInt32{Int32: int32(dbCfg.Port), Valid: dbCfg.Port > 0},
+		Username:     sql.NullString{String: dbCfg.User, Valid: dbCfg.User != ""},
+		DatabaseName: sql.NullString{String: dbCfg.Database, Valid: dbCfg.Database != ""},
+		Status:       "active",
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to register datasource: %v", err)})
+		return
+	}
+
+	// Get adapter and sync schema
+	adapter, err := h.dbService.GetAdapter(connID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Cannot connect to database: %v", err)})
+		return
+	}
+
+	result, err := h.lakebaseService.SyncSchema(ctx, ds.ID, adapter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Schema sync failed: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"datasource_id": ds.ID,
+		"tables":        result.TablesCount,
+		"columns":       result.ColumnsCount,
+		"relations":     result.RelationsCount,
 	})
 }
 

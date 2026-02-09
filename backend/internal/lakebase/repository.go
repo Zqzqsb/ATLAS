@@ -325,6 +325,55 @@ func (r *MySQLRepository) GetTermsByDatasource(ctx context.Context, dsID int64) 
 	return terms, rows.Err()
 }
 
+// ===========================================
+// Schema Sync (INSERT / UPSERT for rc_tables, rc_columns, rc_relations)
+// ===========================================
+
+// UpsertTable inserts a table record or updates row_count if it already exists.
+// description is NOT overwritten on conflict — it is managed by Context generation.
+func (r *MySQLRepository) UpsertTable(ctx context.Context, dsID int64, tableName string, rowCount int64) error {
+	query := `
+		INSERT INTO rc_tables (datasource_id, table_name, row_count, source, confidence, created_at, updated_at)
+		VALUES (?, ?, ?, 'catalog', 0.0, NOW(), NOW())
+		ON DUPLICATE KEY UPDATE row_count = VALUES(row_count), updated_at = NOW()
+	`
+	_, err := r.pool.ExecContext(ctx, query, dsID, tableName, rowCount)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to upsert table: %w", err)
+	}
+	return nil
+}
+
+// UpsertColumn inserts a column record or updates its physical schema fields.
+// description is NOT overwritten on conflict — it is managed by Context generation.
+func (r *MySQLRepository) UpsertColumn(ctx context.Context, dsID int64, tableName, columnName, dataType string, isNullable, isPK, isFK bool) error {
+	query := `
+		INSERT INTO rc_columns (datasource_id, table_name, column_name, data_type, is_nullable, is_primary_key, is_foreign_key, source, confidence, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 'catalog', 0.0, NOW(), NOW())
+		ON DUPLICATE KEY UPDATE data_type = VALUES(data_type), is_nullable = VALUES(is_nullable),
+			is_primary_key = VALUES(is_primary_key), is_foreign_key = VALUES(is_foreign_key), updated_at = NOW()
+	`
+	_, err := r.pool.ExecContext(ctx, query, dsID, tableName, columnName, dataType, isNullable, isPK, isFK)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to upsert column: %w", err)
+	}
+	return nil
+}
+
+// UpsertRelation inserts a foreign key relation or updates on conflict.
+func (r *MySQLRepository) UpsertRelation(ctx context.Context, dsID int64, fromTable, fromColumn, toTable, toColumn string) error {
+	query := `
+		INSERT INTO rc_relations (datasource_id, from_table, from_column, to_table, to_column, relation_type, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, 'foreign_key', NOW(), NOW())
+		ON DUPLICATE KEY UPDATE updated_at = NOW()
+	`
+	_, err := r.pool.ExecContext(ctx, query, dsID, fromTable, fromColumn, toTable, toColumn)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to upsert relation: %w", err)
+	}
+	return nil
+}
+
 // UpdateTableDescription updates the description for a table
 func (r *MySQLRepository) UpdateTableDescription(ctx context.Context, dsID int64, tableName, description, source string, confidence float64) error {
 	query := `
@@ -363,6 +412,35 @@ func (r *MySQLRepository) UpdateColumnSynonyms(ctx context.Context, dsID int64, 
 	_, err := r.pool.ExecContext(ctx, query, synonyms, dsID, tableName, columnName)
 	if err != nil {
 		return fmt.Errorf("lakebase: failed to update column synonyms: %w", err)
+	}
+	return nil
+}
+
+// UpdateColumnSampleValues updates sample values for a column
+func (r *MySQLRepository) UpdateColumnSampleValues(ctx context.Context, dsID int64, tableName, columnName, sampleValues string) error {
+	query := `
+		UPDATE rc_columns 
+		SET sample_values = ?, updated_at = NOW()
+		WHERE datasource_id = ? AND table_name = ? AND column_name = ?
+	`
+	_, err := r.pool.ExecContext(ctx, query, sampleValues, dsID, tableName, columnName)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to update column sample_values: %w", err)
+	}
+	return nil
+}
+
+// UpsertTerm inserts or updates a business term
+func (r *MySQLRepository) UpsertTerm(ctx context.Context, dsID int64, term, definition, synonyms, examples, category string) error {
+	query := `
+		INSERT INTO rc_terms (datasource_id, term, definition, synonyms, examples, category, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+		ON DUPLICATE KEY UPDATE definition = VALUES(definition), synonyms = VALUES(synonyms),
+			examples = VALUES(examples), category = VALUES(category), updated_at = NOW()
+	`
+	_, err := r.pool.ExecContext(ctx, query, dsID, term, definition, synonyms, examples, category)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to upsert term: %w", err)
 	}
 	return nil
 }

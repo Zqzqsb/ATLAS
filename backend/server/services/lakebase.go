@@ -714,6 +714,110 @@ type EmbeddingGenerationResult struct {
 	TotalEmbeddings   int   `json:"total_embeddings"`
 }
 
+// EmbedEntityByName generates and saves embedding for a single entity identified by name.
+// contextType: "table_description", "column_description", "column_sample_values", "column_synonyms", "business_term"
+// For table types: tableName is the table name, columnName is empty.
+// For column types: tableName + columnName identify the column.
+// For term types: tableName holds the term string.
+func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, contextType, tableName, columnName string) error {
+	if !s.connected {
+		return fmt.Errorf("lakebase service: not connected")
+	}
+	if s.embeddingProvider == nil {
+		return fmt.Errorf("embedding provider not configured")
+	}
+
+	var entityType lakebase.EntityType
+	var entityID int64
+	var embText string
+
+	switch contextType {
+	case "table_description":
+		// Find the table and build embedding text
+		tables, err := s.repo.GetTablesByDatasource(ctx, dsID)
+		if err != nil {
+			return fmt.Errorf("failed to get tables: %w", err)
+		}
+		for _, t := range tables {
+			if t.TableName == tableName {
+				entityType = lakebase.EntityTypeTable
+				entityID = t.ID
+				if t.Description.Valid && t.Description.String != "" {
+					embText = fmt.Sprintf("Table %s: %s", t.TableName, t.Description.String)
+				} else {
+					embText = fmt.Sprintf("Table %s", t.TableName)
+				}
+				break
+			}
+		}
+	case "column_description", "column_sample_values", "column_synonyms":
+		// Find the column and build embedding text
+		columns, err := s.repo.GetColumnsByTable(ctx, dsID, tableName)
+		if err != nil {
+			return fmt.Errorf("failed to get columns: %w", err)
+		}
+		for _, c := range columns {
+			if c.ColumnName == columnName {
+				entityType = lakebase.EntityTypeColumn
+				entityID = c.ID
+				if c.Description.Valid && c.Description.String != "" {
+					embText = fmt.Sprintf("Column %s.%s (%s): %s", c.TableName, c.ColumnName, c.DataType.String, c.Description.String)
+				} else {
+					embText = fmt.Sprintf("Column %s.%s (%s)", c.TableName, c.ColumnName, c.DataType.String)
+				}
+				if c.SampleValues.Valid && c.SampleValues.String != "" {
+					embText += fmt.Sprintf(". Sample values: %s", c.SampleValues.String)
+				}
+				break
+			}
+		}
+	case "business_term":
+		// Find the term
+		terms, err := s.repo.GetTermsByDatasource(ctx, dsID)
+		if err != nil {
+			return fmt.Errorf("failed to get terms: %w", err)
+		}
+		for _, t := range terms {
+			if t.Term == tableName {
+				entityType = lakebase.EntityTypeTerm
+				entityID = t.ID
+				embText = fmt.Sprintf("Term '%s': %s", t.Term, t.Definition)
+				if t.Synonyms.Valid && t.Synonyms.String != "" {
+					embText += fmt.Sprintf(". Synonyms: %s", t.Synonyms.String)
+				}
+				break
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported context type for embedding: %s", contextType)
+	}
+
+	if entityID == 0 || embText == "" {
+		return fmt.Errorf("entity not found: %s/%s/%s", contextType, tableName, columnName)
+	}
+
+	// Generate embedding
+	vec, err := s.embeddingProvider.Embed(ctx, embText)
+	if err != nil {
+		return fmt.Errorf("embedding failed: %w", err)
+	}
+
+	// Upsert embedding
+	emb := &lakebase.Embedding{
+		DatasourceID:   dsID,
+		EntityType:     entityType,
+		EntityID:       entityID,
+		EntityText:     embText,
+		Embedding:      vec,
+		EmbeddingModel: s.config.Embedding.Model,
+	}
+	if err := s.vectorRepo.UpsertEmbedding(ctx, emb); err != nil {
+		return fmt.Errorf("upsert embedding failed: %w", err)
+	}
+
+	return nil
+}
+
 // CountEmbeddings returns the count of embeddings for a datasource
 func (s *LakebaseService) CountEmbeddings(ctx context.Context, dsID int64) (int64, error) {
 	if !s.connected {

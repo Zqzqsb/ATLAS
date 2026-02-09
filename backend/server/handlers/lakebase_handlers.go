@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -690,16 +691,86 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	startTime := time.Now()
 
-	// Phase 1: Announce start
+	// Phase 1: Announce start with totals
 	sendEvent("agent_start", GenerateContextEvent{
 		Agent:   "rc_gen",
 		Phase:   "init",
 		Status:  "running",
 		Message: fmt.Sprintf("Starting ReAct Rich Context generation for %s (%d tables, %d columns)", ds.Name, len(tables), len(columns)),
+		Data: map[string]interface{}{
+			"tables_total":  len(tables),
+			"columns_total": len(columns),
+		},
 	})
 
 	// Phase 2: Run ReAct agent
+	// Create RC writer with storage callback to notify frontend on each write
+	// and trigger incremental embedding immediately
 	rcWriter := reacttools.NewLakebaseRCWriter(h.lakebaseService.GetRepository())
+
+	// Track incremental embedding count
+	var embeddingCount int
+	var embeddingMu sync.Mutex
+
+	// Announce embedding agent is running (starts alongside RC gen)
+	sendEvent("agent_start", GenerateContextEvent{
+		Agent:   "embedding",
+		Phase:   "embedding",
+		Status:  "running",
+		Message: "Streaming embeddings — each RC write triggers immediate embedding...",
+	})
+
+	rcWriter.SetOnWrite(func(contextType, tableName, columnName string) {
+		target := "rc_tables"
+		detail := tableName
+		if columnName != "" {
+			target = "rc_columns"
+			detail = tableName + "." + columnName
+		}
+		if contextType == "business_term" {
+			target = "rc_terms"
+		}
+		sendEvent("storage", GenerateContextEvent{
+			Agent:   "storage",
+			Phase:   contextType,
+			Message: fmt.Sprintf("Saved %s: %s", contextType, detail),
+			Data: map[string]interface{}{
+				"target":       target,
+				"context_type": contextType,
+				"table":        tableName,
+				"column":       columnName,
+			},
+		})
+
+		// Incremental embedding: embed this entity immediately after write
+		go func(ct, tn, cn string) {
+			if embErr := h.lakebaseService.EmbedEntityByName(ctx, dsID, ct, tn, cn); embErr != nil {
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   "embedding",
+					Phase:   "embedding",
+					Status:  "error",
+					Message: fmt.Sprintf("⚠️ Embed failed for %s %s: %v", ct, tn, embErr),
+				})
+				return
+			}
+			embeddingMu.Lock()
+			embeddingCount++
+			cnt := embeddingCount
+			embeddingMu.Unlock()
+			sendEvent("agent_step", GenerateContextEvent{
+				Agent:   "embedding",
+				Phase:   "embedding",
+				Message: fmt.Sprintf("🧬 Embedded %s: %s (#%d)", ct, detail, cnt),
+				Data: map[string]interface{}{
+					"context_type":        ct,
+					"table":               tn,
+					"column":              cn,
+					"embeddings_so_far":   cnt,
+				},
+			})
+		}(contextType, tableName, columnName)
+	})
+
 	engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
 		DatasourceID:  dsID,
 		Tables:        tables,
@@ -709,18 +780,55 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		MinIterations: req.MinIterations,
 		Force:         req.Force,
 		StepCallback: func(step react.Step, eventType string) {
-			// Map ReAct steps to SSE events
-			sendEvent("agent_step", GenerateContextEvent{
-				Agent:   "rc_gen",
-				Phase:   eventType,
-				Message: step.Thought,
-				Data: map[string]interface{}{
-					"iteration":    step.Iteration,
-					"action":       step.Action,
-					"action_input": step.ActionInput,
-					"observation":  step.Observation,
-				},
-			})
+			// Send distinct SSE events for each ReAct step type
+			switch eventType {
+			case "thought":
+				if step.Thought != "" {
+					sendEvent("agent_step", GenerateContextEvent{
+						Agent:   "rc_gen",
+						Phase:   "thought",
+						Message: step.Thought,
+						Data: map[string]interface{}{
+							"iteration": step.Iteration,
+						},
+					})
+				}
+			case "action":
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   "rc_gen",
+					Phase:   "action",
+					Message: fmt.Sprintf("🔧 %s", step.Action),
+					Data: map[string]interface{}{
+						"iteration":    step.Iteration,
+						"action":       step.Action,
+						"action_input": step.ActionInput,
+					},
+				})
+			case "observation":
+				obs := step.Observation
+				if len(obs) > 500 {
+					obs = obs[:500] + "..."
+				}
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   "rc_gen",
+					Phase:   "observation",
+					Message: obs,
+					Data: map[string]interface{}{
+						"iteration":    step.Iteration,
+						"action":       step.Action,
+						"observation":  step.Observation,
+					},
+				})
+			case "finish":
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   "rc_gen",
+					Phase:   "finish",
+					Message: step.Thought,
+					Data: map[string]interface{}{
+						"iteration": step.Iteration,
+					},
+				})
+			}
 		},
 	})
 
@@ -746,58 +854,58 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		})
 	}
 
-	// Phase 3: Generate embeddings
-	sendEvent("agent_start", GenerateContextEvent{
-		Agent:   "embedding",
-		Phase:   "embedding",
-		Status:  "running",
-		Message: "Generating embeddings for semantic search...",
-	})
+	// Phase 3: Catch-up embeddings for any entities that may have been missed
+	// (e.g., entities that existed before but had no embedding yet)
+	embeddingMu.Lock()
+	streamEmbedded := embeddingCount
+	embeddingMu.Unlock()
 
-	var embeddingsGenerated int
+	var catchupEmbeddings int
 	embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(ctx, dsID)
 	if embErr != nil {
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "embedding",
 			Phase:   "embedding",
 			Status:  "error",
-			Message: fmt.Sprintf("Embedding error: %v", embErr),
+			Message: fmt.Sprintf("Catch-up embedding error: %v", embErr),
 		})
 	} else if embResult != nil {
-		embeddingsGenerated = embResult.TotalEmbeddings
+		catchupEmbeddings = embResult.TotalEmbeddings
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "embedding",
 			Phase:   "embedding",
 			Status:  "success",
-			Message: fmt.Sprintf("Generated %d embeddings", embeddingsGenerated),
+			Message: fmt.Sprintf("Embeddings complete: %d streamed + %d catch-up = %d total", streamEmbedded, catchupEmbeddings, catchupEmbeddings),
 			Data: map[string]interface{}{
-				"tables_embedded":  embResult.TablesProcessed,
-				"columns_embedded": embResult.ColumnsProcessed,
-				"total_embeddings": embeddingsGenerated,
+				"stream_embedded":  streamEmbedded,
+				"catchup_embedded": catchupEmbeddings,
+				"total_embeddings": catchupEmbeddings,
 			},
 		})
 	}
 
 	// Complete
 	duration := time.Since(startTime)
+	iterations := 0
+	if result != nil {
+		iterations = result.Iterations
+	}
+	totalEmb := catchupEmbeddings
+	if totalEmb == 0 {
+		totalEmb = streamEmbedded
+	}
 	sendEvent("complete", GenerateContextEvent{
 		Status:  "success",
 		Message: "Generation complete",
 		Data: map[string]interface{}{
 			"total_tables":         len(tables),
 			"total_columns":        len(columns),
-			"react_iterations":     0,
-			"embeddings_generated": embeddingsGenerated,
+			"react_iterations":     iterations,
+			"embeddings_generated": totalEmb,
+			"stream_embedded":      streamEmbedded,
 			"duration_ms":          duration.Milliseconds(),
 		},
 	})
-	if result != nil {
-		// Update with actual iterations
-		sendEvent("complete", GenerateContextEvent{
-			Status: "success",
-			Data:   map[string]interface{}{"react_iterations": result.Iterations},
-		})
-	}
 
 	close(eventChan)
 	<-done

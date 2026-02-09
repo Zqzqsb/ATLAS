@@ -216,6 +216,20 @@ function getTypeColor(type: ContextType): string {
   return colors[type] || 'default'
 }
 
+// Return Tailwind CSS classes for each context type badge
+function getTypeBadgeClasses(type: ContextType): string {
+  const map: Record<ContextType, string> = {
+    description: 'bg-blue-100 text-blue-700',
+    example: 'bg-amber-100 text-amber-700',
+    constraint: 'bg-red-100 text-red-700',
+    synonym: 'bg-purple-100 text-purple-700',
+    value_mapping: 'bg-pink-100 text-pink-700',
+    business_rule: 'bg-indigo-100 text-indigo-700',
+    calculation: 'bg-orange-100 text-orange-700'
+  }
+  return map[type] || 'bg-gray-100 text-gray-700'
+}
+
 // Open generate console
 function openGenerateConsole() {
   if (!workspaceStore.currentDatabaseId) {
@@ -440,7 +454,7 @@ async function handlePruneAll() {
                 <div class="i-carbon-document text-amber-600 text-sm" />
               </div>
               <span class="text-sm font-semibold text-gray-900">Table Description</span>
-              <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">{{ group.tableContext.type }}</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(group.tableContext.type)">{{ group.tableContext.type }}</span>
               <div class="ml-auto flex gap-1">
                 <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(group.tableContext!)">
                   <div class="i-carbon-edit text-sm text-gray-500" />
@@ -464,7 +478,7 @@ async function handlePruneAll() {
                 <div class="i-carbon-column text-emerald-600 text-sm" />
               </div>
               <span class="text-sm font-semibold text-gray-900">{{ colCtx.columnName }}</span>
-              <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">{{ colCtx.type }}</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(colCtx.type)">{{ colCtx.type }}</span>
               <div class="ml-auto flex gap-1">
                 <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(colCtx)">
                   <div class="i-carbon-edit text-sm text-gray-500" />

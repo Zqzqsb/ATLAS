@@ -142,6 +142,20 @@ const tableContexts = computed(() => {
   if (!selectedTable.value) return []
   return workspaceStore.contextsByTable[selectedTable.value.name] || []
 })
+
+// Return NTag type for each context type
+function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'error' | 'primary' | 'default' {
+  const map: Record<string, 'info' | 'success' | 'warning' | 'error' | 'primary' | 'default'> = {
+    description: 'info',
+    example: 'warning',
+    constraint: 'error',
+    synonym: 'primary',
+    value_mapping: 'error',
+    business_rule: 'info',
+    calculation: 'warning'
+  }
+  return map[type] || 'default'
+}
 </script>
 
 <template>
@@ -289,7 +303,7 @@ const tableContexts = computed(() => {
               class="p-4 bg-gray-50 rounded-lg border border-gray-100 hover:shadow-md transition-shadow hover:border-primary-100 group"
             >
               <div class="flex items-center gap-2 mb-2">
-                <NTag size="small" type="info" :bordered="false" round class="uppercase text-xs font-bold">{{ ctx.type }}</NTag>
+                <NTag size="small" :type="getContextTagType(ctx.type)" :bordered="false" round class="uppercase text-xs font-bold">{{ ctx.type }}</NTag>
                 <span v-if="ctx.columnName" class="text-xs font-bold text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-200">
                   {{ ctx.columnName }}
                 </span>

@@ -7,20 +7,20 @@ import (
 	"strings"
 	"time"
 
-	"lucid/internal/llm"
+	"github.com/tmc/langchaingo/llms"
 )
 
 // FineSelector performs LLM-based fine-grained selection from coarse signals
 type FineSelector struct {
-	llmClient llm.Client
-	config    FineSelectionConfig
+	llm    llms.Model
+	config FineSelectionConfig
 }
 
 // NewFineSelector creates a new fine selector
-func NewFineSelector(llmClient llm.Client, config FineSelectionConfig) *FineSelector {
+func NewFineSelector(llm llms.Model, config FineSelectionConfig) *FineSelector {
 	return &FineSelector{
-		llmClient: llmClient,
-		config:    config,
+		llm:    llm,
+		config: config,
 	}
 }
 
@@ -50,27 +50,24 @@ func (s *FineSelector) Select(ctx context.Context, req *SelectionRequest) (*Sele
 	// Build the selection prompt
 	prompt := s.buildSelectionPrompt(req.Query, candidates)
 
-	// Call LLM for selection
-	response, err := s.llmClient.Complete(ctx, llm.CompletionRequest{
-		Messages: []llm.Message{
-			{
-				Role:    "system",
-				Content: selectionSystemPrompt,
-			},
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
-		Temperature: 0.1,
-		MaxTokens:   2000,
-	})
+	// Call LLM for selection via langchaingo GenerateContent
+	messages := []llms.MessageContent{
+		{Role: llms.ChatMessageTypeSystem, Parts: []llms.ContentPart{llms.TextContent{Text: selectionSystemPrompt}}},
+		{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: prompt}}},
+	}
+	resp, err := s.llm.GenerateContent(ctx, messages,
+		llms.WithTemperature(0.1),
+		llms.WithMaxTokens(2000),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("LLM selection failed: %w", err)
 	}
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("LLM selection returned no choices")
+	}
 
 	// Parse LLM response
-	groundedCtx, reasoning, err := s.parseSelectionResponse(response.Content)
+	groundedCtx, reasoning, err := s.parseSelectionResponse(resp.Choices[0].Content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse selection response: %w", err)
 	}

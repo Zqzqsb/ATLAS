@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tmc/langchaingo/llms"
+
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
-	"lucid/internal/llm"
 )
 
 // Pipeline orchestrates the complete Semantic Grounding process
@@ -24,7 +25,7 @@ type Pipeline struct {
 func NewPipeline(
 	vectorRepo *lakebase.MySQLVectorRepository,
 	embedder embedding.EmbeddingProvider,
-	llmClient llm.Client,
+	llmModel llms.Model,
 	config *GroundingConfig,
 ) *Pipeline {
 	if config == nil {
@@ -33,7 +34,7 @@ func NewPipeline(
 
 	return &Pipeline{
 		coarseRetriever: NewCoarseRetriever(vectorRepo, embedder, config.CoarseRetrieval),
-		fineSelector:    NewFineSelector(llmClient, config.FineSelection),
+		fineSelector:    NewFineSelector(llmModel, config.FineSelection),
 		config:          config,
 	}
 }

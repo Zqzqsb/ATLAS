@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tmc/langchaingo/llms"
+
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
-	"lucid/internal/llm"
 )
 
 // GroundingMode defines the grounding execution mode
@@ -27,7 +28,7 @@ type Service struct {
 	pipeline     *Pipeline
 	vectorRepo   *lakebase.MySQLVectorRepository
 	embedder     embedding.EmbeddingProvider
-	llmClient    llm.Client
+	llmModel     llms.Model
 	config       *GroundingConfig
 	datasourceID int64
 }
@@ -37,7 +38,7 @@ type ServiceConfig struct {
 	DatasourceID int64
 	VectorRepo   *lakebase.MySQLVectorRepository
 	Embedder     embedding.EmbeddingProvider
-	LLMClient    llm.Client
+	LLMModel     llms.Model
 	Config       *GroundingConfig
 }
 
@@ -48,10 +49,10 @@ func NewService(cfg *ServiceConfig) *Service {
 	}
 
 	return &Service{
-		pipeline:     NewPipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMClient, cfg.Config),
+		pipeline:     NewPipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config),
 		vectorRepo:   cfg.VectorRepo,
 		embedder:     cfg.Embedder,
-		llmClient:    cfg.LLMClient,
+		llmModel:     cfg.LLMModel,
 		config:       cfg.Config,
 		datasourceID: cfg.DatasourceID,
 	}

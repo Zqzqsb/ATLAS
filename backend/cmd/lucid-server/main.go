@@ -15,8 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/config"
 	"lucid/internal/adapter"
+	"lucid/internal/config"
 	"lucid/internal/grounding"
 	"lucid/internal/llm"
 	"lucid/server/handlers"
@@ -49,12 +49,24 @@ func main() {
 
 	// Initialize LLM (optional - may fail if config not found)
 	var llmModel llms.Model
-	llmModel, err = llm.CreateLLMWithFlag(false) // default model
+	llmCfg, err := llm.FindConfig()
 	if err != nil {
-		log.Printf("⚠️  LLM initialization failed: %v", err)
+		log.Printf("⚠️  LLM config not found: %v", err)
 		log.Println("   Inference features will be limited...")
 	} else {
-		log.Println("✅ LLM initialized successfully")
+		// Use system.yaml default_model as key, fallback to config's own default
+		modelKey := cfg.LLM.DefaultModel
+		if modelKey == "" {
+			modelKey = llmCfg.DefaultModel
+		} else {
+			llmCfg.DefaultModel = modelKey
+		}
+		llmModel, err = llmCfg.CreateLLMByKey(modelKey)
+		if err != nil {
+			log.Printf("⚠️  LLM initialization failed (model=%s): %v", modelKey, err)
+		} else {
+			log.Printf("✅ LLM initialized: %s", modelKey)
+		}
 	}
 
 	// Create inference engine (previously bridge.InferenceEngineBridge)
@@ -123,24 +135,16 @@ func main() {
 		embedder := lakebaseService.GetEmbeddingProvider()
 
 		if vectorRepo != nil && embedder != nil {
-			// Create LLM client adapter for grounding
-			var llmClient llm.Client
-			if llmModel != nil {
-				// Use LangChainAdapter to wrap langchaingo model
-				llmClient = llm.NewLangChainAdapter(llmModel, cfg.LLM.DefaultModel)
-				log.Println("✅ LLM client adapter created for Semantic Grounding")
-			}
-
 			// Create grounding service (works with or without LLM for coarse-only mode)
 			groundingService = grounding.NewService(&grounding.ServiceConfig{
 				DatasourceID: 1, // Default datasource, can be changed per request
 				VectorRepo:   vectorRepo,
 				Embedder:     embedder,
-				LLMClient:    llmClient, // Can be nil for coarse-only mode
+				LLMModel:     llmModel, // Can be nil for coarse-only mode
 				Config:       grounding.DefaultGroundingConfig(),
 			})
 			groundingHandlers = handlers.NewGroundingHandlers(groundingService)
-			if llmClient != nil {
+			if llmModel != nil {
 				log.Println("✅ Semantic Grounding service initialized (full mode)")
 			} else {
 				log.Println("✅ Semantic Grounding service initialized (coarse-only mode)")

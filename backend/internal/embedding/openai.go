@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
+
+	"lucid/internal/logger"
 )
 
 // OpenAIProvider implements EmbeddingProvider using OpenAI-compatible embedding APIs.
@@ -194,7 +195,7 @@ func (p *OpenAIProvider) embedBatchMultimodal(ctx context.Context, texts []strin
 	for i, text := range texts {
 		vec, err := p.embedOneMultimodal(ctx, text)
 		if err != nil {
-			log.Printf("[Embedding] Error embedding text %d/%d: %v", i+1, len(texts), err)
+			logger.L().Error("Embedding failed", "index", i+1, "total", len(texts), "error", err)
 			return nil, fmt.Errorf("failed to embed text %d: %w", i, err)
 		}
 		vectors[i] = vec

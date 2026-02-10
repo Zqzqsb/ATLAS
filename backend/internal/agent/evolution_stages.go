@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 )
 
 // EvolutionStage represents a single schema evolution step
@@ -250,7 +250,7 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 		for _, stmt := range stage.SampleData {
 			_, err := businessDB.ExecContext(ctx, stmt)
 			if err != nil {
-				log.Printf("Warning: sample data insert failed: %v", err)
+				logger.L().Warn("Sample data insert failed", "error", err)
 				// Don't fail the stage for sample data errors
 			}
 		}
@@ -279,7 +279,7 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 	if s.agentService != nil && len(detectedChanges) > 0 {
 		count, err := s.agentService.maintainer.MarkContextExpiredByChanges(ctx, dsID, detectedChanges)
 		if err != nil {
-			log.Printf("Warning: failed to mark context expired: %v", err)
+			logger.L().Warn("Failed to mark context expired", "error", err)
 		} else {
 			expiredCount = count
 		}
@@ -379,7 +379,7 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 
 		results, err := s.agentService.TriggerContextRefresh(ctx, dsID)
 		if err != nil {
-			log.Printf("Warning: context refresh failed: %v", err)
+			logger.L().Warn("Context refresh failed", "error", err)
 		} else {
 			for _, r := range results {
 				if r.Success {

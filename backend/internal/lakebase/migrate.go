@@ -7,9 +7,10 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
+
+	"lucid/internal/logger"
 )
 
 //go:embed schema/01_init_lakebase.sql
@@ -62,7 +63,7 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 	// 1. Parse init SQL to get target schema
 	targetTables := parseInitSQL(initSQL)
 	if len(targetTables) == 0 {
-		log.Println("[AutoMigrate] Warning: no tables parsed from init SQL")
+		logger.L().Warn("AutoMigrate: no tables parsed from init SQL")
 		return nil
 	}
 
@@ -80,7 +81,7 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 		}
 		stmt := fmt.Sprintf("ALTER TABLE `%s` CHANGE COLUMN `%s` `%s` %s",
 			r.Table, r.OldName, r.NewName, r.TypeSQL)
-		log.Printf("[AutoMigrate] Renaming column: %s.%s → %s", r.Table, r.OldName, r.NewName)
+		logger.L().Info("AutoMigrate: renaming column", "table", r.Table, "old", r.OldName, "new", r.NewName)
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("auto-migrate: rename %s.%s→%s failed: %w", r.Table, r.OldName, r.NewName, err)
 		}
@@ -92,21 +93,21 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 		// Check if table exists at all
 		exists, err := tableExists(ctx, db, tbl.Name)
 		if err != nil {
-			log.Printf("[AutoMigrate] ⚠️  Failed to check table %s: %v (skipping)", tbl.Name, err)
+			logger.L().Warn("AutoMigrate: failed to check table", "table", tbl.Name, "error", err)
 			continue
 		}
 		if !exists {
 			// Table doesn't exist — init SQL should have created it.
 			// If it didn't (e.g. the SQL was never run), we skip;
 			// we don't want to create tables from migration.
-			log.Printf("[AutoMigrate] Table %s does not exist (init SQL should create it), skipping", tbl.Name)
+			logger.L().Debug("AutoMigrate: table does not exist, skipping", "table", tbl.Name)
 			continue
 		}
 
 		// Get actual columns from information_schema
 		actualCols, err := getActualColumns(ctx, db, tbl.Name)
 		if err != nil {
-			log.Printf("[AutoMigrate] ⚠️  Failed to read columns for %s: %v (skipping)", tbl.Name, err)
+			logger.L().Warn("AutoMigrate: failed to read columns", "table", tbl.Name, "error", err)
 			continue
 		}
 
@@ -121,9 +122,9 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 				}
 				stmt := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s%s",
 					tbl.Name, col.Name, col.TypeSQL, afterClause)
-				log.Printf("[AutoMigrate] Adding column: %s.%s", tbl.Name, col.Name)
+				logger.L().Info("AutoMigrate: adding column", "table", tbl.Name, "column", col.Name)
 				if _, err := db.ExecContext(ctx, stmt); err != nil {
-					log.Printf("[AutoMigrate] ⚠️  ADD COLUMN %s.%s failed: %v (skipping)", tbl.Name, col.Name, err)
+					logger.L().Warn("AutoMigrate: ADD COLUMN failed", "table", tbl.Name, "column", col.Name, "error", err)
 				} else {
 					applied++
 				}
@@ -135,10 +136,9 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 			if needsModify(col.TypeSQL, actual.typeSQL) {
 				stmt := fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s",
 					tbl.Name, col.Name, col.TypeSQL)
-				log.Printf("[AutoMigrate] Modifying column: %s.%s (%s → %s)",
-					tbl.Name, col.Name, actual.typeSQL, col.TypeSQL)
+				logger.L().Info("AutoMigrate: modifying column", "table", tbl.Name, "column", col.Name, "from", actual.typeSQL, "to", col.TypeSQL)
 				if _, err := db.ExecContext(ctx, stmt); err != nil {
-					log.Printf("[AutoMigrate] ⚠️  MODIFY COLUMN %s.%s failed: %v (skipping)", tbl.Name, col.Name, err)
+					logger.L().Warn("AutoMigrate: MODIFY COLUMN failed", "table", tbl.Name, "column", col.Name, "error", err)
 				} else {
 					applied++
 				}
@@ -147,9 +147,9 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 	}
 
 	if applied > 0 {
-		log.Printf("[AutoMigrate] ✅ %d schema change(s) applied", applied)
+		logger.L().Info("AutoMigrate: schema changes applied", "count", applied)
 	} else {
-		log.Println("[AutoMigrate] Schema is up-to-date")
+		logger.L().Debug("AutoMigrate: schema is up-to-date")
 	}
 
 	return nil

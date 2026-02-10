@@ -258,7 +258,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		}
 
 		log := logger.With("component", "text2sql_handler")
-		log.Info("[Stream] Grounding starting",
+		log.Info("Grounding starting",
 			"question", req.Question,
 			"database_id", req.DatabaseID,
 			"datasource_id", datasourceID,
@@ -464,8 +464,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 				if err == nil {
 					groundingInfo = h.convertGroundingResultRich(result)
 				} else {
-					fmt.Printf("Grounding failed: %v\n", err)
-					log.Warn("[Stream] Grounding failed", "error", err)
+					log.Warn("Grounding failed", "error", err)
 					groundingErr = err
 				}
 			}
@@ -474,8 +473,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		// No legacy fallback — adaptive pipeline is the only path
 
 		if groundingErr != nil && groundingInfo == nil {
-			log.Error("[Stream] Grounding failed entirely", "error", groundingErr)
-			fmt.Printf("Grounding failed (continuing without): %v\n", groundingErr)
+			log.Error("Grounding failed entirely", "error", groundingErr)
 			SendSSE(c.Writer, "grounding_error", map[string]string{"error": groundingErr.Error()})
 			flusher.Flush()
 		} else if groundingInfo != nil {
@@ -532,11 +530,11 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 	if groundingInfo != nil {
 		linkedTables, linkedContextPrompt = extractLinkedContext(groundingInfo, req.FieldDescription)
 		hLog := logger.With("component", "text2sql_handler")
-		hLog.Info("[Stream] Linked context extracted",
+		hLog.Info("Linked context extracted",
 			"linked_tables", strings.Join(linkedTables, ", "),
 			"context_prompt_length", len(linkedContextPrompt),
 		)
-		hLog.Debug("[Stream] Linked context prompt", "prompt", linkedContextPrompt)
+		hLog.Debug("Linked context prompt", "prompt", linkedContextPrompt)
 	}
 
 	events := make(chan services.StreamEvent, 100)
@@ -668,7 +666,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 	// Resolve datasource by database name
 	log := logger.With("component", "text2sql_handler")
 	datasourceID := h.resolveDatasourceIDByName(ctx, req.DatabaseID)
-	log.Info("[performGrounding] Starting",
+	log.Info("performGrounding starting",
 		"question", req.Question,
 		"database_id", req.DatabaseID,
 		"datasource_id", datasourceID,
@@ -683,7 +681,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 
 	schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
 	if err != nil || len(schemas) == 0 {
-		fmt.Printf("Grounding: no schemas loaded (continuing without): %v\n", err)
+		log.Warn("Grounding: no schemas loaded", "error", err)
 		return nil
 	}
 
@@ -694,7 +692,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		TableCount:   len(schemas),
 	})
 	if err != nil {
-		fmt.Printf("Grounding failed (continuing without): %v\n", err)
+		log.Warn("Grounding failed (continuing without)", "error", err)
 		return nil
 	}
 	return h.convertGroundingResultRich(result)

@@ -36,13 +36,13 @@ func main() {
 		return
 	}
 
-	// Load configuration
+	// Load configuration (logger not yet initialized — use stdlib log)
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize structured logger (configurable via LOG_LEVEL env or system.yaml)
+	// Initialize structured logger
 	logLevel := cfg.Server.LogLevel
 	if logLevel == "" {
 		logLevel = "debug"
@@ -52,7 +52,8 @@ func main() {
 		logFormat = "json"
 	}
 	logger.Init(logLevel, logFormat)
-	log.Printf("📋 Log level: %s", logLevel)
+	slog := logger.L()
+	slog.Info("Logger initialized", "level", logLevel, "format", logFormat)
 
 	// Set Gin mode
 	if cfg.Server.Mode == "release" {
@@ -66,10 +67,8 @@ func main() {
 	var llmModel llms.Model
 	llmCfg, err := llm.FindConfig()
 	if err != nil {
-		log.Printf("⚠️  LLM config not found: %v", err)
-		log.Println("   Inference features will be limited...")
+		slog.Warn("LLM config not found, inference features limited", "error", err)
 	} else {
-		// Use system.yaml default_model as key, fallback to config's own default
 		modelKey := cfg.LLM.DefaultModel
 		if modelKey == "" {
 			modelKey = llmCfg.DefaultModel
@@ -78,9 +77,9 @@ func main() {
 		}
 		llmModel, err = llmCfg.CreateLLMByKey(modelKey)
 		if err != nil {
-			log.Printf("⚠️  LLM initialization failed (model=%s): %v", modelKey, err)
+			slog.Warn("LLM initialization failed", "model", modelKey, "error", err)
 		} else {
-			log.Printf("✅ LLM initialized: %s", modelKey)
+			slog.Info("LLM initialized", "model", modelKey)
 		}
 	}
 
@@ -108,27 +107,24 @@ func main() {
 	if _, err := os.Stat(lakebaseConfigPath); err == nil {
 		lakebaseService, err = services.NewLakebaseService(lakebaseConfigPath)
 		if err != nil {
-			log.Printf("⚠️  Lake-Base service initialization failed: %v", err)
-			log.Println("   Continuing without Lake-Base features...")
+			slog.Warn("Lake-Base service initialization failed", "error", err)
 		} else {
-			// Connect to Lake-Base storage
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			if err := lakebaseService.Connect(ctx); err != nil {
-				log.Printf("⚠️  Lake-Base connection failed: %v", err)
+				slog.Warn("Lake-Base connection failed", "error", err)
 				lakebaseService = nil
 			} else {
-				log.Println("✅ Lake-Base storage connected successfully")
-				// Set lakebase service to inference engine for rich context loading
+				slog.Info("Lake-Base storage connected")
 				inferenceEngine.SetLakebaseService(lakebaseService)
 			}
 			cancel()
 		}
 	} else {
-		log.Println("ℹ️  Lake-Base config not found, skipping...")
+		slog.Info("Lake-Base config not found, skipping")
 	}
 
 	// ========================================
-	// Startup Schema Sync (populate rc_tables/rc_columns from information_schema)
+	// Startup Schema Sync
 	// ========================================
 	if lakebaseService != nil {
 		syncCtx, syncCancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -153,12 +149,12 @@ func main() {
 				Config:       grounding.DefaultGroundingConfig(),
 			})
 			if llmModel != nil {
-				log.Println("✅ Semantic Grounding service initialized (full mode)")
+				slog.Info("Semantic Grounding initialized (full mode)")
 			} else {
-				log.Println("✅ Semantic Grounding service initialized (coarse-only mode)")
+				slog.Info("Semantic Grounding initialized (coarse-only mode)")
 			}
 		} else {
-			log.Println("⚠️  Semantic Grounding skipped: missing vector repo or embedder")
+			slog.Warn("Semantic Grounding skipped: missing vector repo or embedder")
 		}
 	}
 
@@ -171,22 +167,22 @@ func main() {
 		GroundingService: groundingService,
 	})
 	if err != nil {
-		log.Fatalf("Failed to initialize handlers: %v", err)
+		slog.Error("Failed to initialize handlers", "error", err)
+		os.Exit(1)
 	}
 
-	// Initialize Agent & Evolution services (depends on handler + lakebase)
+	// Initialize Agent & Evolution services
 	h.InitEvolution()
-	log.Println("✅ Agent & Evolution services initialized")
+	slog.Info("Agent & Evolution services initialized")
 
 	// ========================================
 	// Create Gin router
 	// ========================================
 	r := gin.Default()
 
-	// Configure CORS for frontend - allow all origins for demo purposes
+	// Configure CORS for frontend
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			// Allow all origins for demo deployment
 			return true
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -208,7 +204,7 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
-		log.Println("Shutting down...")
+		slog.Info("Shutting down...")
 		h.Close()
 		os.Exit(0)
 	}()
@@ -270,11 +266,10 @@ func main() {
 		// Grounding is integrated into text2sql pipeline — no standalone routes needed
 	}
 
-	// Serve static frontend files from web-new/dist (production)
+	// Serve static frontend files
 	r.Static("/assets", "../web-new/dist/assets")
 	r.StaticFile("/", "../web-new/dist/index.html")
 	r.NoRoute(func(c *gin.Context) {
-		// Don't serve index.html for API routes - return 404 instead
 		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
 			return
@@ -284,40 +279,40 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Printf("🚀 LUCID Server starting on %s", addr)
-	log.Printf("📊 API endpoint: http://localhost:%d/api/v1", cfg.Server.Port)
-	log.Printf("🔧 LLM Model: %s", cfg.LLM.DefaultModel)
-	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	slog.Info("LUCID Server starting",
+		"addr", addr,
+		"api", fmt.Sprintf("http://localhost:%d/api/v1", cfg.Server.Port),
+		"model", cfg.LLM.DefaultModel,
+	)
 
 	if err := r.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
 	}
 }
 
 // runMigrateOnly connects to lakebase and runs auto-migration, then exits.
+// Uses stdlib log since logger is not initialized in this path.
 func runMigrateOnly(configPath string) {
-	log.Println("🔄 Running database auto-migration...")
+	log.Println("Running database auto-migration...")
 
-	// Try to find lakebase config relative to the system config
 	lakebaseConfigPath := "configs/lakebase.yaml"
 	if _, err := os.Stat(lakebaseConfigPath); err != nil {
-		// Try relative to system config directory
-		log.Fatalf("❌ Lake-Base config not found at %s: %v", lakebaseConfigPath, err)
+		log.Fatalf("Lake-Base config not found at %s: %v", lakebaseConfigPath, err)
 	}
 
 	svc, err := services.NewLakebaseService(lakebaseConfigPath)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize lakebase service: %v", err)
+		log.Fatalf("Failed to initialize lakebase service: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := svc.Connect(ctx); err != nil {
-		log.Fatalf("❌ Failed to connect to lakebase (includes auto-migration): %v", err)
+		log.Fatalf("Failed to connect to lakebase: %v", err)
 	}
 	defer svc.Close()
 
-	log.Println("✅ Auto-migration completed successfully")
+	log.Println("Auto-migration completed successfully")
 }

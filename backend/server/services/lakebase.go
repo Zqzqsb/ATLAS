@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
-	"log/slog"
+	"lucid/internal/logger"
 	"sync"
 	"time"
 
@@ -67,7 +66,7 @@ func (s *LakebaseService) Connect(ctx context.Context) error {
 
 	// Run auto-migration to ensure schema matches code expectations
 	if err := lakebase.AutoMigrate(ctx, s.pool); err != nil {
-		log.Printf("[Lakebase] ⚠️  Auto-migration failed: %v (non-fatal, continuing)", err)
+		logger.L().Warn("Auto-migration failed (non-fatal)", "error", err)
 	}
 
 	s.repo = lakebase.NewMySQLRepository(s.pool)
@@ -83,9 +82,9 @@ func (s *LakebaseService) Connect(ctx context.Context) error {
 			Multimodal: s.config.Embedding.Multimodal,
 		})
 		s.embeddingProvider = provider
-		log.Printf("[Lakebase] Embedding provider initialized: %s (dim=%d)", s.config.Embedding.Model, s.config.Embedding.Dimension)
+		logger.L().Info("Embedding provider initialized", "model", s.config.Embedding.Model, "dim", s.config.Embedding.Dimension)
 	} else {
-		log.Println("[Lakebase] ⚠️  Embedding provider not configured (no API key). Grounding will not work.")
+		logger.L().Warn("Embedding provider not configured (no API key), grounding unavailable")
 	}
 
 	s.connected = true
@@ -280,7 +279,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 			continue
 		}
 		if err := s.repo.UpsertTable(ctx, dsID, tableName, rowCount); err != nil {
-			log.Printf("[SyncSchema] Warning: failed to upsert table %s: %v", tableName, err)
+			logger.L().Warn("SyncSchema: failed to upsert table", "table", tableName, "error", err)
 			continue
 		}
 		result.TablesCount++
@@ -322,7 +321,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 		isFK := colKey == "MUL" // MUL typically indicates a foreign key index
 		isNullable := nullable == "YES"
 		if err := s.repo.UpsertColumn(ctx, dsID, tableName, colName, colType, isNullable, isPK, isFK); err != nil {
-			log.Printf("[SyncSchema] Warning: failed to upsert column %s.%s: %v", tableName, colName, err)
+			logger.L().Warn("SyncSchema: failed to upsert column", "table", tableName, "column", colName, "error", err)
 			continue
 		}
 		result.ColumnsCount++
@@ -336,7 +335,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 		ORDER BY TABLE_NAME, COLUMN_NAME
 	`)
 	if err != nil {
-		log.Printf("[SyncSchema] Warning: failed to query foreign keys: %v", err)
+		logger.L().Warn("SyncSchema: failed to query foreign keys", "error", err)
 	} else {
 		for _, row := range fkResult.Rows {
 			var fromTable, fromCol, toTable, toCol string
@@ -358,7 +357,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 				continue
 			}
 			if err := s.repo.UpsertRelation(ctx, dsID, fromTable, fromCol, toTable, toCol); err != nil {
-				log.Printf("[SyncSchema] Warning: failed to upsert relation %s.%s → %s.%s: %v", fromTable, fromCol, toTable, toCol, err)
+				logger.L().Warn("SyncSchema: failed to upsert relation", "from", fromTable+"."+fromCol, "to", toTable+"."+toCol, "error", err)
 				continue
 			}
 			result.RelationsCount++
@@ -368,8 +367,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 	// Update last sync timestamp
 	_ = s.repo.UpdateDatasourceLastSync(ctx, dsID)
 
-	log.Printf("[SyncSchema] Completed for datasource %d: %d tables, %d columns, %d relations",
-		dsID, result.TablesCount, result.ColumnsCount, result.RelationsCount)
+	logger.L().Info("SyncSchema completed", "datasource_id", dsID, "tables", result.TablesCount, "columns", result.ColumnsCount, "relations", result.RelationsCount)
 
 	return result, nil
 }
@@ -379,7 +377,7 @@ func (s *LakebaseService) SyncSchema(ctx context.Context, dsID int64, targetDB a
 // Called once at startup. Connection management (config.Databases) is untouched.
 func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config.DatabaseConfig, adapterFactory func(string) (adapter.DBAdapter, error)) {
 	if !s.connected {
-		log.Println("[SyncAllSchemas] Lakebase not connected, skipping")
+		logger.L().Warn("SyncAllSchemas: lakebase not connected, skipping")
 		return
 	}
 
@@ -395,26 +393,25 @@ func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config
 			Status:       "active",
 		})
 		if err != nil {
-			log.Printf("[SyncAllSchemas] Failed to get/create datasource for %s: %v", dbCfg.ID, err)
+			logger.L().Warn("SyncAllSchemas: failed to get/create datasource", "db", dbCfg.ID, "error", err)
 			continue
 		}
 
 		// 2. Connect to the target business database
 		adapter, err := adapterFactory(dbCfg.ID)
 		if err != nil {
-			log.Printf("[SyncAllSchemas] Failed to connect to %s: %v", dbCfg.ID, err)
+			logger.L().Warn("SyncAllSchemas: failed to connect", "db", dbCfg.ID, "error", err)
 			continue
 		}
 
 		// 3. Sync physical schema
 		result, err := s.SyncSchema(ctx, ds.ID, adapter)
 		if err != nil {
-			log.Printf("[SyncAllSchemas] Failed to sync schema for %s: %v", dbCfg.ID, err)
+			logger.L().Warn("SyncAllSchemas: failed to sync schema", "db", dbCfg.ID, "error", err)
 			continue
 		}
 
-		log.Printf("[SyncAllSchemas] ✅ %s: %d tables, %d columns, %d relations",
-			dbCfg.ID, result.TablesCount, result.ColumnsCount, result.RelationsCount)
+		logger.L().Info("SyncAllSchemas: synced", "db", dbCfg.ID, "tables", result.TablesCount, "columns", result.ColumnsCount, "relations", result.RelationsCount)
 	}
 }
 
@@ -588,7 +585,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		return nil, fmt.Errorf("embedding provider not configured")
 	}
 
-	log.Printf("[Embedding] Starting embedding generation for datasource %d using provider: %s", dsID, s.embeddingProvider.Name())
+	logger.L().Info("Embedding generation starting", "datasource_id", dsID, "provider", s.embeddingProvider.Name())
 
 	result := &EmbeddingGenerationResult{
 		DatasourceID: dsID,
@@ -651,7 +648,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 	}
 
 	if len(items) == 0 {
-		log.Printf("[Embedding] Warning: No entities to embed for datasource %d", dsID)
+		logger.L().Warn("Embedding: no entities to embed", "datasource_id", dsID)
 		return result, nil
 	}
 
@@ -661,8 +658,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		batchSize = 100
 	}
 
-	log.Printf("[Embedding] Embedding %d entities in batches of %d (tables: %d, columns: %d, terms: %d)",
-		len(items), batchSize, result.TablesProcessed, result.ColumnsProcessed, result.ContextsProcessed)
+	logger.L().Info("Embedding: processing entities", "total", len(items), "batch_size", batchSize, "tables", result.TablesProcessed, "columns", result.ColumnsProcessed, "contexts", result.ContextsProcessed)
 
 	for i := 0; i < len(items); i += batchSize {
 		end := i + batchSize
@@ -679,7 +675,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 
 		vectors, err := s.embeddingProvider.EmbedBatch(ctx, texts)
 		if err != nil {
-			log.Printf("[Embedding] Error in batch [%d:%d]: %v", i, end, err)
+			logger.L().Error("Embedding: batch failed", "batch_start", i, "batch_end", end, "error", err)
 			return nil, fmt.Errorf("embedding batch failed at offset %d: %w", i, err)
 		}
 
@@ -694,15 +690,14 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 				EmbeddingModel: s.config.Embedding.Model,
 			}
 			if err := s.vectorRepo.UpsertEmbedding(ctx, emb); err != nil {
-				log.Printf("[Embedding] Warning: failed to upsert embedding for %s/%d: %v",
-					batch[j].entityType, batch[j].entityID, err)
+				logger.L().Warn("Embedding: failed to upsert", "entity_type", batch[j].entityType, "entity_id", batch[j].entityID, "error", err)
 			} else {
 				result.TotalEmbeddings++
 			}
 		}
 	}
 
-	log.Printf("[Embedding] Successfully upserted %d embeddings for datasource %d", result.TotalEmbeddings, dsID)
+	logger.L().Info("Embedding: completed", "total_embeddings", result.TotalEmbeddings, "datasource_id", dsID)
 	return result, nil
 }
 
@@ -721,7 +716,7 @@ type EmbeddingGenerationResult struct {
 // For column types: tableName + columnName identify the column.
 // For term types: tableName holds the term string.
 func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, contextType, tableName, columnName string) error {
-	log := slog.With("component", "embed_entity", "dsID", dsID, "type", contextType, "table", tableName, "column", columnName)
+	log := logger.With("component", "embed_entity", "dsID", dsID, "type", contextType, "table", tableName, "column", columnName)
 	log.Info("embedding entity by name")
 
 	if !s.connected {

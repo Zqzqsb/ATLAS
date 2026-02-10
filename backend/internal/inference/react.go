@@ -3,10 +3,10 @@ package inference
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"lucid/internal/adapter"
+	"lucid/internal/logger"
 	"lucid/internal/react"
 
 	"github.com/tmc/langchaingo/agents"
@@ -32,7 +32,7 @@ func (p *Pipeline) oneShotGeneration(ctx context.Context, query string, contextP
 	}
 
 	sql := p.extractSQL(response)
-	log.Printf("[inference] One-shot SQL generated: %s", truncateLog(sql, 200))
+	logger.L().Info("One-shot SQL generated", "sql", truncateLog(sql, 200))
 	return sql, nil
 }
 
@@ -86,14 +86,14 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	// 构建 Prompt - pass claimed iterations to prompt
 	prompt := p.buildPrompt(query, contextPrompt, true)
 
-	log.Printf("[inference] Starting ReAct loop (max %d iterations, claimed %d)", actualMaxIterations, claimedMaxIterations)
+	logger.L().Info("ReAct loop starting", "max_iterations", actualMaxIterations, "claimed", claimedMaxIterations)
 
 	agentResult, err := executor.Call(ctx, map[string]any{"input": prompt})
 	if err != nil {
 		return "", fmt.Errorf("ReAct loop failed: %w", err)
 	}
 
-	log.Printf("[inference] ReAct loop completed")
+	logger.L().Info("ReAct loop completed")
 
 	// Collect ReAct steps from handler
 	for _, step := range reactHandler.GetSteps() {

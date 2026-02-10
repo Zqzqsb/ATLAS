@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"lucid/internal/agent"
+	"lucid/internal/logger"
 )
 
 // GetEvolutionStatus returns the current evolution demo state
@@ -242,7 +242,7 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 	// Re-sync schema to lake-base
 	if err := h.evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
 		// Non-fatal: log warning
-		fmt.Printf("Warning: failed to sync schema after reset: %v\n", err)
+		logger.L().Warn("Failed to sync schema after reset", "error", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

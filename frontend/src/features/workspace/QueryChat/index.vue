@@ -236,10 +236,12 @@ function dismissFieldPanel() {
   showFieldPanel.value = false
 }
 
-// Re-execute with updated field selections
+// Re-execute with updated field selections — aborts current query and re-runs
 async function reExecuteWithFields() {
   showFieldPanel.value = false
   const fieldDesc = getFieldDescription()
+  // Abort current execution if still running
+  workspaceStore.abortCurrentQuery()
   try {
     await workspaceStore.executeQuery(question.value, fieldDesc)
   } catch (e: any) {
@@ -418,66 +420,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
       </div>
 
-      <!-- Field Alignment Panel (non-blocking: shown after grounding completes with suggested fields) -->
-      <Transition name="field-panel">
-        <div v-if="showFieldPanel && suggestedFields.length > 0" class="mt-6 p-5 bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <div class="i-carbon-data-table text-purple-600" />
-              <h4 class="font-bold text-gray-800">Suggested Output Fields</h4>
-              <NTag size="small" type="success">From Schema Linking</NTag>
-            </div>
-            <button 
-              class="text-gray-400 hover:text-gray-600 transition-colors"
-              @click="dismissFieldPanel"
-            >
-              <div class="i-carbon-close" />
-            </button>
-          </div>
-          
-          <div class="space-y-3">
-            <div
-              v-for="field in suggestedFields"
-              :key="`${field.tableName}.${field.columnName}`"
-              class="flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer"
-              :class="field.selected ? 'bg-purple-100 border border-purple-300' : 'bg-white border border-gray-200 hover:border-purple-200'"
-              @click="toggleField(field)"
-            >
-              <NCheckbox :checked="field.selected" @update:checked="(v: boolean) => field.selected = v" />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-gray-800">{{ field.columnName }}</span>
-                  <span class="text-xs text-gray-400 font-mono">{{ field.tableName }}</span>
-                </div>
-                <p class="text-sm text-gray-500 mt-0.5">{{ field.reason }}</p>
-              </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-3">
-              <span class="i-carbon-information inline-block mr-1" />
-              These fields were identified by Schema Linking. Adjust selection and re-run to refine the SQL output.
-            </p>
-            
-            <!-- Re-execute with adjusted fields / Dismiss -->
-            <div class="flex items-center gap-3 mt-4 pt-4 border-t border-purple-200">
-              <button
-                class="px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-violet-600 text-white font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-                :disabled="isExecuting"
-                @click="reExecuteWithFields"
-              >
-                Re-run with Selection
-              </button>
-              <button
-                class="px-4 py-2 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:bg-gray-50 transition-all"
-                @click="dismissFieldPanel"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- Action Buttons -->
+      <!-- Action Buttons — no more field panel here, it moved to Schema Linking card -->
       <div class="flex items-center gap-4 mt-8">
         <button
           :disabled="!question.trim() || isExecuting"
@@ -737,6 +680,58 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </div>
               </div>
             </div>
+
+            <!-- Field Suggestions Panel — naturally placed after linking steps -->
+            <Transition name="field-panel">
+              <div v-if="showFieldPanel && suggestedFields.length > 0" class="mt-2 p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200/60">
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-2">
+                    <div class="i-carbon-data-table text-purple-500 text-sm" />
+                    <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
+                    <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
+                  </div>
+                  <button 
+                    class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+                    @click="dismissFieldPanel"
+                  >
+                    <div class="i-carbon-close text-sm" />
+                  </button>
+                </div>
+                
+                <!-- Compact field chips -->
+                <div class="flex flex-wrap gap-2 mb-3">
+                  <button
+                    v-for="field in suggestedFields"
+                    :key="`${field.tableName}.${field.columnName}`"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border"
+                    :class="field.selected 
+                      ? 'bg-purple-100 border-purple-300 text-purple-800 shadow-sm' 
+                      : 'bg-white border-gray-200 text-gray-500 hover:border-purple-200'"
+                    :title="field.reason"
+                    @click="toggleField(field)"
+                  >
+                    <NCheckbox :checked="field.selected" size="small" @update:checked="(v: boolean) => field.selected = v" @click.stop />
+                    <span class="font-mono">{{ field.columnName }}</span>
+                    <span class="text-gray-400 font-normal">{{ field.tableName }}</span>
+                  </button>
+                </div>
+                
+                <!-- Compact action row -->
+                <div class="flex items-center justify-between pt-2 border-t border-purple-100">
+                  <p class="text-xs text-gray-400">
+                    <span class="i-carbon-information inline-block mr-0.5 align-middle" />
+                    Adjust and re-run to refine SQL output
+                  </p>
+                  <button
+                    class="px-3 py-1.5 rounded-lg bg-purple-600 text-white font-bold text-xs shadow-sm hover:bg-purple-700 hover:-translate-y-0.5 transition-all"
+                    :disabled="isExecuting"
+                    @click="reExecuteWithFields"
+                  >
+                    Re-run with Selection
+                  </button>
+                </div>
+              </div>
+            </Transition>
           </div>
           <div v-else-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div class="i-carbon-connection-signal animate-pulse text-cyan-500 text-xl" />
@@ -796,7 +791,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                     </div>
                     
-                    <!-- Action: verify_sql with status badge -->
+                    <!-- Action: verify_sql with status badge + expandable execution plan -->
                     <div v-if="step.action === 'verify_sql'" class="space-y-2">
                       <div class="flex items-center gap-2 bg-white p-2 rounded border"
                         :class="step.observation?.startsWith('✅') ? 'border-green-200' : step.observation?.startsWith('❌') ? 'border-red-200' : 'border-purple-100'"
@@ -812,9 +807,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                         <NTag v-else-if="step.observation" size="tiny" type="warning" round>CHECKING</NTag>
                       </div>
                       
-                      <!-- EXPLAIN plan in collapsible section -->
+                      <!-- Expandable Execution Plan -->
                       <div v-if="step.observation" class="verify-result">
-                        <NCollapse :default-expanded-names="step.observation?.startsWith('❌') ? ['explain'] : []" arrow-placement="left">
+                        <NCollapse 
+                          :default-expanded-names="step.observation?.startsWith('❌') ? ['explain'] : []" 
+                          arrow-placement="left"
+                        >
                           <NCollapseItem name="explain">
                             <template #header>
                               <div class="flex items-center gap-2">
@@ -822,11 +820,24 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                                   :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
                                 />
                                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
+                                <span class="text-xs text-gray-400">(click to expand)</span>
                               </div>
                             </template>
-                            <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 rounded-lg mt-1 max-h-48 overflow-y-auto"
-                              :class="step.observation?.startsWith('✅') ? 'bg-green-50' : 'bg-red-50'"
-                            >{{ step.observation }}</pre>
+                            <div class="mt-1 rounded-lg overflow-hidden border"
+                              :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
+                            >
+                              <!-- Summary header -->
+                              <div class="px-3 py-2 text-xs font-medium flex items-center gap-2"
+                                :class="step.observation?.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                              >
+                                <div :class="step.observation?.startsWith('✅') ? 'i-carbon-checkmark-filled' : 'i-carbon-warning-alt'" />
+                                {{ step.observation?.startsWith('✅') ? 'Query passed verification' : 'Query has issues' }}
+                              </div>
+                              <!-- Full plan detail -->
+                              <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-64 overflow-y-auto"
+                                :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
+                              >{{ step.observation }}</pre>
+                            </div>
                           </NCollapseItem>
                         </NCollapse>
                       </div>

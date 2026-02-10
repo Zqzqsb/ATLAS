@@ -624,54 +624,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
 
-            <!-- LLM Reasoning (Fine Selection) -->
-            <div v-if="workspaceStore.groundingResult.reasoning" class="mt-3">
-              <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
-                <NCollapseItem name="reasoning">
-                  <template #header>
-                    <div class="flex items-center gap-2">
-                      <div class="i-lucide-brain text-sm text-indigo-500" />
-                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">LLM Fine Selection</span>
-                      <span v-if="workspaceStore.groundingResult.mode" class="px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">
-                        {{ workspaceStore.groundingResult.mode }}
-                      </span>
-                    </div>
-                  </template>
-                  <div class="p-3 rounded-lg bg-indigo-50 border border-indigo-100 text-sm text-gray-700 leading-relaxed mt-2">
-                    {{ workspaceStore.groundingResult.reasoning }}
-                  </div>
-                </NCollapseItem>
-              </NCollapse>
-            </div>
 
-            <!-- Execution Logs (Transparency) -->
-            <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="mt-3">
-              <NCollapse :default-expanded-names="[]" arrow-placement="left">
-                <NCollapseItem name="logs">
-                  <template #header>
-                    <div class="flex items-center gap-2">
-                      <div class="i-lucide-terminal text-sm text-gray-500" />
-                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Log</span>
-                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }} queries)</span>
-                    </div>
-                  </template>
-                  <div class="space-y-2 mt-2">
-                    <div
-                      v-for="(log, idx) in workspaceStore.groundingResult.executionLogs"
-                      :key="idx"
-                      class="p-3 rounded-lg bg-gray-800 text-xs font-mono"
-                    >
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-green-400 font-bold">{{ log.phase }}</span>
-                        <span class="text-gray-400">{{ log.duration_ms }}ms | {{ log.result_count }} results</span>
-                      </div>
-                      <div class="text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
-                      <div class="mt-2 text-gray-500 italic">{{ log.summary }}</div>
-                    </div>
-                  </div>
-                </NCollapseItem>
-              </NCollapse>
-            </div>
           </div>
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div class="i-lucide-search animate-pulse text-blue-500 text-xl" />
@@ -705,7 +658,59 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         color="cyan"
       >
         <template #content>
-          <!-- Field Suggestions Panel — shown when grounding-only completes, BEFORE any linking steps -->
+          <!-- Step 1: Linking Agent Result (LLM Fine Selection + Execution Logs) — moved from Vector Search -->
+          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4 content-fade">
+            <!-- LLM Fine Selection -->
+            <div v-if="workspaceStore.groundingResult.reasoning">
+              <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
+                <NCollapseItem name="reasoning">
+                  <template #header>
+                    <div class="flex items-center gap-2">
+                      <div class="i-lucide-brain text-sm text-indigo-500" />
+                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">LLM Fine Selection</span>
+                      <span v-if="workspaceStore.groundingResult.mode" class="px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">
+                        {{ workspaceStore.groundingResult.mode }}
+                      </span>
+                    </div>
+                  </template>
+                  <div class="p-3 rounded-lg bg-indigo-50 border border-indigo-100 text-sm text-gray-700 leading-relaxed mt-2">
+                    {{ workspaceStore.groundingResult.reasoning }}
+                  </div>
+                </NCollapseItem>
+              </NCollapse>
+            </div>
+
+            <!-- Execution Logs -->
+            <div v-if="workspaceStore.groundingResult.executionLogs?.length">
+              <NCollapse :default-expanded-names="[]" arrow-placement="left">
+                <NCollapseItem name="logs">
+                  <template #header>
+                    <div class="flex items-center gap-2">
+                      <div class="i-lucide-terminal text-sm text-gray-500" />
+                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Log</span>
+                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }} queries)</span>
+                    </div>
+                  </template>
+                  <div class="space-y-2 mt-2">
+                    <div
+                      v-for="(log, idx) in workspaceStore.groundingResult.executionLogs"
+                      :key="idx"
+                      class="p-3 rounded-lg bg-gray-800 text-xs font-mono"
+                    >
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="text-green-400 font-bold">{{ log.phase }}</span>
+                        <span class="text-gray-400">{{ log.duration_ms }}ms | {{ log.result_count }} results</span>
+                      </div>
+                      <div class="text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
+                      <div class="mt-2 text-gray-500 italic">{{ log.summary }}</div>
+                    </div>
+                  </div>
+                </NCollapseItem>
+              </NCollapse>
+            </div>
+          </div>
+
+          <!-- Step 2: Field Suggestions Panel — shown after linking agent result -->
           <Transition name="field-panel">
           <div v-if="showFieldPanel && suggestedFields.length > 0" class="p-4 rounded-lg bg-purple-50 border border-purple-200">
               <div class="flex items-center justify-between mb-3">
@@ -824,8 +829,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
           </div>
-          <!-- Loading/Waiting states (only when field panel is NOT shown) -->
-          <div v-else-if="!showFieldPanel">
+          <!-- Loading/Waiting states (only when NO linking result AND field panel is NOT shown) -->
+          <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.executionLogs?.length)">
             <!-- Linking agent progress from grounding sub-stages -->
             <div v-if="workspaceStore.groundingProgress?.stage === 'linking_start'" class="space-y-3">
               <div class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">

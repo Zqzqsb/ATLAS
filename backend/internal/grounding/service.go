@@ -11,27 +11,17 @@ import (
 	"lucid/internal/lakebase"
 )
 
-// GroundingMode defines the grounding execution mode
-type GroundingMode string
-
-const (
-	// ModeCoarseOnly uses only vector retrieval without LLM selection
-	ModeCoarseOnly GroundingMode = "coarse_only"
-	// ModeSequential runs coarse retrieval then fine selection
-	ModeSequential GroundingMode = "sequential"
-	// ModeParallel runs coarse and fine selection with streaming results
-	ModeParallel GroundingMode = "parallel"
-)
-
-// Service provides the main entry point for Semantic Grounding
+// Service provides the main entry point for Semantic Grounding.
+// Uses AdaptivePipeline for all grounding operations:
+//   - Small scale (≤ threshold tables): full schema → LinkingAgent
+//   - Large scale (> threshold tables): vector retrieval → LinkingAgent
 type Service struct {
-	pipeline         *Pipeline
-	adaptivePipeline *AdaptivePipeline
-	vectorRepo       *lakebase.MySQLVectorRepository
-	embedder         embedding.EmbeddingProvider
-	llmModel         llms.Model
-	config           *GroundingConfig
-	datasourceID     int64
+	pipeline     *AdaptivePipeline
+	vectorRepo   *lakebase.MySQLVectorRepository
+	embedder     embedding.EmbeddingProvider
+	llmModel     llms.Model
+	config       *GroundingConfig
+	datasourceID int64
 }
 
 // ServiceConfig configures the grounding service
@@ -50,7 +40,6 @@ func NewService(cfg *ServiceConfig) *Service {
 	}
 
 	svc := &Service{
-		pipeline:     NewPipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config),
 		vectorRepo:   cfg.VectorRepo,
 		embedder:     cfg.Embedder,
 		llmModel:     cfg.LLMModel,
@@ -58,48 +47,59 @@ func NewService(cfg *ServiceConfig) *Service {
 		datasourceID: cfg.DatasourceID,
 	}
 
-	// Initialize adaptive pipeline if LLM is available
 	if cfg.LLMModel != nil {
-		svc.adaptivePipeline = NewAdaptivePipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config)
+		svc.pipeline = NewAdaptivePipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config)
 	}
 
 	return svc
 }
 
-// Ground performs semantic grounding for a query
-// Returns selected tables, columns, and grounded context
-func (s *Service) Ground(ctx context.Context, query string, mode GroundingMode) (*GroundingResult, error) {
-	req := &GroundingRequest{
-		Query:             query,
-		DatasourceID:      s.datasourceID,
-		SkipFineSelection: mode == ModeCoarseOnly,
+// Ground performs adaptive grounding for a query.
+// Requires AllSchemas to be provided via AdaptiveGroundingRequest.
+// For backward compatibility, this method builds a minimal request.
+func (s *Service) Ground(ctx context.Context, req *AdaptiveGroundingRequest) (*GroundingResult, error) {
+	if s.pipeline == nil {
+		return nil, fmt.Errorf("grounding pipeline not available (LLM required)")
 	}
 
-	switch mode {
-	case ModeCoarseOnly, ModeSequential:
-		return s.pipeline.Ground(ctx, req)
-	case ModeParallel:
-		// For parallel mode, collect all results and return the final one
-		resultCh, err := s.pipeline.GroundParallel(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		var finalResult *GroundingResult
-		for result := range resultCh {
-			finalResult = result
-		}
-		return finalResult, nil
-	default:
-		return s.pipeline.Ground(ctx, req)
+	if req.DatasourceID == 0 {
+		req.DatasourceID = s.datasourceID
 	}
+
+	result, err := s.pipeline.Ground(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.convertResult(result), nil
 }
 
-// GroundWithStreaming performs grounding and streams intermediate results
-func (s *Service) GroundWithStreaming(ctx context.Context, query string) (<-chan *GroundingResult, error) {
-	return s.pipeline.GroundParallel(ctx, &GroundingRequest{
-		Query:        query,
-		DatasourceID: s.datasourceID,
-	})
+// GroundAdaptive is an alias for Ground for explicit adaptive grounding calls.
+func (s *Service) GroundAdaptive(ctx context.Context, req *AdaptiveGroundingRequest) (*AdaptiveGroundingResult, error) {
+	if s.pipeline == nil {
+		return nil, fmt.Errorf("grounding pipeline not available (LLM required)")
+	}
+
+	if req.DatasourceID == 0 {
+		req.DatasourceID = s.datasourceID
+	}
+
+	return s.pipeline.Ground(ctx, req)
+}
+
+// IsAvailable returns true if the grounding pipeline is initialized.
+func (s *Service) IsAvailable() bool {
+	return s.pipeline != nil
+}
+
+// SetDatasourceID updates the datasource ID for grounding
+func (s *Service) SetDatasourceID(id int64) {
+	s.datasourceID = id
+}
+
+// GetConfig returns the current grounding configuration
+func (s *Service) GetConfig() *GroundingConfig {
+	return s.config
 }
 
 // GetSelectedTables extracts table names from grounded context
@@ -112,13 +112,12 @@ func (s *Service) GetSelectedTables(ctx *GroundedContext) []string {
 }
 
 // FormatContextPrompt formats the grounded context into a prompt string
-// This can be used directly in SQL generation
+// for injection into SQL generation.
 func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 	var sb strings.Builder
 
 	sb.WriteString("=== Semantic Grounding Results ===\n\n")
 
-	// Tables
 	if len(ctx.Tables) > 0 {
 		sb.WriteString("## Relevant Tables:\n")
 		for _, t := range ctx.Tables {
@@ -136,7 +135,6 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// Columns
 	if len(ctx.Columns) > 0 {
 		sb.WriteString("## Relevant Columns:\n")
 		for _, c := range ctx.Columns {
@@ -152,7 +150,6 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// Relationships
 	if len(ctx.Relationships) > 0 {
 		sb.WriteString("## Join Paths:\n")
 		for _, r := range ctx.Relationships {
@@ -162,7 +159,6 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// Business Rules
 	if len(ctx.BusinessRules) > 0 {
 		sb.WriteString("## Business Rules:\n")
 		for _, br := range ctx.BusinessRules {
@@ -171,7 +167,6 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// Domain Terms
 	if len(ctx.DomainTerms) > 0 {
 		sb.WriteString("## Domain Terms:\n")
 		for _, dt := range ctx.DomainTerms {
@@ -184,7 +179,6 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// SQL Templates
 	if len(ctx.SQLTemplates) > 0 {
 		sb.WriteString("## Similar SQL Patterns:\n")
 		for _, tpl := range ctx.SQLTemplates {
@@ -196,65 +190,24 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("\n")
 	}
 
-	// Metadata
 	sb.WriteString(fmt.Sprintf("Grounding Stats: %d signals probed, %d selected, confidence: %.2f\n",
 		ctx.SignalsProbed, ctx.SignalsSelected, ctx.Confidence))
 
 	return sb.String()
 }
 
-// GroundAdaptive performs adaptive grounding with full schema information.
-// This is the preferred method when schema info is available from lakebase.
-// It uses the AdaptivePipeline which:
-// - For small scale (≤ threshold tables): passes ALL schema + RC directly to linking agent
-// - For large scale (> threshold tables): uses vector retrieval to narrow candidates first
-// The linking agent selects tables AND relevant rich context for injection into inference.
-func (s *Service) GroundAdaptive(ctx context.Context, req *AdaptiveGroundingRequest) (*AdaptiveGroundingResult, error) {
-	if s.adaptivePipeline == nil {
-		return nil, fmt.Errorf("adaptive pipeline not available (LLM required)")
-	}
-
-	if req.DatasourceID == 0 {
-		req.DatasourceID = s.datasourceID
-	}
-
-	return s.adaptivePipeline.Ground(ctx, req)
-}
-
-// ConvertAdaptiveResult converts AdaptiveGroundingResult to legacy GroundingResult
-// for backward compatibility with existing handler code.
-func (s *Service) ConvertAdaptiveResult(ar *AdaptiveGroundingResult) *GroundingResult {
+// convertResult converts AdaptiveGroundingResult to legacy GroundingResult
+func (s *Service) convertResult(ar *AdaptiveGroundingResult) *GroundingResult {
 	if ar == nil || ar.Context == nil {
 		return nil
 	}
 	return &GroundingResult{
-		Context:        ar.Context,
-		TotalDuration:  ar.TotalDuration,
-		Mode:           string(ar.Strategy),
-		ExecutionLogs:  ar.ExecutionLogs,
-		CoarseSignals:  ar.CoarseSignals,
-		CoarseDuration: ar.RetrievalTime,
+		Context:           ar.Context,
+		TotalDuration:     ar.TotalDuration,
+		Mode:              string(ar.Strategy),
+		ExecutionLogs:     ar.ExecutionLogs,
+		CoarseSignals:     ar.CoarseSignals,
+		CoarseDuration:    ar.RetrievalTime,
 		SelectionDuration: ar.LinkingTime,
 	}
-}
-
-// IsAdaptiveAvailable returns true if the adaptive pipeline is initialized.
-func (s *Service) IsAdaptiveAvailable() bool {
-	return s.adaptivePipeline != nil
-}
-
-// SetDatasourceID updates the datasource ID for grounding
-func (s *Service) SetDatasourceID(id int64) {
-	s.datasourceID = id
-}
-
-// GetConfig returns the current grounding configuration
-func (s *Service) GetConfig() *GroundingConfig {
-	return s.config
-}
-
-// UpdateConfig updates the grounding configuration
-func (s *Service) UpdateConfig(cfg *GroundingConfig) {
-	s.config = cfg
-	s.pipeline.UpdateConfig(cfg)
 }

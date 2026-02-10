@@ -282,7 +282,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		var retrievalCompleteSent bool // guard: send retrieval_complete at most once
 		var linkingCompleteSent bool   // guard: send linking_complete at most once
 
-		if h.groundingService.IsAdaptiveAvailable() && h.lakebaseService != nil && datasourceID > 0 {
+		if h.groundingService.IsAvailable() && h.lakebaseService != nil && datasourceID > 0 {
 			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
 			if err == nil && len(schemas) > 0 {
 				adaptiveReq := &grounding.AdaptiveGroundingRequest{
@@ -463,27 +463,18 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 						}
 					},
 				}
-				result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
+				result, err := h.groundingService.Ground(ctx, adaptiveReq)
 				if err == nil {
-					legacyResult := h.groundingService.ConvertAdaptiveResult(result)
-					groundingInfo = h.convertGroundingResultRich(legacyResult)
+					groundingInfo = h.convertGroundingResultRich(result)
 				} else {
-				fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
-				log.Warn("[Stream] Adaptive grounding failed, falling back", "error", err)
-				groundingErr = err
+					fmt.Printf("Grounding failed: %v\n", err)
+					log.Warn("[Stream] Grounding failed", "error", err)
+					groundingErr = err
 				}
 			}
 		}
 
-		// Fallback to legacy grounding
-		if groundingInfo == nil && groundingErr == nil {
-			result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
-			if err != nil {
-				groundingErr = err
-			} else {
-				groundingInfo = h.convertGroundingResultRich(result)
-			}
-		}
+		// No legacy fallback — adaptive pipeline is the only path
 
 		if groundingErr != nil && groundingInfo == nil {
 			log.Error("[Stream] Grounding failed entirely", "error", groundingErr)
@@ -691,32 +682,22 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		h.groundingService.SetDatasourceID(datasourceID)
 	}
 
-	// Try adaptive grounding first (full schema → linking agent)
-	if h.groundingService.IsAdaptiveAvailable() && h.lakebaseService != nil && datasourceID > 0 {
-		schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
-		if err == nil && len(schemas) > 0 {
-			adaptiveReq := &grounding.AdaptiveGroundingRequest{
-				Query:        req.Question,
-				DatasourceID: datasourceID,
-				AllSchemas:   schemas,
-				TableCount:   len(schemas),
-			}
-			result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
-			if err == nil {
-				log.Info("[performGrounding] Adaptive grounding complete",
-					"strategy", string(result.Strategy),
-					"selected_tables", len(result.SelectedTables),
-					"duration", result.TotalDuration.Round(time.Millisecond),
-				)
-				legacyResult := h.groundingService.ConvertAdaptiveResult(result)
-				return h.convertGroundingResultRich(legacyResult)
-			}
-			fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
-		}
+	if !h.groundingService.IsAvailable() || h.lakebaseService == nil || datasourceID == 0 {
+		return nil
 	}
 
-	// Fallback: legacy vector-only grounding
-	result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
+	schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
+	if err != nil || len(schemas) == 0 {
+		fmt.Printf("Grounding: no schemas loaded (continuing without): %v\n", err)
+		return nil
+	}
+
+	result, err := h.groundingService.Ground(ctx, &grounding.AdaptiveGroundingRequest{
+		Query:        req.Question,
+		DatasourceID: datasourceID,
+		AllSchemas:   schemas,
+		TableCount:   len(schemas),
+	})
 	if err != nil {
 		fmt.Printf("Grounding failed (continuing without): %v\n", err)
 		return nil

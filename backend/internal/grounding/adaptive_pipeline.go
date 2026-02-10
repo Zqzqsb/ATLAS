@@ -18,7 +18,6 @@ import (
 type AdaptivePipeline struct {
 	coarseRetriever *CoarseRetriever
 	linkingAgent    *LinkingAgent
-	fineSelector    *FineSelector // Keep for backward compatibility
 	config          *GroundingConfig
 	vectorRepo      *lakebase.MySQLVectorRepository
 	embedder        embedding.EmbeddingProvider
@@ -38,7 +37,6 @@ func NewAdaptivePipeline(
 	return &AdaptivePipeline{
 		coarseRetriever: NewCoarseRetriever(vectorRepo, embedder, config.CoarseRetrieval),
 		linkingAgent:    NewLinkingAgent(llmModel, config.LinkingAgent),
-		fineSelector:    NewFineSelector(llmModel, config.FineSelection),
 		config:          config,
 		vectorRepo:      vectorRepo,
 		embedder:        embedder,

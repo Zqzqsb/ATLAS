@@ -267,12 +267,7 @@ func main() {
 		api.POST("/evolution/reset", h.ResetEvolution)
 		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
-		// Semantic Grounding routes (each handler checks groundingService availability)
-		api.POST("/grounding/ground", h.Ground)
-		api.GET("/grounding/stream", h.GroundStream)
-		api.GET("/grounding/config", h.GetGroundingConfig)
-		api.PUT("/grounding/config", h.UpdateGroundingConfig)
-		api.POST("/grounding/format", h.FormatGroundingPrompt)
+		// Grounding is integrated into text2sql pipeline — no standalone routes needed
 	}
 
 	// Serve static frontend files from web-new/dist (production)

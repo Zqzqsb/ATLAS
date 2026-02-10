@@ -179,8 +179,9 @@ const schemaLinkingStage = computed(() => {
   const completed = end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql
   
   // Active when: grounding is done AND (no sql generation steps yet OR has schema linking steps)
+  // Also active when awaiting field confirmation (field panel is shown inside this card)
   const groundingDone = workspaceStore.groundingStage === 'done' || !!workspaceStore.groundingResult
-  const active = isExecuting.value && groundingDone && !hasSqlGenerationSteps
+  const active = awaitingFieldConfirmation.value || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)
   
   return {
     active: active || (isExecuting.value && hasSchemaLinkingSteps),
@@ -667,7 +668,77 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         color="cyan"
       >
         <template #content>
-          <div v-if="schemaLinkingStage.steps.length" class="space-y-4">
+          <!-- Field Suggestions Panel — shown when grounding-only completes, BEFORE any linking steps -->
+          <Transition name="field-panel">
+            <div v-if="showFieldPanel && suggestedFields.length > 0" class="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200/60">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <div class="i-carbon-data-table text-purple-500 text-sm" />
+                  <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
+                  <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
+                  <span v-if="awaitingFieldConfirmation" class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium animate-pulse">
+                    awaiting confirmation
+                  </span>
+                </div>
+                <button 
+                  class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+                  @click="dismissFieldPanel"
+                >
+                  <div class="i-carbon-close text-sm" />
+                </button>
+              </div>
+              
+              <!-- Compact field chips -->
+              <div class="flex flex-wrap gap-2 mb-3">
+                <button
+                  v-for="field in suggestedFields"
+                  :key="`${field.tableName}.${field.columnName}`"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border"
+                  :class="field.selected 
+                    ? 'bg-purple-100 border-purple-300 text-purple-800 shadow-sm' 
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-purple-200'"
+                  :title="field.reason"
+                  @click="toggleField(field)"
+                >
+                  <NCheckbox :checked="field.selected" size="small" @update:checked="(v: boolean) => field.selected = v" @click.stop />
+                  <span class="font-mono">{{ field.columnName }}</span>
+                  <span class="text-gray-400 font-normal">{{ field.tableName }}</span>
+                </button>
+              </div>
+              
+              <!-- Action row — different buttons based on state -->
+              <div class="flex items-center justify-between pt-2 border-t border-purple-100">
+                <p class="text-xs text-gray-400">
+                  <span class="i-carbon-information inline-block mr-0.5 align-middle" />
+                  {{ awaitingFieldConfirmation 
+                    ? 'Select the fields you want in the output, then confirm to generate SQL.' 
+                    : 'Adjust fields and re-run to refine SQL output.' }}
+                </p>
+                <div class="flex items-center gap-2">
+                  <button
+                    v-if="awaitingFieldConfirmation"
+                    class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 font-medium text-xs hover:bg-gray-50 transition-all"
+                    @click="dismissFieldPanel"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all"
+                    :class="awaitingFieldConfirmation 
+                      ? 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700' 
+                      : 'bg-purple-600 hover:bg-purple-700'"
+                    :disabled="isExecuting"
+                    @click="awaitingFieldConfirmation ? confirmFieldsAndExecute() : reExecuteWithFields()"
+                  >
+                    {{ awaitingFieldConfirmation ? 'Confirm & Generate SQL' : 'Re-run with Selection' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Transition>
+
+          <!-- Schema Linking Steps (only shown when inference is running / complete) -->
+          <div v-if="schemaLinkingStage.steps.length" class="space-y-4" :class="{ 'mt-4': showFieldPanel }">
             <!-- Step counter -->
             <div class="flex items-center gap-2 pb-2 border-b border-gray-100">
               <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -715,86 +786,20 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </div>
               </div>
             </div>
-
-            <!-- Field Suggestions Panel — naturally placed after linking steps -->
-            <Transition name="field-panel">
-              <div v-if="showFieldPanel && suggestedFields.length > 0" class="mt-2 p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200/60">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="i-carbon-data-table text-purple-500 text-sm" />
-                    <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
-                    <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
-                    <span v-if="awaitingFieldConfirmation" class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium animate-pulse">
-                      awaiting confirmation
-                    </span>
-                  </div>
-                  <button 
-                    class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
-                    @click="dismissFieldPanel"
-                  >
-                    <div class="i-carbon-close text-sm" />
-                  </button>
-                </div>
-                
-                <!-- Compact field chips -->
-                <div class="flex flex-wrap gap-2 mb-3">
-                  <button
-                    v-for="field in suggestedFields"
-                    :key="`${field.tableName}.${field.columnName}`"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border"
-                    :class="field.selected 
-                      ? 'bg-purple-100 border-purple-300 text-purple-800 shadow-sm' 
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-purple-200'"
-                    :title="field.reason"
-                    @click="toggleField(field)"
-                  >
-                    <NCheckbox :checked="field.selected" size="small" @update:checked="(v: boolean) => field.selected = v" @click.stop />
-                    <span class="font-mono">{{ field.columnName }}</span>
-                    <span class="text-gray-400 font-normal">{{ field.tableName }}</span>
-                  </button>
-                </div>
-                
-                <!-- Action row — different buttons based on state -->
-                <div class="flex items-center justify-between pt-2 border-t border-purple-100">
-                  <p class="text-xs text-gray-400">
-                    <span class="i-carbon-information inline-block mr-0.5 align-middle" />
-                    {{ awaitingFieldConfirmation 
-                      ? 'Select the fields you want in the output, then confirm to generate SQL.' 
-                      : 'Adjust fields and re-run to refine SQL output.' }}
-                  </p>
-                  <div class="flex items-center gap-2">
-                    <button
-                      v-if="awaitingFieldConfirmation"
-                      class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 font-medium text-xs hover:bg-gray-50 transition-all"
-                      @click="dismissFieldPanel"
-                    >
-                      Skip
-                    </button>
-                    <button
-                      class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all"
-                      :class="awaitingFieldConfirmation 
-                        ? 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700' 
-                        : 'bg-purple-600 hover:bg-purple-700'"
-                      :disabled="isExecuting"
-                      @click="awaitingFieldConfirmation ? confirmFieldsAndExecute() : reExecuteWithFields()"
-                    >
-                      {{ awaitingFieldConfirmation ? 'Confirm & Generate SQL' : 'Re-run with Selection' }}
-                    </button>
-                  </div>
-                </div>
+          </div>
+          <!-- Loading/Waiting states (only when field panel is NOT shown) -->
+          <div v-else-if="!showFieldPanel">
+            <div v-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
+              <div class="i-carbon-connection-signal animate-pulse text-cyan-500 text-xl" />
+              <div class="space-y-1">
+                <span class="font-medium block">Analyzing schema structure...</span>
+                <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
               </div>
-            </Transition>
-          </div>
-          <div v-else-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div class="i-carbon-connection-signal animate-pulse text-cyan-500 text-xl" />
-            <div class="space-y-1">
-              <span class="font-medium block">Analyzing schema structure...</span>
-              <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
             </div>
-          </div>
-          <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-carbon-connection-signal text-3xl mb-2 opacity-30" />
-            <span class="text-sm font-medium">Waiting for schema linking...</span>
+            <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
+              <div class="i-carbon-connection-signal text-3xl mb-2 opacity-30" />
+              <span class="text-sm font-medium">Waiting for schema linking...</span>
+            </div>
           </div>
         </template>
       </RealtimeCard>

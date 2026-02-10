@@ -2,7 +2,8 @@
 import { ref, computed, watch, onMounted, Transition, TransitionGroup } from 'vue'
 import { NButton, NInput, NInputNumber, NSwitch, NSelect, NCollapse, NCollapseItem, NCheckbox, NSpin, NTag, useMessage } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { queryApi, type SuggestedField } from '@/api/query'
+import { queryApi } from '@/api/query'
+import type { SuggestedFieldFromLinking } from '@/types'
 import { apiClient } from '@/api/client'
 import QueryResult from './QueryResult.vue'
 import RealtimeCard from './RealtimeCard.vue'
@@ -17,9 +18,8 @@ const question = ref('')
 const isExecuting = computed(() => workspaceStore.isQuerying)
 
 // Field Alignment state
-const suggestedFields = ref<SuggestedField[]>([])
-const isLoadingFields = ref(false)
-const fieldAnalysisNote = ref('')
+// Now populated from grounding result (zero extra LLM cost) instead of a separate API call
+const suggestedFields = ref<SuggestedFieldFromLinking[]>([])
 const showFieldPanel = ref(false)
 
 // Stage timing
@@ -208,61 +208,43 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// Field Alignment: waiting for user confirmation
-const awaitingFieldConfirm = ref(false)
-
-// Fetch suggested fields from LLM
-async function fetchSuggestedFields() {
-  const db = workspaceStore.currentDatabase
-  if (!db || !question.value.trim()) return
-
-  isLoadingFields.value = true
-  showFieldPanel.value = true
-
-  try {
-    const response = await queryApi.suggestFields({
-      question: question.value,
-      databaseId: db.id,
-      database: db.name,
-      language: 'English'
-    })
-    
-    suggestedFields.value = response.suggested_fields || []
-    fieldAnalysisNote.value = response.analysis_note || ''
-  } catch (e: any) {
-    console.error('Failed to fetch suggested fields:', e)
-    suggestedFields.value = []
-    fieldAnalysisNote.value = 'Failed to analyze fields'
-  } finally {
-    isLoadingFields.value = false
+// Field Alignment: no longer blocking — fields come from grounding result
+// Watch grounding result for suggested fields when Field Alignment is enabled
+watch(() => workspaceStore.groundingResult, (result) => {
+  if (useFieldAlignment.value && result && result.suggestedFields && result.suggestedFields.length > 0) {
+    // Populate from linking agent's field suggestions (zero extra LLM cost)
+    suggestedFields.value = result.suggestedFields.map(f => ({ ...f }))
+    showFieldPanel.value = true
   }
-}
+})
 
 // Toggle field selection
-function toggleField(field: SuggestedField) {
+function toggleField(field: SuggestedFieldFromLinking) {
   field.selected = !field.selected
 }
 
-// Build field description from selected fields for injection into inference prompt
+// Build field description from selected linking agent fields
 function getFieldDescription(): string {
   const selected = suggestedFields.value.filter(f => f.selected)
   if (selected.length === 0) return ''
   
-  return selected.map(f => `${f.name} (${f.description})`).join(', ')
+  return selected.map(f => `${f.tableName}.${f.columnName} (${f.reason})`).join(', ')
 }
 
-// Confirm field selection and proceed with query execution
-async function confirmFieldsAndExecute() {
-  awaitingFieldConfirm.value = false
-  await doExecute()
-}
-
-// Skip field alignment and execute directly
-function skipFieldAlignment() {
-  awaitingFieldConfirm.value = false
-  suggestedFields.value = []
+// Dismiss field panel without re-executing
+function dismissFieldPanel() {
   showFieldPanel.value = false
-  doExecute()
+}
+
+// Re-execute with updated field selections
+async function reExecuteWithFields() {
+  showFieldPanel.value = false
+  const fieldDesc = getFieldDescription()
+  try {
+    await workspaceStore.executeQuery(question.value, fieldDesc)
+  } catch (e: any) {
+    message.error(e.message || 'Execution failed')
+  }
 }
 
 async function handleExecute() {
@@ -271,14 +253,9 @@ async function handleExecute() {
     return
   }
   
-  // If Field Alignment is enabled, first fetch suggested fields and wait for confirmation
-  if (useFieldAlignment.value) {
-    awaitingFieldConfirm.value = true
-    await fetchSuggestedFields()
-    // Wait for user to confirm via confirmFieldsAndExecute() or skipFieldAlignment()
-    return
-  }
-
+  // No longer blocks for field alignment — just execute directly.
+  // If Field Alignment is enabled, the linking agent's field suggestions
+  // will appear after grounding completes (non-blocking).
   await doExecute()
 }
 
@@ -286,17 +263,21 @@ async function doExecute() {
   // Reset timings
   resetTimings()
   
+  // Reset field panel
+  suggestedFields.value = []
+  showFieldPanel.value = false
+  
   // Update query options
   workspaceStore.queryOptions.maxIterations = maxIterations.value
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
 
-  // Build field description if Field Alignment produced selections
-  const fieldDesc = useFieldAlignment.value ? getFieldDescription() : ''
-
+  // When Field Alignment is enabled, field hints are injected automatically
+  // via the linking agent's suggested fields in the grounding context prompt.
+  // No separate fieldDescription needed on the first run.
   try {
-    await workspaceStore.executeQuery(question.value, fieldDesc)
+    await workspaceStore.executeQuery(question.value)
   } catch (e: any) {
     message.error(e.message || 'Execution failed')
   }
@@ -437,32 +418,27 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
       </div>
 
-      <!-- Field Alignment Panel (shown automatically during execute) -->
+      <!-- Field Alignment Panel (non-blocking: shown after grounding completes with suggested fields) -->
       <Transition name="field-panel">
-        <div v-if="showFieldPanel && awaitingFieldConfirm" class="mt-6 p-5 bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
+        <div v-if="showFieldPanel && suggestedFields.length > 0" class="mt-6 p-5 bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
               <div class="i-carbon-data-table text-purple-600" />
-              <h4 class="font-bold text-gray-800">Select Output Fields</h4>
-              <NTag v-if="fieldAnalysisNote" size="small" type="info">{{ fieldAnalysisNote }}</NTag>
+              <h4 class="font-bold text-gray-800">Suggested Output Fields</h4>
+              <NTag size="small" type="success">From Schema Linking</NTag>
             </div>
             <button 
               class="text-gray-400 hover:text-gray-600 transition-colors"
-              @click="skipFieldAlignment"
+              @click="dismissFieldPanel"
             >
               <div class="i-carbon-close" />
             </button>
           </div>
           
-          <div v-if="isLoadingFields" class="flex items-center justify-center py-8">
-            <NSpin size="medium" />
-            <span class="ml-3 text-gray-500">Analyzing question and schema...</span>
-          </div>
-          
-          <div v-else-if="suggestedFields.length > 0" class="space-y-3">
+          <div class="space-y-3">
             <div
               v-for="field in suggestedFields"
-              :key="field.name"
+              :key="`${field.tableName}.${field.columnName}`"
               class="flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer"
               :class="field.selected ? 'bg-purple-100 border border-purple-300' : 'bg-white border border-gray-200 hover:border-purple-200'"
               @click="toggleField(field)"
@@ -470,43 +446,33 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <NCheckbox :checked="field.selected" @update:checked="(v: boolean) => field.selected = v" />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                  <span class="font-medium text-gray-800">{{ field.name }}</span>
-                  <span class="text-xs text-gray-400 font-mono">{{ field.source }}</span>
+                  <span class="font-medium text-gray-800">{{ field.columnName }}</span>
+                  <span class="text-xs text-gray-400 font-mono">{{ field.tableName }}</span>
                 </div>
-                <p class="text-sm text-gray-500 mt-0.5">{{ field.description }}</p>
+                <p class="text-sm text-gray-500 mt-0.5">{{ field.reason }}</p>
               </div>
             </div>
             <p class="text-xs text-gray-400 mt-3">
               <span class="i-carbon-information inline-block mr-1" />
-              Selected fields will constrain the SQL SELECT clause for more precise results
+              These fields were identified by Schema Linking. Adjust selection and re-run to refine the SQL output.
             </p>
             
-            <!-- Confirm / Skip buttons -->
+            <!-- Re-execute with adjusted fields / Dismiss -->
             <div class="flex items-center gap-3 mt-4 pt-4 border-t border-purple-200">
               <button
                 class="px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-violet-600 text-white font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
-                @click="confirmFieldsAndExecute"
+                :disabled="isExecuting"
+                @click="reExecuteWithFields"
               >
-                Confirm &amp; Execute
+                Re-run with Selection
               </button>
               <button
                 class="px-4 py-2 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:bg-gray-50 transition-all"
-                @click="skipFieldAlignment"
+                @click="dismissFieldPanel"
               >
-                Skip
+                Dismiss
               </button>
             </div>
-          </div>
-          
-          <div v-else class="text-center py-6 text-gray-400">
-            <div class="i-carbon-warning text-2xl mb-2 mx-auto" />
-            <p>Could not analyze candidate fields</p>
-            <button
-              class="mt-3 px-4 py-2 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:bg-gray-50 transition-all"
-              @click="skipFieldAlignment"
-            >
-              Continue without field alignment
-            </button>
           </div>
         </div>
       </Transition>

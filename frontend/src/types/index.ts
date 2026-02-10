@@ -128,12 +128,22 @@ export interface GroundingResult {
   tables: GroundingTable[]
   columns: GroundingColumn[]
   joinPaths: JoinPath[]
+  suggestedFields: SuggestedFieldFromLinking[]
   duration: number
   stage1Duration?: number
   stage2Duration?: number
   executionLogs?: ExecutionLog[] // SQL execution transparency
   reasoning?: string              // LLM reasoning for fine selection
   mode?: string                   // "sequential", "parallel", "coarse_only"
+}
+
+// SuggestedFieldFromLinking represents a field suggested by the linking agent
+// (zero extra LLM cost — part of the schema linking step)
+export interface SuggestedFieldFromLinking {
+  tableName: string
+  columnName: string
+  reason: string
+  selected: boolean
 }
 
 // ExecutionLog for grounding transparency

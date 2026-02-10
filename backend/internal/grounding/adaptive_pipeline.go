@@ -303,21 +303,51 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 
 		if schema, ok := schemaMap[selected.Name]; ok {
 			tc.Description = schema.Description
-			colNames := make([]string, len(schema.Columns))
-			for i, col := range schema.Columns {
-				colNames[i] = col.Name
-			}
-			tc.Columns = colNames
 
-			// Also add column contexts
-			for _, col := range schema.Columns {
-				ctx.Columns = append(ctx.Columns, ColumnContext{
-					TableName:   selected.Name,
-					ColumnName:  col.Name,
-					DataType:    col.Type,
-					Description: col.Description,
-					Relevance:   selected.Confidence,
-				})
+			// If linking agent identified relevant columns, use those;
+			// otherwise fall back to all columns from schema
+			if len(selected.RelevantColumns) > 0 {
+				// Use only the columns the linking agent deemed relevant
+				relevantSet := make(map[string]string) // name -> reason
+				for _, rc := range selected.RelevantColumns {
+					relevantSet[rc.Name] = rc.Reason
+				}
+				colNames := make([]string, 0, len(selected.RelevantColumns))
+				for _, rc := range selected.RelevantColumns {
+					colNames = append(colNames, rc.Name)
+				}
+				tc.Columns = colNames
+
+				// Add column contexts with reasons from linking agent
+				for _, col := range schema.Columns {
+					if reason, isRelevant := relevantSet[col.Name]; isRelevant {
+						ctx.Columns = append(ctx.Columns, ColumnContext{
+							TableName:   selected.Name,
+							ColumnName:  col.Name,
+							DataType:    col.Type,
+							Description: col.Description,
+							Relevance:   selected.Confidence,
+							Reason:      reason,
+						})
+					}
+				}
+			} else {
+				// Fallback: use all columns
+				colNames := make([]string, len(schema.Columns))
+				for i, col := range schema.Columns {
+					colNames[i] = col.Name
+				}
+				tc.Columns = colNames
+
+				for _, col := range schema.Columns {
+					ctx.Columns = append(ctx.Columns, ColumnContext{
+						TableName:   selected.Name,
+						ColumnName:  col.Name,
+						DataType:    col.Type,
+						Description: col.Description,
+						Relevance:   selected.Confidence,
+					})
+				}
 			}
 		}
 

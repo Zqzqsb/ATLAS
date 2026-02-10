@@ -118,7 +118,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       })),
       // LLM reasoning for fine selection
       reasoning: data.reasoning || '',
-      mode: data.mode || ''
+      mode: data.mode || '',
+      // Suggested fields from linking agent (zero extra LLM cost)
+      suggestedFields: (data.suggested_fields || []).map((f: any) => ({
+        tableName: f.table_name,
+        columnName: f.column_name,
+        reason: f.reason || '',
+        selected: f.selected !== false
+      }))
     }
   }
 

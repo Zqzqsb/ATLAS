@@ -54,9 +54,17 @@ type LinkingResult struct {
 
 // SelectedTable represents a table selected by the linking agent
 type SelectedTable struct {
-	Name       string  `json:"name"`
-	Reason     string  `json:"reason"`
-	Confidence float32 `json:"confidence"`
+	Name            string           `json:"name"`
+	Reason          string           `json:"reason"`
+	Confidence      float32          `json:"confidence"`
+	RelevantColumns []RelevantColumn `json:"relevant_columns,omitempty"`
+}
+
+// RelevantColumn represents a column identified as relevant by the linking agent.
+// This replaces the standalone field-alignment LLM call with zero extra cost.
+type RelevantColumn struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
 }
 
 // LinkingAgent performs LLM-based schema linking with full schema context
@@ -115,27 +123,44 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 	}, nil
 }
 
-const linkingAgentSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
+const linkingAgentSystemPrompt = `You are an expert database schema analyst performing Schema Linking and Field Selection.
 
-Your task: Given a natural language query and a database schema, identify which tables are needed to answer the query.
+Your task: Given a natural language query and a database schema:
+1. Identify which tables are needed to answer the query
+2. For each selected table, identify which columns are relevant to the query
 
 You will receive the COMPLETE schema of all available tables, including:
 - Table names and descriptions
 - Column names, types, descriptions, sample values, and synonyms
 - Foreign key relationships
 
-Analyze the query carefully and select ONLY the tables that are directly needed. Consider:
+Analyze the query carefully. Consider:
 1. Which tables contain the data being queried?
 2. Which tables are needed for JOINs to connect the data?
 3. Business context: Does a column description or synonym match the query intent?
 4. Sample values: Do they help confirm the right table/column?
+5. Which columns should appear in SELECT, WHERE, JOIN, GROUP BY, or ORDER BY?
+
+For column selection:
+- Include columns that directly answer the question (SELECT candidates)
+- Include columns needed for filtering (WHERE candidates)
+- Include columns needed for joining (JOIN keys)
+- Include columns needed for aggregation or ordering
+- Do NOT include every column — only the ones relevant to this specific query
 
 Be thorough but precise. Missing a needed table is worse than including an extra one.
 
 Respond in JSON format:
 {
   "tables": [
-    {"name": "table_name", "reason": "why this table is needed", "confidence": 0.9}
+    {
+      "name": "table_name",
+      "reason": "why this table is needed",
+      "confidence": 0.9,
+      "relevant_columns": [
+        {"name": "column_name", "reason": "SELECT: directly answers the question"}
+      ]
+    }
   ],
   "reasoning": "Overall explanation of your selection logic"
 }`
@@ -223,9 +248,13 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 // linkingResponse represents the LLM's linking response
 type linkingResponse struct {
 	Tables []struct {
-		Name       string  `json:"name"`
-		Reason     string  `json:"reason"`
-		Confidence float32 `json:"confidence"`
+		Name            string  `json:"name"`
+		Reason          string  `json:"reason"`
+		Confidence      float32 `json:"confidence"`
+		RelevantColumns []struct {
+			Name   string `json:"name"`
+			Reason string `json:"reason"`
+		} `json:"relevant_columns"`
 	} `json:"tables"`
 	Reasoning string `json:"reasoning"`
 }
@@ -253,11 +282,18 @@ func (a *LinkingAgent) parseLinkingResponse(content string) ([]SelectedTable, st
 
 	var tables []SelectedTable
 	for _, t := range resp.Tables {
-		tables = append(tables, SelectedTable{
+		st := SelectedTable{
 			Name:       t.Name,
 			Reason:     t.Reason,
 			Confidence: t.Confidence,
-		})
+		}
+		for _, col := range t.RelevantColumns {
+			st.RelevantColumns = append(st.RelevantColumns, RelevantColumn{
+				Name:   col.Name,
+				Reason: col.Reason,
+			})
+		}
+		tables = append(tables, st)
 	}
 
 	return tables, resp.Reasoning, nil

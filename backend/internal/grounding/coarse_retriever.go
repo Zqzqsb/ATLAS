@@ -31,11 +31,17 @@ func NewCoarseRetriever(
 	}
 }
 
+// RetrievalProgressCallback is called when a single signal-type SQL query completes.
+// signalType: which type just finished; signals: results for that type; log: execution log.
+type RetrievalProgressCallback func(signalType SignalType, signals []*RetrievalSignal, log ExecutionLog)
+
 // RetrievalRequest represents a retrieval request
 type RetrievalRequest struct {
 	Query        string
 	DatasourceID int64
 	SignalTypes  []SignalType // if empty, search all types
+	// Optional: called as each signal-type SQL query completes (for incremental SSE push)
+	ProgressCallback RetrievalProgressCallback
 }
 
 // RetrievalResult represents the coarse retrieval result
@@ -68,11 +74,13 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		}
 	}
 
-	// Speculative parallel retrieval
+	// Speculative parallel retrieval — each goroutine pushes its result as soon as it completes.
+	// If a ProgressCallback is set, it fires per signal-type so the handler can stream incremental SSE.
 	var wg sync.WaitGroup
 	type retrievalResultWithLog struct {
-		signals []*RetrievalSignal
-		log     ExecutionLog
+		signalType SignalType
+		signals    []*RetrievalSignal
+		log        ExecutionLog
 	}
 	resultCh := make(chan retrievalResultWithLog, len(signalTypes))
 	errCh := make(chan error, len(signalTypes))
@@ -97,13 +105,18 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 				Phase: "vector_search",
 				SQL: fmt.Sprintf("SELECT id, entity_text, VEC_DISTANCE_COSINE(embedding, ?) AS distance FROM rc_embeddings WHERE datasource_id = %d AND entity_type = '%s' ORDER BY distance ASC LIMIT %d",
 					req.DatasourceID, entityType, r.config.ProbesPerType),
-				Params:      []interface{}{"[query_vector...]"},
+				Params:      []interface{}{"[query_vector..."},
 				ResultCount: len(signals),
 				Duration:    searchDuration,
 				Summary:     fmt.Sprintf("Vector search for %s: found %d results in %v", signalType, len(signals), searchDuration.Round(time.Millisecond)),
 			}
+
+			// Fire per-signal-type callback so handler can push incremental SSE
+			if req.ProgressCallback != nil {
+				req.ProgressCallback(signalType, signals, log)
+			}
 			
-			resultCh <- retrievalResultWithLog{signals: signals, log: log}
+			resultCh <- retrievalResultWithLog{signalType: signalType, signals: signals, log: log}
 		}(st)
 	}
 

@@ -1035,7 +1035,32 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </RealtimeCard>
     </div>
 
-    <!-- Query Result -->
+    <!-- Grounding Error (shown in-place, NOT in Generated SQL area) -->
+    <div v-if="workspaceStore.groundingError" class="rounded-xl overflow-hidden bg-white border border-red-200 shadow-sm">
+      <div class="p-6 bg-red-50 border-l-4 border-red-500">
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-3">
+            <div class="i-lucide-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
+            <div>
+              <h4 class="text-red-700 font-bold mb-1">Grounding Error</h4>
+              <p class="text-sm text-red-600">{{ workspaceStore.groundingError }}</p>
+              <p class="text-xs text-red-400 mt-2">The grounding pipeline failed. SQL generation was not started.</p>
+            </div>
+          </div>
+          <button
+            class="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            @click="handleExecute"
+          >
+            <div class="flex items-center gap-1.5">
+              <div class="i-lucide-rotate-ccw text-sm" />
+              <span>Retry</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Query Result (only for SQL generation / execution errors, NOT grounding errors) -->
     <QueryResult
       v-if="workspaceStore.generatedSql || workspaceStore.queryError"
       :sql="workspaceStore.generatedSql"

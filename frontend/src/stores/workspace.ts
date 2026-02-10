@@ -77,6 +77,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const queryDuration = ref(0)
   const executionResult = ref<any[] | null>(null)
 
+  // Grounding-specific error (shown in grounding cards, NOT in Generated SQL area)
+  const groundingError = ref<string | null>(null)
+
   // Skeleton state: immediately show schema info while waiting for backend
   const skeletonTables = ref<string[]>([])
   const showSkeleton = ref(false)
@@ -285,6 +288,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     groundingResult.value = null
     groundingStage.value = 'idle'
     groundingProgress.value = null
+    groundingError.value = null
     usedContexts.value = []
     queryDuration.value = 0
     executionResult.value = null
@@ -408,18 +412,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             groundingStage.value = 'stage2'
             break
           case 'retrieval_complete': {
-            // Progressive Step 1: retrieval results only → Vector Search card
+            // Progressive Step 1: retrieval results → Vector Search card
+            // Backend now sends pre-converted tables/columns/execution_logs format.
             groundingStage.value = 'retrieval_done'
             showSkeleton.value = false
-            // Build partial grounding result with only retrieval data
+
             const partialRetrieval = transformGroundingResult({
               tables: event.data.tables,
               columns: event.data.columns,
               join_paths: event.data.join_paths,
               execution_time_ms: event.data.execution_time_ms,
+              execution_logs: event.data.execution_logs,
             })
             if (partialRetrieval) {
-              // Merge into existing or create new
               groundingResult.value = {
                 ...groundingResult.value,
                 ...partialRetrieval,
@@ -427,22 +432,100 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
             break
           }
+          case 'retrieval_signal': {
+            // Incremental: each vector-search SQL result pushed as it completes.
+            // Append execution log so the UI can show them one-by-one.
+            if (!groundingResult.value) {
+              groundingResult.value = {
+                tables: [],
+                columns: [],
+                joinPaths: [],
+                suggestedFields: [],
+                duration: 0,
+                executionLogs: [],
+              }
+            }
+            const log = event.data.execution_log
+            if (log) {
+              const existing = groundingResult.value.executionLogs || []
+              groundingResult.value = {
+                ...groundingResult.value,
+                executionLogs: [
+                  ...existing,
+                  {
+                    phase: log.phase,
+                    sql: log.sql,
+                    result_count: log.result_count,
+                    duration_ms: log.duration_ms,
+                    summary: log.summary,
+                  }
+                ],
+              }
+            }
+            break
+          }
           case 'linking_complete': {
             // Progressive Step 2: linking agent results → Schema Linking card
+            // Now carries full tables/columns/join_paths from the grounded context.
             groundingStage.value = 'stage2'
+            const linkingData: any = {}
+            linkingData.reasoning = event.data.reasoning || ''
+            linkingData.mode = event.data.mode || ''
+
+            // Merge tables/columns/joinPaths if provided (new adaptive format)
+            if (event.data.tables) {
+              linkingData.tables = (event.data.tables || []).map((t: any) => ({
+                name: t.name,
+                description: t.description || '',
+                confidence: t.confidence || 0,
+                matchedTerms: t.reason ? [t.reason] : [],
+                contextUsed: []
+              }))
+            }
+            if (event.data.columns) {
+              linkingData.columns = (event.data.columns || []).map((c: any) => ({
+                table: c.table_name || c.table,
+                column: c.column_name || c.column,
+                dataType: c.data_type || c.dataType || '',
+                description: c.description || '',
+                confidence: c.confidence || 0,
+                matchedTerms: c.reason ? [c.reason] : [],
+                contextUsed: []
+              }))
+            }
+            if (event.data.join_paths) {
+              linkingData.joinPaths = (event.data.join_paths || []).map((jp: any) => ({
+                from: { table: jp.from_table, column: jp.from_column },
+                to: { table: jp.to_table, column: jp.to_column },
+                confidence: jp.confidence
+              }))
+            }
+
+            // Merge execution_logs if provided (legacy format)
+            if (event.data.execution_logs) {
+              linkingData.executionLogs = (event.data.execution_logs || []).map((log: any) => ({
+                phase: log.phase,
+                sql: log.sql,
+                result_count: log.result_count,
+                duration_ms: log.duration_ms,
+                summary: log.summary
+              }))
+            }
+
             if (groundingResult.value) {
               groundingResult.value = {
                 ...groundingResult.value,
-                reasoning: event.data.reasoning || '',
-                mode: event.data.mode || '',
-                executionLogs: (event.data.execution_logs || []).map((log: any) => ({
-                  phase: log.phase,
-                  sql: log.sql,
-                  result_count: log.result_count,
-                  duration_ms: log.duration_ms,
-                  summary: log.summary
-                })),
+                ...linkingData,
               }
+            } else {
+              groundingResult.value = {
+                tables: [],
+                columns: [],
+                joinPaths: [],
+                suggestedFields: [],
+                duration: 0,
+                ...linkingData,
+              } as GroundingResult
             }
             break
           }
@@ -519,6 +602,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               queryHistory.value.unshift(record)
             }
             break
+          case 'grounding_error':
+            // Grounding-specific error — show in grounding cards, NOT in Generated SQL area
+            groundingError.value = event.data.message || event.data.error || 'Grounding failed'
+            showSkeleton.value = false
+            break
           case 'error':
             queryError.value = event.data.message || event.data.error || 'Unknown error'
             isQuerying.value = false
@@ -527,7 +615,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         }
       },
       (error) => {
-        queryError.value = error.message
+        // Network / SSE stream error (e.g. "Failed to fetch")
+        // If grounding hasn't completed yet, treat this as a grounding error
+        // so it doesn't appear in the "Generated SQL" area misleadingly.
+        const errorMsg = error.message || 'Connection lost'
+        if (groundingStage.value !== 'done' && !generatedSql.value) {
+          groundingError.value = errorMsg
+        } else {
+          queryError.value = errorMsg
+        }
         isQuerying.value = false
         showSkeleton.value = false // Ensure skeleton is hidden on error
       },
@@ -615,6 +711,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     reactSteps,
     groundingResult,
     groundingStage,
+    groundingError,
     usedContexts,
     queryDuration,
     executionResult,

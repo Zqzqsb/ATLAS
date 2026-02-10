@@ -135,17 +135,18 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 		return nil, fmt.Errorf("linking agent failed: %w", err)
 	}
 
-	// Notify: linking agent done
+	// Build grounded context before the callback so we can push the full result
+	groundedCtx := p.buildGroundedContext(req.Query, linkResult, req.AllSchemas)
+
+	// Notify: linking agent done — push full linking data (consistent with groundLargeScale)
 	if req.ProgressCallback != nil {
 		req.ProgressCallback("linking_done", map[string]interface{}{
-			"selected_tables": len(linkResult.SelectedTables),
+			"selected_tables": linkResult.SelectedTables,
 			"reasoning":       linkResult.Reasoning,
 			"duration_ms":     linkResult.Duration.Milliseconds(),
+			"context":         groundedCtx,
 		})
 	}
-
-	// Build grounded context from linking result
-	groundedCtx := p.buildGroundedContext(req.Query, linkResult, req.AllSchemas)
 
 	return &AdaptiveGroundingResult{
 		Strategy:       StrategySmallScale,
@@ -178,6 +179,21 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 		})
 	}
 
+	// Build per-signal-type callback so each SQL result is streamed to the frontend
+	// as soon as it completes, rather than waiting for all 4 to finish.
+	var retrievalProgressCb RetrievalProgressCallback
+	if req.ProgressCallback != nil {
+		retrievalProgressCb = func(signalType SignalType, signals []*RetrievalSignal, execLog ExecutionLog) {
+			req.ProgressCallback("retrieval_signal", map[string]interface{}{
+				"signal_type":   string(signalType),
+				"result_count":  len(signals),
+				"duration_ms":   execLog.Duration.Milliseconds(),
+				"execution_log": execLog,
+				"signals":       signals,
+			})
+		}
+	}
+
 	coarseResult, err := p.coarseRetriever.Retrieve(ctx, &RetrievalRequest{
 		Query:        req.Query,
 		DatasourceID: req.DatasourceID,
@@ -187,6 +203,7 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 			SignalTypeContext,
 			SignalTypeSQLTemplate,
 		},
+		ProgressCallback: retrievalProgressCb,
 	})
 	if err != nil {
 		// Fallback to small scale if retrieval fails
@@ -204,11 +221,14 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	// But also respect MaxTablesInContext limit
 	candidateSchemas := p.filterSchemaByCandidates(req.AllSchemas, candidateTableNames)
 
-	// Notify: retrieval done
+	// Notify: retrieval done — push full retrieval data so the handler can
+	// send retrieval_complete SSE immediately, without waiting for the LLM.
 	if req.ProgressCallback != nil {
 		req.ProgressCallback("retrieval_done", map[string]interface{}{
 			"candidate_tables": len(candidateTableNames),
 			"duration_ms":      coarseResult.Duration.Milliseconds(),
+			"signals":          coarseResult.Signals,
+			"execution_logs":   coarseResult.ExecutionLogs,
 		})
 	}
 
@@ -247,17 +267,19 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 		}, nil
 	}
 
-	// Notify: linking agent done
+	// Build grounded context before the callback so we can push the full result
+	groundedCtx := p.buildGroundedContext(req.Query, linkResult, candidateSchemas)
+
+	// Notify: linking agent done — push full linking data so the handler can
+	// send linking_complete + field_suggestions SSE immediately.
 	if req.ProgressCallback != nil {
 		req.ProgressCallback("linking_done", map[string]interface{}{
-			"selected_tables": len(linkResult.SelectedTables),
+			"selected_tables": linkResult.SelectedTables,
 			"reasoning":       linkResult.Reasoning,
 			"duration_ms":     linkResult.Duration.Milliseconds(),
+			"context":         groundedCtx,
 		})
 	}
-
-	// Build grounded context
-	groundedCtx := p.buildGroundedContext(req.Query, linkResult, candidateSchemas)
 
 	executionLogs := append(coarseResult.ExecutionLogs, ExecutionLog{
 		Phase:       "linking_agent",

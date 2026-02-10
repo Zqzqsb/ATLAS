@@ -123,7 +123,10 @@ export function createSSEStream<T>(
           // Dispatch events; if multiple events in one chunk, yield between them
           // so Vue can render intermediate states (progressive SSE)
           for (let i = 0; i < pendingEvents.length; i++) {
-            onEvent(pendingEvents[i])
+            const ev = pendingEvents[i]
+            if (ev) {
+              onEvent(ev)
+            }
             if (i < pendingEvents.length - 1) {
               await yieldToRenderer()
             }

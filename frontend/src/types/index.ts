@@ -157,6 +157,7 @@ export interface ExecutionLog {
 
 export interface GroundingTable {
   name: string
+  description?: string
   confidence: number
   matchedTerms: string[]
   contextUsed?: string[]
@@ -165,6 +166,8 @@ export interface GroundingTable {
 export interface GroundingColumn {
   table: string
   column: string
+  dataType?: string
+  description?: string
   confidence: number
   matchedTerms: string[]
   contextUsed?: string[]

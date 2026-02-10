@@ -94,6 +94,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return {
       tables: (data.tables || []).map((t: any) => ({
         name: t.name,
+        description: t.description || '',
         confidence: t.confidence || 0,
         matchedTerms: t.reason ? [t.reason] : [],
         contextUsed: []
@@ -101,6 +102,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       columns: (data.columns || []).map((c: any) => ({
         table: c.table_name || c.table,
         column: c.column_name || c.column,
+        dataType: c.data_type || c.dataType || '',
+        description: c.description || '',
         confidence: c.confidence || 0,
         matchedTerms: c.reason ? [c.reason] : [],
         contextUsed: []

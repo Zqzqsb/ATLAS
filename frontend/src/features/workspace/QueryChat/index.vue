@@ -586,17 +586,22 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div
                   v-for="table in workspaceStore.groundingResult.tables"
                   :key="table.name"
-                  class="grounding-item flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
+                  class="grounding-item px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
                 >
-                  <span class="text-sm text-blue-800 font-medium">{{ table.name }}</span>
-                  <div class="flex items-center gap-2">
-                    <div class="w-16 h-1.5 rounded-full bg-blue-100 overflow-hidden">
-                      <div 
-                        class="h-full rounded-full bg-blue-500 transition-all duration-500"
-                        :style="{ width: `${(table.confidence * 100)}%` }"
-                      />
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-blue-800 font-medium">{{ table.name }}</span>
+                    <div class="flex items-center gap-2">
+                      <div class="w-16 h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                        <div 
+                          class="h-full rounded-full bg-blue-500 transition-all duration-500"
+                          :style="{ width: `${(table.confidence * 100)}%` }"
+                        />
+                      </div>
+                      <span class="text-xs text-gray-500 font-bold w-8 text-right">{{ (table.confidence * 100).toFixed(0) }}%</span>
                     </div>
-                    <span class="text-xs text-gray-500 font-bold w-8 text-right">{{ (table.confidence * 100).toFixed(0) }}%</span>
+                  </div>
+                  <div v-if="table.description" class="text-xs text-gray-500 mt-1 leading-relaxed truncate" :title="table.description">
+                    {{ table.description }}
                   </div>
                 </div>
               </div>
@@ -613,8 +618,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   v-for="col in workspaceStore.groundingResult.columns.slice(0, 10)"
                   :key="`${col.table}.${col.column}`"
                   class="column-tag px-2 py-1 rounded bg-cyan-50 border border-cyan-100 text-xs font-medium hover:bg-cyan-100/80 transition-colors"
+                  :title="[col.dataType, col.description].filter(Boolean).join(' — ')"
                 >
                   <span class="text-gray-500">{{ col.table }}.</span><span class="text-cyan-700">{{ col.column }}</span>
+                  <span v-if="col.dataType" class="text-gray-400 ml-1">({{ col.dataType }})</span>
                 </div>
                 <div v-if="workspaceStore.groundingResult.columns.length > 10" class="column-tag px-2 py-1 text-xs text-gray-400 font-medium">
                   +{{ workspaceStore.groundingResult.columns.length - 10 }} more

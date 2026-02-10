@@ -83,6 +83,9 @@ export function createSSEStream<T>(
       let buffer = ''
       let currentEventType = 'message' // default SSE event type
 
+      // Helper: yield control to the browser so Vue can render between events
+      const yieldToRenderer = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -91,6 +94,9 @@ export function createSSEStream<T>(
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
+
+          // Collect events from this chunk, then dispatch with yields between them
+          const pendingEvents: { type: string; data: T }[] = []
 
           for (const line of lines) {
             // Parse event type line
@@ -101,8 +107,8 @@ export function createSSEStream<T>(
             else if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
-                onEvent({ type: currentEventType, data: data as T })
-                // Reset event type after emitting
+                pendingEvents.push({ type: currentEventType, data: data as T })
+                // Reset event type after collecting
                 currentEventType = 'message'
               } catch (e) {
                 // ignore parse errors
@@ -111,6 +117,15 @@ export function createSSEStream<T>(
             // Empty line marks end of event block (SSE spec)
             else if (line === '') {
               currentEventType = 'message'
+            }
+          }
+
+          // Dispatch events; if multiple events in one chunk, yield between them
+          // so Vue can render intermediate states (progressive SSE)
+          for (let i = 0; i < pendingEvents.length; i++) {
+            onEvent(pendingEvents[i])
+            if (i < pendingEvents.length - 1) {
+              await yieldToRenderer()
             }
           }
         }

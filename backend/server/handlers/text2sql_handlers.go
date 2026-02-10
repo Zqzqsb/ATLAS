@@ -87,17 +87,20 @@ type ExecutionLogInfo struct {
 
 // GroundedTableInfo represents a grounded table in response.
 type GroundedTableInfo struct {
-	Name       string  `json:"name"`
-	Reason     string  `json:"reason,omitempty"`
-	Confidence float64 `json:"confidence,omitempty"`
+	Name        string  `json:"name"`
+	Description string  `json:"description,omitempty"`
+	Reason      string  `json:"reason,omitempty"`
+	Confidence  float64 `json:"confidence,omitempty"`
 }
 
 // GroundedColumnInfo represents a grounded column in response.
 type GroundedColumnInfo struct {
-	TableName  string  `json:"table_name"`
-	ColumnName string  `json:"column_name"`
-	Reason     string  `json:"reason,omitempty"`
-	Confidence float64 `json:"confidence,omitempty"`
+	TableName   string  `json:"table_name"`
+	ColumnName  string  `json:"column_name"`
+	DataType    string  `json:"data_type,omitempty"`
+	Description string  `json:"description,omitempty"`
+	Reason      string  `json:"reason,omitempty"`
+	Confidence  float64 `json:"confidence,omitempty"`
 }
 
 // JoinPathInfo represents a join path in response.
@@ -291,7 +294,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 				"execution_time_ms": groundingInfo.ExecutionTimeMs,
 			})
 			flusher.Flush()
-			time.Sleep(150 * time.Millisecond) // Let browser render
+			time.Sleep(500 * time.Millisecond) // Ensure browser renders before next event
 
 			// Step 2: Linking agent results (reasoning, logs, mode) → Schema Linking card
 			SendSSE(c.Writer, "linking_complete", map[string]interface{}{
@@ -300,7 +303,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 				"execution_logs": groundingInfo.ExecutionLogs,
 			})
 			flusher.Flush()
-			time.Sleep(150 * time.Millisecond) // Let browser render
+			time.Sleep(500 * time.Millisecond) // Ensure browser renders before next event
 
 			// Step 3: Field suggestions → Field alignment panel in Schema Linking card
 			if len(groundingInfo.SuggestedFields) > 0 {
@@ -308,6 +311,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					"suggested_fields": groundingInfo.SuggestedFields,
 				})
 				flusher.Flush()
+				time.Sleep(300 * time.Millisecond)
 			}
 
 			// Also send the full grounding_complete for downstream use (extractLinkedContext etc.)
@@ -613,17 +617,20 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 
 	for _, t := range result.Context.Tables {
 		info.Tables = append(info.Tables, GroundedTableInfo{
-			Name:       t.Name,
-			Reason:     t.Reason,
-			Confidence: float64(t.Relevance),
+			Name:        t.Name,
+			Description: t.Description,
+			Reason:      t.Reason,
+			Confidence:  float64(t.Relevance),
 		})
 	}
 	for _, col := range result.Context.Columns {
 		info.Columns = append(info.Columns, GroundedColumnInfo{
-			TableName:  col.TableName,
-			ColumnName: col.ColumnName,
-			Reason:     col.Reason,
-			Confidence: float64(col.Relevance),
+			TableName:   col.TableName,
+			ColumnName:  col.ColumnName,
+			DataType:    col.DataType,
+			Description: col.Description,
+			Reason:      col.Reason,
+			Confidence:  float64(col.Relevance),
 		})
 		// Columns with a Reason from the linking agent are "suggested fields"
 		if col.Reason != "" {

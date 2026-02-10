@@ -414,8 +414,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           case 'retrieval_complete': {
             // Progressive Step 1: retrieval results → Vector Search card
             // Backend now sends pre-converted tables/columns/execution_logs format.
-            showSkeleton.value = false
-
             const partialRetrieval = transformGroundingResult({
               tables: event.data.tables,
               columns: event.data.columns,
@@ -423,22 +421,35 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               execution_time_ms: event.data.execution_time_ms,
               execution_logs: event.data.execution_logs,
             })
-            if (partialRetrieval) {
-              groundingResult.value = {
-                ...groundingResult.value,
-                ...partialRetrieval,
-                // Preserve strategy from schema_loaded (small_scale) or vector search (large_scale)
-                ...(event.data.strategy ? { strategy: event.data.strategy } : {}),
-              } as GroundingResult
-            }
 
-            // For small_scale, the data arrives instantly (0ms). Delay the stage
-            // transition so the Processing animation plays briefly for visual rhythm.
+            // For small_scale, data arrives instantly (0ms). Keep skeleton visible
+            // and delay BOTH data reveal + stage transition so they appear together.
             if (event.data.strategy === 'small_scale') {
+              // Stash strategy immediately so isSmallScale computed works
+              if (groundingResult.value) {
+                groundingResult.value = { ...groundingResult.value, strategy: 'small_scale' } as GroundingResult
+              }
               setTimeout(() => {
+                showSkeleton.value = false
+                if (partialRetrieval) {
+                  groundingResult.value = {
+                    ...groundingResult.value,
+                    ...partialRetrieval,
+                    strategy: 'small_scale',
+                  } as GroundingResult
+                }
                 groundingStage.value = 'retrieval_done'
               }, 1200)
             } else {
+              // Large-scale: show data immediately as it arrives
+              showSkeleton.value = false
+              if (partialRetrieval) {
+                groundingResult.value = {
+                  ...groundingResult.value,
+                  ...partialRetrieval,
+                  ...(event.data.strategy ? { strategy: event.data.strategy } : {}),
+                } as GroundingResult
+              }
               groundingStage.value = 'retrieval_done'
             }
             break

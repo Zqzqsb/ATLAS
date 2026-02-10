@@ -38,19 +38,6 @@ func (p *Pipeline) oneShotGeneration(ctx context.Context, query string, contextP
 
 // reactLoop ReAct 循环
 func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt string, result *Result) (string, error) {
-	// 创建工具
-	sqlTool := &SQLTool{
-		adapter:   p.adapter,
-		useDryRun: p.config.UseDryRun,
-	}
-
-	// 创建 verify_sql 工具
-	verifySQLTool := NewVerifySQLTool(p.adapter, p.config.DBType)
-
-	// 创建 ReAct Agent
-	toolsList := []tools.Tool{sqlTool, verifySQLTool}
-
-
 	// Create handler to collect ReAct steps
 	var stepCB react.StepCallback
 	if p.stepCallback != nil {
@@ -66,6 +53,23 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 		}
 	}
 	reactHandler := react.NewHandler(stepCB)
+
+	// Tool observation callback — bypasses langchaingo's broken HandleToolEnd.
+	// Directly pushes the observation into the handler and fires the SSE event.
+	toolObsCB := ToolObservationCallback(func(toolName, output string) {
+		reactHandler.InjectObservation(output)
+	})
+
+	// 创建工具
+	sqlTool := &SQLTool{
+		adapter:   p.adapter,
+		useDryRun: p.config.UseDryRun,
+		OnResult:  toolObsCB,
+	}
+	verifySQLTool := NewVerifySQLTool(p.adapter, p.config.DBType)
+	verifySQLTool.OnResult = toolObsCB
+
+	toolsList := []tools.Tool{sqlTool, verifySQLTool}
 
 	// Actual iterations = claimed + small buffer for error recovery.
 	// No 4x inflation — agent should operate within the budget it sees in the prompt.
@@ -330,6 +334,7 @@ type SQLTool struct {
 	adapter        adapter.DBAdapter
 	useDryRun      bool
 	ExecutionCount int
+	OnResult       ToolObservationCallback
 }
 
 func (t *SQLTool) Name() string {
@@ -353,13 +358,17 @@ func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 
 	if t.useDryRun {
 		if _, err := t.adapter.DryRunSQL(ctx, sql); err != nil {
-			return fmt.Sprintf("SQL validation failed: %v", err), nil
+			out := fmt.Sprintf("SQL validation failed: %v", err)
+			t.emitResult(out)
+			return out, nil
 		}
 	}
 
 	result, err := t.adapter.ExecuteQuery(ctx, sql)
 	if err != nil {
-		return fmt.Sprintf("SQL execution failed: %v", err), nil
+		out := fmt.Sprintf("SQL execution failed: %v", err)
+		t.emitResult(out)
+		return out, nil
 	}
 
 	output := fmt.Sprintf("Query executed successfully!\nRows: %d\n", result.RowCount)
@@ -373,6 +382,13 @@ func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 		}
 	}
 
+	t.emitResult(output)
 	return output, nil
+}
+
+func (t *SQLTool) emitResult(output string) {
+	if t.OnResult != nil {
+		t.OnResult("execute_sql", output)
+	}
 }
 

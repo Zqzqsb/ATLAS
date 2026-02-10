@@ -9,10 +9,16 @@ import (
 	"lucid/internal/adapter"
 )
 
+// ToolObservationCallback is called when a tool produces output, so the caller
+// can push the observation to the frontend immediately (bypasses langchaingo's
+// broken HandleToolEnd callback).
+type ToolObservationCallback func(toolName, output string)
+
 // VerifySQLTool SQL validation tool using EXPLAIN (no actual execution)
 type VerifySQLTool struct {
-	adapter adapter.DBAdapter
-	dbType  string
+	adapter  adapter.DBAdapter
+	dbType   string
+	OnResult ToolObservationCallback
 }
 
 // Name returns tool name
@@ -38,13 +44,17 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 
 	// Step 1: Static checks (fast, no DB call)
 	if err := t.quickCheck(sql); err != nil {
-		return fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nPlease fix the error and try again.", err), nil
+		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nPlease fix the error and try again.", err)
+		t.emitResult(out)
+		return out, nil
 	}
 
 	// Step 2: EXPLAIN validation (safe, doesn't execute the actual query)
 	explainResult, err := t.adapter.DryRunSQL(ctx, sql)
 	if err != nil {
-		return fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (EXPLAIN check):\n%v\n\nPlease fix the error and try again.", err), nil
+		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (EXPLAIN check):\n%v\n\nPlease fix the error and try again.", err)
+		t.emitResult(out)
+		return out, nil
 	}
 
 	// Step 3: Format EXPLAIN plan for agent review
@@ -72,7 +82,16 @@ Decision guide:
 		sb.WriteString("\nExecution plan looks good. You can now provide the final answer.")
 	}
 
-	return sb.String(), nil
+	out := sb.String()
+	t.emitResult(out)
+	return out, nil
+}
+
+// emitResult fires the OnResult callback if set.
+func (t *VerifySQLTool) emitResult(output string) {
+	if t.OnResult != nil {
+		t.OnResult("verify_sql", output)
+	}
 }
 
 // formatExplainPlan formats EXPLAIN QueryResult into a readable summary.

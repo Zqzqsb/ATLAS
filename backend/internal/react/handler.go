@@ -150,7 +150,22 @@ func (h *Handler) HandleToolEnd(_ context.Context, output string) {
 	h.mu.Unlock()
 
 	log := logger.With("component", "react_handler")
-	log.Debug("[Tool] Observation", "output_length", len(output), "output_preview", truncate(output, 500))
+	log.Debug("Tool observation (HandleToolEnd)", "output_length", len(output), "output_preview", truncate(output, 500))
+}
+
+// InjectObservation pushes a tool observation into the current step and fires
+// the SSE callback. Call this from tools directly when langchaingo's
+// HandleToolEnd is not reliably invoked.
+func (h *Handler) InjectObservation(output string) {
+	h.mu.Lock()
+	if h.currentStep != nil {
+		h.currentStep.Observation = output
+	}
+	h.notify("observation")
+	h.mu.Unlock()
+
+	log := logger.With("component", "react_handler")
+	log.Debug("Tool observation (injected)", "output_length", len(output), "output_preview", truncate(output, 500))
 }
 
 func (h *Handler) HandleToolError(_ context.Context, err error) {

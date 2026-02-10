@@ -204,7 +204,7 @@ const schemaLinkingStage = computed(() => {
   // Active when: grounding stage is at stage2 (linking) or done, AND no sql generation yet
   // Also active when awaiting field confirmation (field panel is shown inside this card)
   const groundingDone = workspaceStore.groundingStage === 'done' || workspaceStore.groundingStage === 'stage2'
-  const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.executionLogs?.length
+  const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.executionLogs?.length || !!workspaceStore.groundingResult?.linkingTables?.length
   const active = awaitingFieldConfirmation.value || hasLinkingData || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)
   
   return {
@@ -257,22 +257,29 @@ function getFieldDescription(): string {
 }
 
 // Convert frontend GroundingResult back to backend format for injection
+// Prefer linking agent's selection (linkingTables/linkingColumns) over retrieval snapshot
 function serializeGroundingForInjection(): any {
   const gr = workspaceStore.groundingResult
   if (!gr) return undefined
+
+  // Use linking results if available, otherwise fall back to retrieval snapshot
+  const tableSrc = gr.linkingTables?.length ? gr.linkingTables : gr.tables
+  const colSrc = gr.linkingColumns?.length ? gr.linkingColumns : gr.columns
+  const jpSrc = gr.linkingJoinPaths?.length ? gr.linkingJoinPaths : gr.joinPaths
+
   return {
-    tables: (gr.tables || []).map(t => ({
+    tables: (tableSrc || []).map(t => ({
       name: t.name,
       reason: t.matchedTerms?.[0] || '',
       confidence: t.confidence
     })),
-    columns: (gr.columns || []).map(c => ({
+    columns: (colSrc || []).map(c => ({
       table_name: c.table,
       column_name: c.column,
       reason: c.matchedTerms?.[0] || '',
       confidence: c.confidence
     })),
-    join_paths: (gr.joinPaths || []).map(jp => ({
+    join_paths: (jpSrc || []).map(jp => ({
       from_table: jp.from?.table,
       from_column: jp.from?.column,
       to_table: jp.to?.table,
@@ -689,8 +696,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         color="cyan"
       >
         <template #content>
-          <!-- Step 1: Linking Agent Result (LLM Fine Selection + Execution Logs) — moved from Vector Search -->
-          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4 content-fade">
+          <!-- Step 1: Linking Agent Result (LLM Fine Selection + Selected Tables/Columns + Execution Logs) -->
+          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4 content-fade">
             <!-- LLM Fine Selection -->
             <div v-if="workspaceStore.groundingResult.reasoning">
               <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
@@ -709,6 +716,39 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   </div>
                 </NCollapseItem>
               </NCollapse>
+            </div>
+
+            <!-- Linking Agent Selected Tables/Columns Summary -->
+            <div v-if="workspaceStore.groundingResult.linkingTables?.length" class="space-y-2">
+              <div class="flex items-center gap-2 mb-1">
+                <div class="i-lucide-filter text-sm text-teal-600" />
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linked Tables ({{ workspaceStore.groundingResult.linkingTables.length }})</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="t in workspaceStore.groundingResult.linkingTables"
+                  :key="'lt-' + t.name"
+                  class="px-2 py-1 rounded bg-teal-50 border border-teal-100 text-xs font-medium text-teal-700"
+                  :title="t.description"
+                >{{ t.name }}</span>
+              </div>
+              <div v-if="workspaceStore.groundingResult.linkingColumns?.length" class="mt-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <div class="i-lucide-columns-3 text-sm text-teal-500" />
+                  <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linked Columns ({{ workspaceStore.groundingResult.linkingColumns.length }})</span>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="c in workspaceStore.groundingResult.linkingColumns.slice(0, 10)"
+                    :key="'lc-' + c.table + '.' + c.column"
+                    class="px-2 py-1 rounded bg-teal-50 border border-teal-100 text-xs font-medium"
+                    :title="c.description"
+                  ><span class="text-gray-400">{{ c.table }}.</span><span class="text-teal-700">{{ c.column }}</span></span>
+                  <span v-if="workspaceStore.groundingResult.linkingColumns.length > 10" class="px-2 py-1 text-xs text-gray-400">
+                    +{{ workspaceStore.groundingResult.linkingColumns.length - 10 }} more
+                  </span>
+                </div>
+              </div>
             </div>
 
             <!-- Execution Logs -->
@@ -861,7 +901,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <!-- Loading/Waiting states (only when NO linking result AND field panel is NOT shown) -->
-          <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.executionLogs?.length)">
+          <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length)">
             <!-- Linking agent progress from grounding sub-stages -->
             <div v-if="workspaceStore.groundingProgress?.stage === 'linking_start'" class="space-y-3">
               <div class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">

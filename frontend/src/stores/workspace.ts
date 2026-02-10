@@ -468,15 +468,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           }
           case 'linking_complete': {
             // Progressive Step 2: linking agent results → Schema Linking card
-            // Now carries full tables/columns/join_paths from the grounded context.
+            // IMPORTANT: Do NOT overwrite retrieval snapshot (tables/columns/joinPaths).
+            // Store linking results separately so left panel stays frozen.
             groundingStage.value = 'stage2'
-            const linkingData: any = {}
-            linkingData.reasoning = event.data.reasoning || ''
-            linkingData.mode = event.data.mode || ''
+            const linkingMeta: any = {}
+            linkingMeta.reasoning = event.data.reasoning || ''
+            linkingMeta.mode = event.data.mode || ''
 
-            // Merge tables/columns/joinPaths if provided (new adaptive format)
+            // Store linking agent's independent selection into dedicated fields
             if (event.data.tables) {
-              linkingData.tables = (event.data.tables || []).map((t: any) => ({
+              linkingMeta.linkingTables = (event.data.tables || []).map((t: any) => ({
                 name: t.name,
                 description: t.description || '',
                 confidence: t.confidence || 0,
@@ -485,7 +486,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               }))
             }
             if (event.data.columns) {
-              linkingData.columns = (event.data.columns || []).map((c: any) => ({
+              linkingMeta.linkingColumns = (event.data.columns || []).map((c: any) => ({
                 table: c.table_name || c.table,
                 column: c.column_name || c.column,
                 dataType: c.data_type || c.dataType || '',
@@ -496,7 +497,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               }))
             }
             if (event.data.join_paths) {
-              linkingData.joinPaths = (event.data.join_paths || []).map((jp: any) => ({
+              linkingMeta.linkingJoinPaths = (event.data.join_paths || []).map((jp: any) => ({
                 from: { table: jp.from_table, column: jp.from_column },
                 to: { table: jp.to_table, column: jp.to_column },
                 confidence: jp.confidence
@@ -505,7 +506,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
             // Merge execution_logs if provided (legacy format)
             if (event.data.execution_logs) {
-              linkingData.executionLogs = (event.data.execution_logs || []).map((log: any) => ({
+              linkingMeta.executionLogs = (event.data.execution_logs || []).map((log: any) => ({
                 phase: log.phase,
                 sql: log.sql,
                 result_count: log.result_count,
@@ -517,7 +518,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             if (groundingResult.value) {
               groundingResult.value = {
                 ...groundingResult.value,
-                ...linkingData,
+                ...linkingMeta,
               }
             } else {
               groundingResult.value = {
@@ -526,7 +527,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 joinPaths: [],
                 suggestedFields: [],
                 duration: 0,
-                ...linkingData,
+                ...linkingMeta,
               } as GroundingResult
             }
             break

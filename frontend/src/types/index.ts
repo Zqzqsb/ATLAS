@@ -125,8 +125,8 @@ export interface ContextFilter {
 // ============================================
 
 export interface GroundingResult {
-  tables: GroundingTable[]
-  columns: GroundingColumn[]
+  tables: GroundingTable[]           // Retrieval snapshot (frozen after retrieval_complete)
+  columns: GroundingColumn[]         // Retrieval snapshot (frozen after retrieval_complete)
   joinPaths: JoinPath[]
   suggestedFields: SuggestedFieldFromLinking[]
   duration: number
@@ -136,6 +136,10 @@ export interface GroundingResult {
   reasoning?: string              // LLM reasoning for fine selection
   mode?: string                   // "sequential", "parallel", "coarse_only"
   strategy?: string               // "small_scale" | "large_scale" — grounding strategy used
+  // Linking agent's independent selection (may be a subset of retrieval)
+  linkingTables?: GroundingTable[]
+  linkingColumns?: GroundingColumn[]
+  linkingJoinPaths?: JoinPath[]
 }
 
 // SuggestedFieldFromLinking represents a field suggested by the linking agent

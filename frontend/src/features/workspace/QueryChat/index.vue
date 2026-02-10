@@ -697,9 +697,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       >
         <template #content>
           <!-- Step 1: Linking Agent Result (LLM Fine Selection + Selected Tables/Columns + Execution Logs) -->
-          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4 content-fade">
+          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4">
             <!-- LLM Fine Selection -->
-            <div v-if="workspaceStore.groundingResult.reasoning">
+            <div v-if="workspaceStore.groundingResult.reasoning" class="stagger-item" style="--stagger: 0">
               <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
                 <NCollapseItem name="reasoning">
                   <template #header>
@@ -719,7 +719,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
 
             <!-- Linking Agent Selected Tables/Columns Summary -->
-            <div v-if="workspaceStore.groundingResult.linkingTables?.length" class="space-y-2">
+            <div v-if="workspaceStore.groundingResult.linkingTables?.length" class="space-y-2 stagger-item" style="--stagger: 1">
               <div class="flex items-center gap-2 mb-1">
                 <div class="i-lucide-filter text-sm text-teal-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linked Tables ({{ workspaceStore.groundingResult.linkingTables.length }})</span>
@@ -752,7 +752,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
 
             <!-- Execution Logs -->
-            <div v-if="workspaceStore.groundingResult.executionLogs?.length">
+            <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="stagger-item" style="--stagger: 2">
               <NCollapse :default-expanded-names="[]" arrow-placement="left">
                 <NCollapseItem name="logs">
                   <template #header>
@@ -854,9 +854,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
             
             <!-- Steps -->
+            <TransitionGroup name="step-list" tag="div" class="space-y-4">
             <div
-              v-for="step in schemaLinkingStage.steps"
-              :key="step.step"
+              v-for="(step, idx) in schemaLinkingStage.steps"
+              :key="step.step || idx"
               class="react-step p-4 rounded-lg bg-cyan-50 border border-cyan-100"
             >
               <div class="flex items-start gap-3">
@@ -893,6 +894,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </div>
               </div>
             </div>
+            </TransitionGroup>
           </div>
           <!-- Loading/Waiting states (only when NO linking result AND field panel is NOT shown) -->
           <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length)">
@@ -955,9 +957,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </div>
               </div>
               
+              <TransitionGroup name="step-list" tag="div" class="space-y-4">
               <div
-                v-for="step in sqlGenerationStage.steps"
-                :key="step.step"
+                v-for="(step, idx) in sqlGenerationStage.steps"
+                :key="step.step || idx"
                 class="react-step p-4 rounded-lg border"
                 :class="step.action === 'verify_sql' && step.observation
                   ? (step.observation.startsWith('✅') ? 'bg-green-50 border-green-200' : step.observation.startsWith('❌') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-100')
@@ -996,55 +999,56 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                         <NTag v-else-if="step.observation" size="tiny" type="warning" round>CHECKING</NTag>
                       </div>
                       
-                      <!-- Expandable Execution Plan -->
-                      <div v-if="step.observation" class="verify-result">
-                      <NCollapse 
-                          :default-expanded-names="['explain']" 
-                          arrow-placement="left"
+                      <!-- Execution Plan (always visible, no collapse) -->
+                      <div v-if="step.observation" class="verify-result mt-2">
+                        <div class="flex items-center gap-2 mb-1.5">
+                          <div class="i-lucide-bar-chart-3 text-sm"
+                            :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
+                          />
+                          <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
+                        </div>
+                        <div class="rounded-lg overflow-hidden border"
+                          :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
                         >
-                          <NCollapseItem name="explain">
-                            <template #header>
-                              <div class="flex items-center gap-2">
-                                <div class="i-lucide-bar-chart-3 text-sm"
-                                  :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
-                                />
-                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
-                              </div>
-                            </template>
-                            <div class="mt-1 rounded-lg overflow-hidden border"
-                              :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
-                            >
-                              <!-- Summary header -->
-                              <div class="px-3 py-2 text-xs font-medium flex items-center gap-2"
-                                :class="step.observation?.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                              >
-                                <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" />
-                                {{ step.observation?.startsWith('✅') ? 'Query passed verification' : 'Query has issues' }}
-                              </div>
-                              <!-- Full plan detail -->
-                              <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-64 overflow-y-auto"
-                                :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
-                              >{{ step.observation }}</pre>
-                            </div>
-                          </NCollapseItem>
-                        </NCollapse>
+                          <!-- Summary header -->
+                          <div class="px-3 py-2 text-xs font-medium flex items-center gap-2"
+                            :class="step.observation?.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                          >
+                            <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" />
+                            {{ step.observation?.startsWith('✅') ? 'Query passed verification' : 'Query has issues' }}
+                          </div>
+                          <!-- Full plan detail -->
+                          <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-48 overflow-y-auto"
+                            :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
+                          >{{ step.observation }}</pre>
+                        </div>
                       </div>
                     </div>
                     
                     <!-- Regular action (non-verify_sql) -->
-                    <div v-else-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
-                      <div class="i-lucide-play text-pink-600 mt-0.5 flex-shrink-0" />
-                      <span class="text-xs text-pink-600 font-mono font-bold">{{ step.action }}</span>
-                    </div>
-                    
-                    <!-- Observation for non-verify_sql actions -->
-                    <div v-if="step.observation && step.action !== 'verify_sql'" class="flex items-start gap-2">
-                      <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
-                      <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
+                    <div v-else-if="step.action" class="space-y-2">
+                      <div class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
+                        <div class="i-lucide-play text-pink-600 mt-0.5 flex-shrink-0" />
+                        <span class="text-xs text-pink-600 font-mono font-bold">{{ step.action }}</span>
+                      </div>
+                      <!-- Observation for execute_sql: show as code block -->
+                      <div v-if="step.observation && step.action === 'execute_sql'" class="rounded-lg overflow-hidden border border-gray-200">
+                        <div class="px-3 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                          <div class="i-lucide-terminal text-xs" />
+                          Query Result
+                        </div>
+                        <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 max-h-32 overflow-y-auto">{{ step.observation }}</pre>
+                      </div>
+                      <!-- Observation for other actions -->
+                      <div v-else-if="step.observation" class="flex items-start gap-2">
+                        <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
+                        <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+              </TransitionGroup>
             </div>
             
             <!-- Generated SQL Preview -->
@@ -1138,6 +1142,32 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   from {
     opacity: 0;
     transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Step list transition group */
+.step-list-enter-active {
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.step-list-enter-from {
+  opacity: 0;
+  transform: translateY(-16px) scale(0.97);
+}
+
+/* Stagger animation for linking card sections */
+.stagger-item {
+  animation: staggerFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--stagger, 0) * 150ms);
+}
+
+@keyframes staggerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;

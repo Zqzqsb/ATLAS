@@ -437,7 +437,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             if (event.data.strategy === 'small_scale') {
               setTimeout(() => {
                 groundingStage.value = 'retrieval_done'
-              }, 600)
+              }, 1200)
             } else {
               groundingStage.value = 'retrieval_done'
             }

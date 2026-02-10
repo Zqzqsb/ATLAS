@@ -107,7 +107,7 @@ const colorClasses = computed(() => {
     </div>
 
     <!-- Content -->
-    <div class="card-content p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+    <div class="card-content p-4 max-h-[560px] overflow-y-auto custom-scrollbar">
       <slot name="content" />
     </div>
   </div>
@@ -115,7 +115,7 @@ const colorClasses = computed(() => {
 
 <style scoped>
 .realtime-card {
-  min-height: 200px;
+  min-height: 280px;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

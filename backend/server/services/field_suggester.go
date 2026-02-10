@@ -8,8 +8,8 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/config"
 	"lucid/internal/adapter"
+	"lucid/internal/config"
 )
 
 // FieldSuggester suggests output fields based on LLM analysis.
@@ -60,7 +60,7 @@ func (s *FieldSuggester) getSchemaForSuggestion(c context.Context, dbID, databas
 			if db.ID == dbID {
 				adapterCfg = &adapter.DBConfig{
 					Type: db.Type, Host: db.Host, Port: db.Port,
-					Database: database, User: db.User, Password: db.Password, FilePath: db.Path,
+					Database: database, User: db.User, Password: db.Password,
 				}
 				break
 			}

@@ -24,7 +24,6 @@ type ConnectionConfig struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
 	Database string `json:"database"`
-	Path     string `json:"path"`
 }
 
 // ConnectionStatus represents connection test result.
@@ -44,28 +43,22 @@ func (h *Handler) AddConnection(c *gin.Context) {
 		return
 	}
 
-	if conn.Type != "mysql" && conn.Type != "mariadb" && conn.Type != "postgresql" && conn.Type != "sqlite" {
+	if conn.Type != "mysql" && conn.Type != "mariadb" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid database type. Must be mysql, mariadb, postgresql, or sqlite",
+			"error": "Invalid database type. Must be mysql or mariadb",
 		})
 		return
-	}
-
-	adapterType := conn.Type
-	if adapterType == "mariadb" {
-		adapterType = "mysql"
 	}
 
 	newDB := config.DatabaseConfig{
 		ID:       conn.ID,
 		Name:     conn.Name,
-		Type:     adapterType,
+		Type:     conn.Type,
 		Host:     conn.Host,
 		Port:     conn.Port,
 		User:     conn.User,
 		Password: conn.Password,
 		Database: conn.Database,
-		Path:     conn.Path,
 	}
 
 	if err := h.dbService.AddDatabase(newDB); err != nil {
@@ -167,7 +160,6 @@ func (h *Handler) TestConnection(c *gin.Context) {
 		User:     conn.User,
 		Password: conn.Password,
 		Database: conn.Database,
-		Path:     conn.Path,
 	})
 	if err != nil {
 		status.Connected = false
@@ -215,9 +207,6 @@ func (h *Handler) ListConnections(c *gin.Context) {
 			"port":     db.Port,
 			"database": db.Database,
 			"user":     db.User,
-		}
-		if db.Type == "sqlite" {
-			conn["path"] = db.Path
 		}
 		connections = append(connections, conn)
 	}

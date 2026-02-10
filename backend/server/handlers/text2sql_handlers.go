@@ -416,7 +416,8 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 							flusher.Flush()
 
 						case "linking_done":
-							// LLM done → send linking_complete + field_suggestions immediately
+							// LLM done → send linking_complete, then field_suggestions with a delay
+							// so the UI can show the three steps (schema → linking → fields) sequentially.
 							if !linkingCompleteSent {
 								linkingCompleteSent = true
 								// Build GroundingInfo from the linking result for rich SSE data
@@ -435,8 +436,10 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 										})
 										flusher.Flush()
 
-										// Field suggestions — no artificial delay
+										// Delay before field suggestions so the UI shows
+										// linking results first, then the field panel appears.
 										if len(partialInfo.SuggestedFields) > 0 {
+											time.Sleep(800 * time.Millisecond)
 											SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 												"suggested_fields": partialInfo.SuggestedFields,
 											})
@@ -499,6 +502,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					"execution_time_ms": groundingInfo.ExecutionTimeMs,
 				})
 				flusher.Flush()
+				time.Sleep(600 * time.Millisecond)
 			}
 			if !linkingCompleteSent {
 				SendSSE(c.Writer, "linking_complete", map[string]interface{}{
@@ -512,6 +516,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 				flusher.Flush()
 
 				if len(groundingInfo.SuggestedFields) > 0 {
+					time.Sleep(800 * time.Millisecond)
 					SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 						"suggested_fields": groundingInfo.SuggestedFields,
 					})

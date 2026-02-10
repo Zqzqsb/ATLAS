@@ -22,13 +22,12 @@ type DBAdapter interface {
 
 // DBConfig 数据库连接配置
 type DBConfig struct {
-	Type     string // "mysql", "mariadb", "postgresql", "sqlite"
+	Type     string // "mysql", "mariadb"
 	Host     string
 	Port     int
 	Database string
 	User     string
 	Password string
-	FilePath string // SQLite 文件路径
 
 	MaxOpenConns int
 	MaxIdleConns int
@@ -53,9 +52,7 @@ type AdapterFactory func(config *DBConfig) (DBAdapter, error)
 type DatabaseType string
 
 const (
-	MySQL      DatabaseType = "mysql"
-	PostgreSQL DatabaseType = "postgresql"
-	SQLite     DatabaseType = "sqlite"
+	MySQL DatabaseType = "mysql"
 )
 
 // ============================================
@@ -72,18 +69,6 @@ func NewAdapter(config *DBConfig) (DBAdapter, error) {
 			Database: config.Database,
 			User:     config.User,
 			Password: config.Password,
-		}), nil
-	case "postgresql":
-		return NewPostgreSQLAdapter(&PostgreSQLConfig{
-			Host:     config.Host,
-			Port:     config.Port,
-			Database: config.Database,
-			User:     config.User,
-			Password: config.Password,
-		}), nil
-	case "sqlite":
-		return NewSQLiteAdapter(&SQLiteConfig{
-			FilePath: config.FilePath,
 		}), nil
 	default:
 		return nil, &UnsupportedDatabaseError{Type: config.Type}

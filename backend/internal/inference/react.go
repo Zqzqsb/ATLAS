@@ -129,21 +129,10 @@ func (p *Pipeline) buildPrompt(query string, contextPrompt string, isReact bool)
 	if p.config.DBType != "" {
 		sb.WriteString(fmt.Sprintf("**Database Type: %s**\n", p.config.DBType))
 		sb.WriteString(fmt.Sprintf("CRITICAL: Write SQL that strictly follows %s syntax rules.\n", p.config.DBType))
-		sb.WriteString("Common syntax differences to watch:\n")
-		switch p.config.DBType {
-		case "SQLite":
-			sb.WriteString("- Use double quotes for identifiers if needed, single quotes for strings\n")
-			sb.WriteString("- No LIMIT offset without LIMIT clause\n")
-			sb.WriteString("- Use || for string concatenation\n")
-		case "MySQL":
-			sb.WriteString("- Use backticks for identifiers, single quotes for strings\n")
-			sb.WriteString("- LIMIT syntax: LIMIT offset, count\n")
-			sb.WriteString("- Use CONCAT() for string concatenation\n")
-		case "PostgreSQL":
-			sb.WriteString("- Use double quotes for identifiers, single quotes for strings\n")
-			sb.WriteString("- LIMIT syntax: LIMIT count OFFSET offset\n")
-			sb.WriteString("- Use || for string concatenation\n")
-		}
+		sb.WriteString("Common syntax notes:\n")
+		sb.WriteString("- Use backticks for identifiers, single quotes for strings\n")
+		sb.WriteString("- LIMIT syntax: LIMIT offset, count\n")
+		sb.WriteString("- Use CONCAT() for string concatenation\n")
 		sb.WriteString("\n")
 	}
 
@@ -211,20 +200,17 @@ SQL Best Practices:
 		// Tools available
 		sb.WriteString(`Available Tools:
 - execute_sql: Execute SQL and see results
-- verify_sql: Validate SQL via EXPLAIN (safe for large datasets — never executes the actual query)
-  → Returns: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, plus EXPLAIN plan and ⚠️ performance warnings
-  → If FAILED or has warnings: YOU MUST rewrite the SQL and verify again
+- verify_sql: Validate SQL via EXPLAIN before giving Final Answer
+  → Returns: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, plus EXPLAIN execution plan
 
 Workflow:
 1. Analyze question and schema
 2. If string values missing from Rich Context → use execute_sql to find them
 3. Write SQL following best practices
-4. Use verify_sql to check EXPLAIN plan:
-   - ❌ FAILED → fix SQL error, re-verify
-   - ✅ PASSED with ⚠️ warnings (full table scan, filesort, etc.) → rewrite SQL to optimize, re-verify
-   - ✅ PASSED with no warnings → proceed to Final Answer
-5. You may iterate verify_sql up to 3 times to optimize
-6. Provide Final Answer
+4. ALWAYS call verify_sql once to validate your SQL and inspect the execution plan
+   - If ❌ FAILED: fix the error and give Final Answer directly (do NOT retry verify_sql)
+   - If ✅ PASSED: proceed to Final Answer
+5. Provide Final Answer
 
 `)
 
@@ -247,8 +233,8 @@ B) Give answer:
 		sb.WriteString(`Critical Rules:
 1. Field Order: SELECT fields MUST match expected order exactly (no table prefixes)
 2. Iterations: 5 max (update_rich_context doesn't count). Track: "Iteration X/5"
-3. Efficiency: Only use execute_sql when truly uncertain
-4. No repetition: If stuck, try different approach
+3. Efficiency: Only use execute_sql when truly uncertain about data values.
+4. ALWAYS verify: Call verify_sql exactly once before Final Answer. If it fails, fix and give Final Answer — do NOT retry verify_sql.
 5. Final Answer: SQL only, no explanations
 
 `)

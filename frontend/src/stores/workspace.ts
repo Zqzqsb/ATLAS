@@ -414,7 +414,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           case 'retrieval_complete': {
             // Progressive Step 1: retrieval results → Vector Search card
             // Backend now sends pre-converted tables/columns/execution_logs format.
-            groundingStage.value = 'retrieval_done'
             showSkeleton.value = false
 
             const partialRetrieval = transformGroundingResult({
@@ -431,6 +430,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 // Preserve strategy from schema_loaded (small_scale) or vector search (large_scale)
                 ...(event.data.strategy ? { strategy: event.data.strategy } : {}),
               } as GroundingResult
+            }
+
+            // For small_scale, the data arrives instantly (0ms). Delay the stage
+            // transition so the Processing animation plays briefly for visual rhythm.
+            if (event.data.strategy === 'small_scale') {
+              setTimeout(() => {
+                groundingStage.value = 'retrieval_done'
+              }, 600)
+            } else {
+              groundingStage.value = 'retrieval_done'
             }
             break
           }

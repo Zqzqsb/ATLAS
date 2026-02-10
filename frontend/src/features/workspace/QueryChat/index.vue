@@ -819,31 +819,25 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </button>
               </div>
               
-              <!-- Action row — different buttons based on state -->
-              <div class="flex items-center justify-between pt-2 border-t border-purple-100">
+              <!-- Action row — only shown during initial field confirmation -->
+              <div v-if="awaitingFieldConfirmation" class="flex items-center justify-between pt-2 border-t border-purple-100">
                 <p class="text-xs text-gray-400">
                   <span class="i-lucide-info inline-block mr-0.5 align-middle" />
-                  {{ awaitingFieldConfirmation 
-                    ? 'Select the fields you want in the output, then confirm to generate SQL.' 
-                    : 'Adjust fields and re-run to refine SQL output.' }}
+                  Select the fields you want in the output, then confirm to generate SQL.
                 </p>
                 <div class="flex items-center gap-2">
                   <button
-                    v-if="awaitingFieldConfirmation"
                     class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 font-medium text-xs hover:bg-gray-50 transition-all"
                     @click="dismissFieldPanel"
                   >
                     Skip
                   </button>
                   <button
-                    class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all"
-                    :class="awaitingFieldConfirmation 
-                      ? 'bg-primary-600 hover:bg-primary-700' 
-                      : 'bg-purple-600 hover:bg-purple-700'"
+                    class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all bg-primary-600 hover:bg-primary-700"
                     :disabled="isExecuting"
-                    @click="awaitingFieldConfirmation ? confirmFieldsAndExecute() : reExecuteWithFields()"
+                    @click="confirmFieldsAndExecute()"
                   >
-                    {{ awaitingFieldConfirmation ? 'Confirm & Generate SQL' : 'Re-run with Selection' }}
+                    Confirm & Generate SQL
                   </button>
                 </div>
               </div>

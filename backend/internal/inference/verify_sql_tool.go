@@ -22,25 +22,14 @@ func (t *VerifySQLTool) Name() string {
 
 // Description returns tool description
 func (t *VerifySQLTool) Description() string {
-	return `Verify SQL syntax and inspect execution plan via EXPLAIN (does NOT execute the actual query).
+	return `Validate SQL syntax and inspect execution plan via EXPLAIN (does NOT execute the actual query).
 
 Input: SQL query string to verify
-Output: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, with EXPLAIN execution plan and performance warnings
+Output: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, with EXPLAIN execution plan
 
-What it checks:
-- Static syntax errors (illegal aliases, unmatched parentheses)
-- Database-level validation via EXPLAIN
-- Execution plan analysis (full table scans, join strategies, estimated rows)
-
-⚠️ IMPORTANT: After receiving the result, YOU MUST act on it:
-- If ❌ VERIFY_FAILED: Fix the SQL error and call verify_sql again with the corrected SQL.
-- If ✅ VERIFY_PASSED but has ⚠️ Performance warnings (e.g., full table scan, filesort, temporary table):
-  → Rewrite the SQL to avoid the issue (add WHERE filters, use indexed columns, restructure JOINs)
-  → Then call verify_sql again to confirm the improvement
-- If ✅ VERIFY_PASSED with no warnings: Safe to give Final Answer.
-
-You may iterate up to 3 times to optimize the SQL based on EXPLAIN feedback.
-Use this tool BEFORE giving your final answer.`
+You MUST call this tool exactly once before giving your Final Answer.
+If ❌ VERIFY_FAILED: Fix the SQL error and give Final Answer directly — do NOT call verify_sql again.
+If ✅ VERIFY_PASSED: Proceed to Final Answer.`
 }
 
 // Call executes the verification
@@ -155,14 +144,6 @@ func (t *VerifySQLTool) analyzeExplainPlan(result *adapter.QueryResult) []string
 			}
 			if strings.Contains(extraStr, "Using temporary") {
 				warnings = append(warnings, "Using temporary table — may impact performance for GROUP BY / DISTINCT operations.")
-			}
-		}
-
-		// SQLite EXPLAIN QUERY PLAN: check for "SCAN TABLE" (full scan)
-		if detail, ok := row["detail"]; ok {
-			detailStr := fmt.Sprintf("%v", detail)
-			if strings.Contains(detailStr, "SCAN TABLE") {
-				warnings = append(warnings, fmt.Sprintf("Full table scan detected: %s", detailStr))
 			}
 		}
 	}

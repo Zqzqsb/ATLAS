@@ -70,7 +70,6 @@ func (s *DatabaseService) createAdapter(dbID string) (adapter.DBAdapter, error) 
 		Database: dbConfig.Database,
 		User:     dbConfig.User,
 		Password: dbConfig.Password,
-		FilePath: dbConfig.Path,
 	}
 
 	adp, err := s.adapterFactory(adapterCfg)
@@ -96,7 +95,6 @@ func (s *DatabaseService) CreateCustomAdapter(cfg *AdapterConfig) (adapter.DBAda
 		Database: cfg.Database,
 		User:     cfg.User,
 		Password: cfg.Password,
-		FilePath: cfg.Path,
 	}
 
 	return s.adapterFactory(dbConfig)
@@ -134,17 +132,7 @@ func (s *DatabaseService) GetSchema(ctx context.Context, dbID string) (*SchemaIn
 
 // getTables returns list of all tables in the database
 func (s *DatabaseService) getTables(ctx context.Context, adp adapter.DBAdapter) ([]string, error) {
-	var query string
-	switch adp.GetDatabaseType() {
-	case "MySQL":
-		query = "SHOW TABLES"
-	case "PostgreSQL":
-		query = "SELECT tablename FROM pg_tables WHERE schemaname='public'"
-	case "SQLite":
-		query = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-	default:
-		return nil, fmt.Errorf("unsupported database type")
-	}
+	query := "SHOW TABLES"
 
 	result, err := adp.ExecuteQuery(ctx, query)
 	if err != nil {
@@ -171,15 +159,7 @@ func (s *DatabaseService) getTableSchema(ctx context.Context, adp adapter.DBAdap
 		Columns: []ColumnInfo{},
 	}
 
-	var query string
-	switch adp.GetDatabaseType() {
-	case "MySQL":
-		query = fmt.Sprintf("DESCRIBE %s", tableName)
-	case "PostgreSQL":
-		query = fmt.Sprintf("SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name='%s'", tableName)
-	case "SQLite":
-		query = fmt.Sprintf("PRAGMA table_info(%s)", tableName)
-	}
+	query := fmt.Sprintf("DESCRIBE %s", tableName)
 
 	result, err := adp.ExecuteQuery(ctx, query)
 	if err != nil {
@@ -211,24 +191,10 @@ func (s *DatabaseService) getTableSchema(ctx context.Context, adp adapter.DBAdap
 // parseColumnInfo parses column info from query result
 func parseColumnInfo(row map[string]interface{}, dbType string) ColumnInfo {
 	col := ColumnInfo{}
-
-	switch dbType {
-	case "MySQL":
-		col.Name = getString(row, "Field")
-		col.Type = getString(row, "Type")
-		col.Nullable = getString(row, "Null") == "YES"
-		col.IsPrimaryKey = getString(row, "Key") == "PRI"
-	case "PostgreSQL":
-		col.Name = getString(row, "column_name")
-		col.Type = getString(row, "data_type")
-		col.Nullable = getString(row, "is_nullable") == "YES"
-	case "SQLite":
-		col.Name = getString(row, "name")
-		col.Type = getString(row, "type")
-		col.Nullable = getInt(row, "notnull") == 0
-		col.IsPrimaryKey = getInt(row, "pk") > 0
-	}
-
+	col.Name = getString(row, "Field")
+	col.Type = getString(row, "Type")
+	col.Nullable = getString(row, "Null") == "YES"
+	col.IsPrimaryKey = getString(row, "Key") == "PRI"
 	return col
 }
 
@@ -284,7 +250,6 @@ func (s *DatabaseService) AddDatabase(db config.DatabaseConfig) error {
 		Database: db.Database,
 		User:     db.User,
 		Password: db.Password,
-		FilePath: db.Path,
 	}
 	adp, err := s.adapterFactory(adapterCfg)
 	if err != nil {
@@ -363,7 +328,6 @@ func (s *DatabaseService) NewIsolatedAdapter(dbID string) (adapter.DBAdapter, er
 		Database: dbCfg.Database,
 		User:     dbCfg.User,
 		Password: dbCfg.Password,
-		FilePath: dbCfg.Path,
 	})
 }
 
@@ -375,7 +339,6 @@ type AdapterConfig struct {
 	User     string
 	Password string
 	Database string
-	Path     string // For SQLite
 }
 
 // Helper functions

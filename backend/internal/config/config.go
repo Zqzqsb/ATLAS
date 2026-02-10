@@ -35,14 +35,12 @@ type LLMConfig struct {
 type DatabaseConfig struct {
 	ID       string `yaml:"id" json:"id"`
 	Name     string `yaml:"name" json:"name"`
-	Type     string `yaml:"type" json:"type"` // mysql, postgresql, sqlite
+	Type     string `yaml:"type" json:"type"` // mysql, mariadb
 	Host     string `yaml:"host" json:"host"`
 	Port     int    `yaml:"port" json:"port"`
 	User     string `yaml:"user" json:"user"`
 	Password string `yaml:"password" json:"password"`
 	Database string `yaml:"database" json:"database"`
-	Path     string `yaml:"path" json:"path"`       // For SQLite
-	SSLMode  string `yaml:"ssl_mode" json:"ssl_mode"` // For PostgreSQL
 }
 
 // ReactConfig ReAct配置

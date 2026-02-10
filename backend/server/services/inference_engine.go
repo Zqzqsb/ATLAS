@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/adapter"
 	"lucid/internal/inference"
 	"lucid/internal/lakebase"
+	"lucid/internal/llm"
 )
 
 // LakebaseContextLoader defines methods needed from lakebase service for loading rich context.
@@ -19,6 +22,12 @@ type LakebaseContextLoader interface {
 	GetColumnsByDatasource(ctx context.Context, dsID int64) ([]*lakebase.ColumnInfo, error)
 }
 
+// schemaCacheEntry holds a cached SchemaContext with expiration time.
+type schemaCacheEntry struct {
+	schema    *inference.SchemaContext
+	expiresAt time.Time
+}
+
 // InferenceEngine wraps internal/inference.Pipeline.
 type InferenceEngine struct {
 	llm          llms.Model
@@ -26,6 +35,10 @@ type InferenceEngine struct {
 	modelConfigs map[string]ModelInfo
 	lakebaseSvc  LakebaseContextLoader
 	dbService    *DatabaseService
+
+	// Schema cache: keyed by database name, avoids repeated DB queries
+	schemaCache sync.Map // map[string]*schemaCacheEntry
+	cacheTTL    time.Duration
 }
 
 // NewInferenceEngine creates a new inference engine.
@@ -35,6 +48,49 @@ func NewInferenceEngine(llm llms.Model, dbService *DatabaseService) *InferenceEn
 		currentModel: "default",
 		modelConfigs: make(map[string]ModelInfo),
 		dbService:    dbService,
+		cacheTTL:     5 * time.Minute, // Default TTL: 5 minutes
+	}
+}
+
+// LoadModelConfigs populates modelConfigs from llm.Config so the /models API
+// returns the real model list from llm_config.json.
+func (e *InferenceEngine) LoadModelConfigs(cfg *llm.Config, defaultKey string) {
+	for key, mc := range cfg.Models {
+		// Derive a human-friendly display name from the config key
+		name := formatModelName(key)
+		provider := guessProvider(mc.BaseURL)
+		e.modelConfigs[key] = ModelInfo{
+			ID:        key,
+			Name:      name,
+			Provider:  provider,
+			IsDefault: key == defaultKey,
+		}
+	}
+	e.currentModel = defaultKey
+}
+
+// formatModelName turns a config key like "deepseek_v3_2" into "DeepSeek V3 2".
+func formatModelName(key string) string {
+	words := strings.Split(key, "_")
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+// guessProvider infers the provider name from the base URL.
+func guessProvider(baseURL string) string {
+	switch {
+	case strings.Contains(baseURL, "volces.com"):
+		return "volcengine"
+	case strings.Contains(baseURL, "dashscope.aliyuncs.com"):
+		return "aliyun"
+	case strings.Contains(baseURL, "openai.com"):
+		return "openai"
+	default:
+		return "openai-compatible"
 	}
 }
 
@@ -46,6 +102,27 @@ func (e *InferenceEngine) SetLakebaseService(svc LakebaseContextLoader) {
 // SetLLM updates the LLM model.
 func (e *InferenceEngine) SetLLM(llm llms.Model) {
 	e.llm = llm
+}
+
+// InvalidateSchemaCache invalidates the schema cache for a specific database,
+// or all databases if dbName is empty.
+func (e *InferenceEngine) InvalidateSchemaCache(dbName string) {
+	if dbName == "" {
+		e.schemaCache = sync.Map{}
+		return
+	}
+	e.schemaCache.Delete(dbName)
+}
+
+// SetCacheTTL updates the cache TTL duration.
+func (e *InferenceEngine) SetCacheTTL(ttl time.Duration) {
+	e.cacheTTL = ttl
+}
+
+// WarmupSchema pre-loads schema context into cache for a given database.
+// This is called by the warmup endpoint to avoid cold-start latency on the first query.
+func (e *InferenceEngine) WarmupSchema(ctx context.Context, dbName string) {
+	_ = e.loadSchemaContext(ctx, dbName)
 }
 
 // Execute runs inference using internal Pipeline.
@@ -72,6 +149,14 @@ func (e *InferenceEngine) Execute(ctx context.Context, req *InferenceRequest) (*
 		if sc := e.loadSchemaContext(ctx, req.DatabaseID); sc != nil {
 			pipeline.SetSchemaContext(sc)
 		}
+	}
+
+	// If external linking result is available, inject it to skip internal Schema Linking
+	if len(req.LinkedTables) > 0 {
+		pipeline.SetPreLinkedContext(&inference.PreLinkedContext{
+			SelectedTables: req.LinkedTables,
+			ContextPrompt:  req.LinkedContextPrompt,
+		})
 	}
 
 	result, err := pipeline.Execute(ctx, req.Question)
@@ -105,6 +190,14 @@ func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *InferenceReque
 		if sc := e.loadSchemaContext(ctx, req.DatabaseID); sc != nil {
 			pipeline.SetSchemaContext(sc)
 		}
+	}
+
+	// If external linking result is available, inject it to skip internal Schema Linking
+	if len(req.LinkedTables) > 0 {
+		pipeline.SetPreLinkedContext(&inference.PreLinkedContext{
+			SelectedTables: req.LinkedTables,
+			ContextPrompt:  req.LinkedContextPrompt,
+		})
 	}
 
 	pipeline.SetStepCallback(func(step inference.ReActStep, eventType string) {
@@ -179,14 +272,14 @@ func (e *InferenceEngine) createAdapter(databaseID string) (adapter.DBAdapter, e
 
 func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inference.Config {
 	config := &inference.Config{
-		UseRichContext:  req.UseRichContext,
-		UseReact:        req.UseReact,
-		ReactLinking:  req.UseReact,
-		UseDryRun:     true,
-		MaxIterations: req.MaxIterations,
-		ClarifyMode:   "off",
-		DBName:        req.DatabaseID,
-		DBType:        dbType,
+		UseRichContext: req.UseRichContext,
+		UseReact:       req.UseReact,
+		ReactLinking:   req.UseReact,
+		UseDryRun:      true,
+		MaxIterations:  req.MaxIterations,
+		ClarifyMode:    "off",
+		DBName:         req.DatabaseID,
+		DBType:         dbType,
 	}
 	if config.MaxIterations == 0 {
 		config.MaxIterations = 5
@@ -219,6 +312,16 @@ func (e *InferenceEngine) buildConfig(req *InferenceRequest, dbType string) *inf
 func (e *InferenceEngine) loadSchemaContext(ctx context.Context, dbName string) *inference.SchemaContext {
 	if e.lakebaseSvc == nil {
 		return nil
+	}
+
+	// Check cache first
+	if cached, ok := e.schemaCache.Load(dbName); ok {
+		entry := cached.(*schemaCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.schema
+		}
+		// Cache expired, remove it
+		e.schemaCache.Delete(dbName)
 	}
 
 	ds, err := e.lakebaseSvc.GetDatasourceByName(ctx, dbName)
@@ -278,6 +381,12 @@ func (e *InferenceEngine) loadSchemaContext(ctx context.Context, dbName string) 
 		sc.Tables[t.TableName] = st
 	}
 
+	// Store in cache
+	e.schemaCache.Store(dbName, &schemaCacheEntry{
+		schema:    sc,
+		expiresAt: time.Now().Add(e.cacheTTL),
+	})
+
 	return sc
 }
 
@@ -312,4 +421,3 @@ func (e *InferenceEngine) convertResult(r *inference.Result) *InferenceResult {
 	}
 	return result
 }
-

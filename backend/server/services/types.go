@@ -30,6 +30,11 @@ type InferenceRequest struct {
 	UseReact         bool   `json:"use_react"`
 	MaxIterations    int    `json:"max_iterations"`
 	FieldDescription string `json:"field_description"`
+
+	// Pre-linked context from Grounding stage (if available)
+	// When set, inference pipeline skips its own Schema Linking
+	LinkedTables       []string `json:"linked_tables,omitempty"`
+	LinkedContextPrompt string  `json:"linked_context_prompt,omitempty"`
 }
 
 // InferenceResult 推理结果

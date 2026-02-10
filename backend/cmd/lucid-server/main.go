@@ -82,6 +82,11 @@ func main() {
 
 	inferenceEngine := services.NewInferenceEngine(llmModel, dbService)
 
+	// Load model configs so /api/v1/models returns real model list
+	if llmCfg != nil {
+		inferenceEngine.LoadModelConfigs(llmCfg, cfg.LLM.DefaultModel)
+	}
+
 	// Create field suggester (optional, requires LLM)
 	var fieldSuggester services.FieldSuggesterInterface
 	if llmModel != nil {
@@ -229,6 +234,7 @@ func main() {
 		api.POST("/text2sql", h.Text2SQL)
 		api.POST("/text2sql/stream", h.Text2SQLStream)
 		api.POST("/text2sql/suggest-fields", h.SuggestFields)
+		api.POST("/text2sql/warmup", h.Warmup)
 
 		// SQL execution
 		api.POST("/databases/:id/execute", h.ExecuteSQL)

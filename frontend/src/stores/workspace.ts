@@ -14,6 +14,22 @@ import type {
 import { databaseApi, contextApi, queryApi } from '@/api'
 import { useDatabaseStore } from './database'
 
+// Warmup API - pre-loads caches on the backend to reduce first-query latency
+const warmupApi = {
+  warmup: async (databaseId: string) => {
+    try {
+      await fetch('/api/v1/text2sql/warmup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ database_id: databaseId })
+      })
+    } catch (e) {
+      // Silently ignore warmup failures - it's a best-effort optimization
+      console.debug('Warmup failed (non-critical):', e)
+    }
+  }
+}
+
 export const useWorkspaceStore = defineStore('workspace', () => {
   // Dependencies
   const databaseStore = useDatabaseStore()
@@ -61,13 +77,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const queryDuration = ref(0)
   const executionResult = ref<any[] | null>(null)
 
+  // Skeleton state: immediately show schema info while waiting for backend
+  const skeletonTables = ref<string[]>([])
+  const showSkeleton = ref(false)
+
   // Abort controller for streaming
   let abortQuery: (() => void) | null = null
 
   // Transform backend grounding result to frontend format
   function transformGroundingResult(data: any): GroundingResult | null {
     if (!data) return null
-    
+
     return {
       tables: (data.tables || []).map((t: any) => ({
         name: t.name,
@@ -137,11 +157,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     currentDatabaseId.value = id
 
-    // Load data in parallel
+    // Load data in parallel, plus trigger backend warmup
     await Promise.all([
       fetchSchema(),
       fetchContexts(),
-      fetchQueryHistory()
+      fetchQueryHistory(),
+      warmupApi.warmup(id) // Pre-load backend caches
     ])
   }
 
@@ -152,11 +173,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       // Get lakebase numeric ID
       const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
-      
+
       // Use lakebase API to get schema from rc_tables and rc_columns
       const response = await fetch(`/api/v1/lakebase/datasources/${lakebaseId}`)
       const data = await response.json()
-      
+
       if (data.tables && data.columns) {
         // Transform to SchemaInfo format
         schemaCache.value = {
@@ -180,7 +201,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               }))
           }))
         }
-        
+
         // Save relations
         if (data.relations) {
           relations.value = data.relations.map((r: any) => ({
@@ -208,11 +229,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       // Get lakebase numeric ID
       const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
-      
+
       // Use lakebase API to get contexts from rc_tables and rc_columns
       const response = await fetch(`/api/v1/lakebase/datasources/${lakebaseId}`)
       const data = await response.json()
-      
+
       if (data.contexts) {
         contexts.value = data.contexts.map((ctx: any) => ({
           id: String(ctx.id),
@@ -255,6 +276,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     executionResult.value = null
     queryError.value = null
     isQuerying.value = false
+    skeletonTables.value = []
+    showSkeleton.value = false
   }
 
   async function executeQuery(question?: string, fieldDescription?: string) {
@@ -272,6 +295,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isQuerying.value = true
     const startTime = Date.now()
 
+    // Skeleton screen: immediately show table names from local schemaCache
+    // so the user sees progress before the backend SSE starts streaming
+    if (schemaCache.value && schemaCache.value.tables.length > 0) {
+      skeletonTables.value = schemaCache.value.tables.map(t => t.name)
+      showSkeleton.value = true
+    }
+
+    // Also fire warmup in parallel (non-blocking) to ensure backend caches are hot
+    if (currentDatabaseId.value) {
+      warmupApi.warmup(currentDatabaseId.value)
+    }
+
     abortQuery = queryApi.stream(
       {
         question: q,
@@ -282,7 +317,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       },
       (event: { type: string; data: any }) => {
         console.log('SSE Event:', event.type, event.data) // Debug log
-        
+
         switch (event.type) {
           case 'thought':
           case 'action':
@@ -295,14 +330,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               const existingIndex = reactSteps.value.findIndex(
                 s => `${s.phase || 'unknown'}-${s.step}` === stepKey
               )
-              
+
               // Create step data with unique ID
               const stepData = {
                 ...event.data,
                 id: stepKey,
                 type: event.type as any
               }
-              
+
               if (existingIndex >= 0) {
                 // Update existing step (merge new data)
                 reactSteps.value[existingIndex] = {
@@ -317,6 +352,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             break
           case 'grounding_start':
             groundingStage.value = 'stage1'
+            // Hide skeleton once real grounding data starts arriving
+            showSkeleton.value = false
             break
           case 'grounding_stage1':
             groundingStage.value = 'stage1'
@@ -345,6 +382,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
             queryDuration.value = Date.now() - startTime
             isQuerying.value = false
+            showSkeleton.value = false // Ensure skeleton is hidden on complete
 
             // Add to history
             if (generatedSql.value) {
@@ -363,17 +401,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           case 'error':
             queryError.value = event.data.message || event.data.error || 'Unknown error'
             isQuerying.value = false
+            showSkeleton.value = false // Ensure skeleton is hidden on error
             break
         }
       },
       (error) => {
         queryError.value = error.message
         isQuerying.value = false
+        showSkeleton.value = false // Ensure skeleton is hidden on error
       },
       () => {
         // Stream completed
         if (isQuerying.value) {
           isQuerying.value = false
+          showSkeleton.value = false // Ensure skeleton is hidden on completion
         }
       }
     )
@@ -456,6 +497,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     usedContexts,
     queryDuration,
     executionResult,
+    skeletonTables,
+    showSkeleton,
 
     // Computed
     currentDatabase,

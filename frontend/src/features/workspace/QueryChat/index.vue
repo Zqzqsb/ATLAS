@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, Transition, TransitionGroup } from 'vue'
+import { ref, computed, watch, onMounted, Transition, TransitionGroup } from 'vue'
 import { NButton, NInput, NInputNumber, NSwitch, NSelect, NCollapse, NCollapseItem, NCheckbox, NSpin, NTag, useMessage } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { queryApi, type SuggestedField } from '@/api/query'
+import { apiClient } from '@/api/client'
 import QueryResult from './QueryResult.vue'
 import RealtimeCard from './RealtimeCard.vue'
 
@@ -79,12 +80,32 @@ const useRichContext = ref(true)
 const useReact = ref(true)
 const useGrounding = ref(true)
 
-// Model options
-const modelOptions = [
-  { label: 'DeepSeek V3', value: 'deepseek_v3' },
-  { label: 'Qwen 2.5', value: 'qwen_2.5' },
-  { label: 'GPT-4', value: 'gpt4' }
-]
+// Model options - loaded from backend /models API
+const modelOptions = ref<{ label: string; value: string }[]>([
+  { label: 'DeepSeek V3', value: 'deepseek_v3' } // fallback
+])
+
+async function loadModels() {
+  try {
+    const resp = await apiClient.get<{ models: { id: string; name: string; is_default: boolean }[] }>('/models')
+    const models = resp.data?.models
+    if (models && models.length > 0) {
+      modelOptions.value = models.map(m => ({ label: m.name, value: m.id }))
+      // Select the default model if current selection is not in the list
+      const defaultModel = models.find(m => m.is_default)
+      const ids = models.map(m => m.id)
+      if (!ids.includes(selectedModel.value) && defaultModel) {
+        selectedModel.value = defaultModel.id
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load models from backend, using fallback', e)
+  }
+}
+
+onMounted(() => {
+  loadModels()
+})
 
 // Example questions for different Spider databases
 const exampleQuestions = computed(() => {
@@ -538,7 +559,27 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         color="blue"
       >
         <template #content>
-          <div v-if="vectorSearchStage.empty" class="flex flex-col items-center justify-center py-8 text-gray-400">
+          <!-- Skeleton screen: shows table names from local cache while waiting for backend -->
+          <div v-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="i-carbon-table-alias text-sm text-blue-400" />
+              <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Analyzing {{ workspaceStore.skeletonTables.length }} tables...</span>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="table in workspaceStore.skeletonTables.slice(0, 8)"
+                :key="'sk-' + table"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-100"
+              >
+                <span class="text-sm text-gray-400 font-medium">{{ table }}</span>
+                <div class="w-16 h-1.5 rounded-full bg-gray-100" />
+              </div>
+              <div v-if="workspaceStore.skeletonTables.length > 8" class="text-xs text-gray-400 text-center">
+                +{{ workspaceStore.skeletonTables.length - 8 }} more tables
+              </div>
+            </div>
+          </div>
+          <div v-else-if="vectorSearchStage.empty" class="flex flex-col items-center justify-center py-8 text-gray-400">
             <div class="i-carbon-catalog text-3xl mb-2 opacity-40" />
             <span class="text-sm font-medium">No context available</span>
             <span class="text-xs mt-1 opacity-70">Generate Rich Context to enable vector retrieval</span>

@@ -68,6 +68,13 @@ type ForeignKeyRef struct {
 // eventType: "thought" | "action" | "observation" | "finish"
 type StepCallback func(step ReActStep, eventType string)
 
+// PreLinkedContext holds the result of an external Linking stage (e.g. Grounding).
+// When set, the inference pipeline skips its own Schema Linking and uses this directly.
+type PreLinkedContext struct {
+	SelectedTables []string // Table names selected by the linking agent
+	ContextPrompt  string   // Rich context prompt ready to inject into SQL generation
+}
+
 // Pipeline is the Text-to-SQL inference pipeline.
 type Pipeline struct {
 	llm          llms.Model
@@ -75,6 +82,9 @@ type Pipeline struct {
 	config       *Config
 	schema       *SchemaContext
 	schemaLinker SchemaLinker
+
+	// External linking result — when set, skip internal Schema Linking
+	preLinked *PreLinkedContext
 
 	// Streaming callback
 	stepCallback StepCallback
@@ -137,6 +147,12 @@ func (p *Pipeline) SetSchemaContext(sc *SchemaContext) {
 	p.schema = sc
 }
 
+// SetPreLinkedContext sets an externally computed linking result.
+// When set, Execute() will skip its internal Schema Linking stage.
+func (p *Pipeline) SetPreLinkedContext(plc *PreLinkedContext) {
+	p.preLinked = plc
+}
+
 // Execute runs the inference pipeline.
 func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	startTime := time.Now()
@@ -147,72 +163,99 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	}
 
 	// 1. Schema Linking — identify relevant tables
-	var allTableInfo map[string]*TableInfo
-	var err error
-	if p.schema != nil {
-		allTableInfo = extractTableInfoFromSchema(p.schema)
-	} else {
-		allTableInfo, err = p.extractTableInfoFromDB(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract table info: %w", err)
-		}
-	}
-
-	p.notifyStep(ReActStep{
-		Step:    0,
-		Thought: "Starting Schema Linking to identify relevant tables...",
-		Phase:   "schema_linking",
-	}, "thought")
-
-	tables, schemaLinkingSteps, err := p.schemaLinker.Link(ctx, query, allTableInfo)
-	if err != nil {
-		return nil, fmt.Errorf("schema linking failed: %w", err)
-	}
-	result.SelectedTables = tables
-	result.LLMCalls++
-
-	for i, step := range schemaLinkingSteps {
-		reactStep := ReActStep{
-			Step:        i + 1,
-			Thought:     step.Thought,
-			Action:      step.Action,
-			ActionInput: step.ActionInput,
-			Observation: step.Observation,
-			Phase:       "schema_linking",
-		}
-		result.ReActSteps = append(result.ReActSteps, reactStep)
-		if step.Thought != "" {
-			p.notifyStep(reactStep, "thought")
-		}
-		if step.Action != "" {
-			p.notifyStep(reactStep, "action")
-		}
-		if step.Observation != "" {
-			p.notifyStep(reactStep, "observation")
-		}
-	}
-
-	p.notifyStep(ReActStep{
-		Step:        len(schemaLinkingSteps) + 1,
-		Thought:     fmt.Sprintf("Schema Linking completed. Selected %d tables: %v", len(tables), tables),
-		Observation: fmt.Sprintf("Selected tables: %s", strings.Join(tables, ", ")),
-		Phase:       "schema_linking",
-	}, "finish")
-
-	log.Printf("[inference] Selected tables: %v", tables)
-
-	// 2. Build schema prompt for SQL generation
+	// If an external linking result is provided, skip internal linking entirely.
+	var tables []string
 	var contextPrompt string
-	if p.config.UseRichContext && p.schema != nil {
-		contextPrompt = p.buildRichSchemaPrompt(tables)
-		log.Printf("[inference] Using Rich Context for %d tables", len(tables))
+
+	if p.preLinked != nil {
+		// Use externally provided linking result (from Grounding / AdaptivePipeline)
+		tables = p.preLinked.SelectedTables
+		contextPrompt = p.preLinked.ContextPrompt
+		result.SelectedTables = tables
+
+		p.notifyStep(ReActStep{
+			Step:        1,
+			Thought:     fmt.Sprintf("Using pre-linked context from Grounding: %d tables selected", len(tables)),
+			Observation: fmt.Sprintf("Pre-linked tables: %s", strings.Join(tables, ", ")),
+			Phase:       "schema_linking",
+		}, "finish")
+
+		log.Printf("[inference] Using pre-linked context: %v", tables)
+
+		// If the external prompt is empty but we have schema, build it from schema
+		if contextPrompt == "" && p.schema != nil {
+			contextPrompt = p.buildRichSchemaPrompt(tables)
+		}
 	} else {
-		contextPrompt = p.buildBasicSchema(ctx, tables)
-		log.Printf("[inference] Using Basic Schema for %d tables", len(tables))
+		// Internal Schema Linking (legacy path)
+		var allTableInfo map[string]*TableInfo
+		var err error
+		if p.schema != nil {
+			allTableInfo = extractTableInfoFromSchema(p.schema)
+		} else {
+			allTableInfo, err = p.extractTableInfoFromDB(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to extract table info: %w", err)
+			}
+		}
+
+		p.notifyStep(ReActStep{
+			Step:    0,
+			Thought: "Starting Schema Linking to identify relevant tables...",
+			Phase:   "schema_linking",
+		}, "thought")
+
+		var schemaLinkingSteps []ReActStep
+		tables, schemaLinkingSteps, err = p.schemaLinker.Link(ctx, query, allTableInfo)
+		if err != nil {
+			return nil, fmt.Errorf("schema linking failed: %w", err)
+		}
+		result.SelectedTables = tables
+		result.LLMCalls++
+
+		for i, step := range schemaLinkingSteps {
+			reactStep := ReActStep{
+				Step:        i + 1,
+				Thought:     step.Thought,
+				Action:      step.Action,
+				ActionInput: step.ActionInput,
+				Observation: step.Observation,
+				Phase:       "schema_linking",
+			}
+			result.ReActSteps = append(result.ReActSteps, reactStep)
+			if step.Thought != "" {
+				p.notifyStep(reactStep, "thought")
+			}
+			if step.Action != "" {
+				p.notifyStep(reactStep, "action")
+			}
+			if step.Observation != "" {
+				p.notifyStep(reactStep, "observation")
+			}
+		}
+
+		p.notifyStep(ReActStep{
+			Step:        len(schemaLinkingSteps) + 1,
+			Thought:     fmt.Sprintf("Schema Linking completed. Selected %d tables: %v", len(tables), tables),
+			Observation: fmt.Sprintf("Selected tables: %s", strings.Join(tables, ", ")),
+			Phase:       "schema_linking",
+		}, "finish")
+
+		log.Printf("[inference] Selected tables: %v", tables)
+
+		// Build schema prompt for SQL generation
+		if p.config.UseRichContext && p.schema != nil {
+			contextPrompt = p.buildRichSchemaPrompt(tables)
+			log.Printf("[inference] Using Rich Context for %d tables", len(tables))
+		} else {
+			contextPrompt = p.buildBasicSchema(ctx, tables)
+			log.Printf("[inference] Using Basic Schema for %d tables", len(tables))
+		}
 	}
 
-	// 3. Generate SQL
+	// 2. Generate SQL
 	var sql string
+	var err error
 	if p.config.UseReact {
 		sql, err = p.reactLoop(ctx, query, contextPrompt, result)
 	} else {
@@ -226,7 +269,7 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	result.GeneratedSQL = sql
 	result.TotalTime = time.Since(startTime)
 
-	// 4. Execute SQL
+	// 3. Execute SQL
 	if sql != "" {
 		execResult, err := p.adapter.ExecuteQuery(ctx, sql)
 		if err == nil {

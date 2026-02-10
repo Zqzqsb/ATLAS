@@ -56,6 +56,11 @@ func (s *InferenceService) GetCurrentModel() string {
 	return s.engine.GetCurrentModel()
 }
 
+// GetEngine returns the underlying inference engine.
+func (s *InferenceService) GetEngine() InferenceEngineInterface {
+	return s.engine
+}
+
 // GetLLMModel returns the LLM model if available.
 func (s *InferenceService) GetLLMModel() interface{} {
 	if s.engine == nil {
@@ -76,6 +81,10 @@ type Text2SQLRequest struct {
 	UseReact         bool   `json:"use_react"`
 	MaxIterations    int    `json:"max_iterations"`
 	FieldDescription string `json:"field_description"`
+
+	// Pre-linked context from Grounding stage (if available)
+	LinkedTables        []string `json:"linked_tables,omitempty"`
+	LinkedContextPrompt string   `json:"linked_context_prompt,omitempty"`
 }
 
 // Text2SQLResult represents the result of text2sql
@@ -105,13 +114,15 @@ func (s *InferenceService) Execute(ctx context.Context, req *Text2SQLRequest) (*
 	startTime := time.Now()
 
 	inferReq := &InferenceRequest{
-		Question:         req.Question,
-		DatabaseID:       req.DatabaseID,
-		Database:         req.Database,
-		UseRichContext:   req.UseRichContext,
-		UseReact:         req.UseReact,
-		MaxIterations:    req.MaxIterations,
-		FieldDescription: req.FieldDescription,
+		Question:            req.Question,
+		DatabaseID:          req.DatabaseID,
+		Database:            req.Database,
+		UseRichContext:      req.UseRichContext,
+		UseReact:            req.UseReact,
+		MaxIterations:       req.MaxIterations,
+		FieldDescription:    req.FieldDescription,
+		LinkedTables:        req.LinkedTables,
+		LinkedContextPrompt: req.LinkedContextPrompt,
 	}
 
 	if inferReq.MaxIterations == 0 {
@@ -147,13 +158,15 @@ func (s *InferenceService) ExecuteStream(ctx context.Context, req *Text2SQLReque
 	}
 
 	inferReq := &InferenceRequest{
-		Question:         req.Question,
-		DatabaseID:       req.DatabaseID,
-		Database:         req.Database,
-		UseRichContext:   req.UseRichContext,
-		UseReact:         req.UseReact,
-		MaxIterations:    req.MaxIterations,
-		FieldDescription: req.FieldDescription,
+		Question:            req.Question,
+		DatabaseID:          req.DatabaseID,
+		Database:            req.Database,
+		UseRichContext:      req.UseRichContext,
+		UseReact:            req.UseReact,
+		MaxIterations:       req.MaxIterations,
+		FieldDescription:    req.FieldDescription,
+		LinkedTables:        req.LinkedTables,
+		LinkedContextPrompt: req.LinkedContextPrompt,
 	}
 
 	if inferReq.MaxIterations == 0 {

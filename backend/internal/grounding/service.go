@@ -25,12 +25,13 @@ const (
 
 // Service provides the main entry point for Semantic Grounding
 type Service struct {
-	pipeline     *Pipeline
-	vectorRepo   *lakebase.MySQLVectorRepository
-	embedder     embedding.EmbeddingProvider
-	llmModel     llms.Model
-	config       *GroundingConfig
-	datasourceID int64
+	pipeline         *Pipeline
+	adaptivePipeline *AdaptivePipeline
+	vectorRepo       *lakebase.MySQLVectorRepository
+	embedder         embedding.EmbeddingProvider
+	llmModel         llms.Model
+	config           *GroundingConfig
+	datasourceID     int64
 }
 
 // ServiceConfig configures the grounding service
@@ -48,7 +49,7 @@ func NewService(cfg *ServiceConfig) *Service {
 		cfg.Config = DefaultGroundingConfig()
 	}
 
-	return &Service{
+	svc := &Service{
 		pipeline:     NewPipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config),
 		vectorRepo:   cfg.VectorRepo,
 		embedder:     cfg.Embedder,
@@ -56,6 +57,13 @@ func NewService(cfg *ServiceConfig) *Service {
 		config:       cfg.Config,
 		datasourceID: cfg.DatasourceID,
 	}
+
+	// Initialize adaptive pipeline if LLM is available
+	if cfg.LLMModel != nil {
+		svc.adaptivePipeline = NewAdaptivePipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config)
+	}
+
+	return svc
 }
 
 // Ground performs semantic grounding for a query
@@ -193,6 +201,46 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		ctx.SignalsProbed, ctx.SignalsSelected, ctx.Confidence))
 
 	return sb.String()
+}
+
+// GroundAdaptive performs adaptive grounding with full schema information.
+// This is the preferred method when schema info is available from lakebase.
+// It uses the AdaptivePipeline which:
+// - For small scale (≤ threshold tables): passes ALL schema + RC directly to linking agent
+// - For large scale (> threshold tables): uses vector retrieval to narrow candidates first
+// The linking agent selects tables AND relevant rich context for injection into inference.
+func (s *Service) GroundAdaptive(ctx context.Context, req *AdaptiveGroundingRequest) (*AdaptiveGroundingResult, error) {
+	if s.adaptivePipeline == nil {
+		return nil, fmt.Errorf("adaptive pipeline not available (LLM required)")
+	}
+
+	if req.DatasourceID == 0 {
+		req.DatasourceID = s.datasourceID
+	}
+
+	return s.adaptivePipeline.Ground(ctx, req)
+}
+
+// ConvertAdaptiveResult converts AdaptiveGroundingResult to legacy GroundingResult
+// for backward compatibility with existing handler code.
+func (s *Service) ConvertAdaptiveResult(ar *AdaptiveGroundingResult) *GroundingResult {
+	if ar == nil || ar.Context == nil {
+		return nil
+	}
+	return &GroundingResult{
+		Context:        ar.Context,
+		TotalDuration:  ar.TotalDuration,
+		Mode:           string(ar.Strategy),
+		ExecutionLogs:  ar.ExecutionLogs,
+		CoarseSignals:  ar.CoarseSignals,
+		CoarseDuration: ar.RetrievalTime,
+		SelectionDuration: ar.LinkingTime,
+	}
+}
+
+// IsAdaptiveAvailable returns true if the adaptive pipeline is initialized.
+func (s *Service) IsAdaptiveAvailable() bool {
+	return s.adaptivePipeline != nil
 }
 
 // SetDatasourceID updates the datasource ID for grounding

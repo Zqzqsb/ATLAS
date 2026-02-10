@@ -159,6 +159,36 @@ type GroundingConfig struct {
 	FineSelection FineSelectionConfig `json:"fine_selection" yaml:"fine_selection"`
 	// Enable parallel execution of coarse and fine stages
 	ParallelExecution bool `json:"parallel_execution" yaml:"parallel_execution"`
+	// Adaptive grounding settings
+	ScaleThreshold int `json:"scale_threshold" yaml:"scale_threshold"` // Table count threshold for small vs large scale
+	// Linking agent settings (used in both small and large scale modes)
+	LinkingAgent LinkingAgentConfig `json:"linking_agent" yaml:"linking_agent"`
+}
+
+// GroundingStrategy defines how the grounding pipeline operates
+type GroundingStrategy string
+
+const (
+	// StrategyAuto automatically selects strategy based on schema scale
+	StrategyAuto GroundingStrategy = "auto"
+	// StrategySmallScale directly passes all schema to linking agent
+	StrategySmallScale GroundingStrategy = "small_scale"
+	// StrategyLargeScale uses vector retrieval to narrow candidates first
+	StrategyLargeScale GroundingStrategy = "large_scale"
+)
+
+// LinkingAgentConfig configures the LLM-based linking agent
+type LinkingAgentConfig struct {
+	// Maximum tables to include in LLM context (for large scale fallback)
+	MaxTablesInContext int `json:"max_tables_in_context" yaml:"max_tables_in_context"`
+	// Whether to include full column details in linking prompt
+	IncludeColumnDetails bool `json:"include_column_details" yaml:"include_column_details"`
+	// Whether to include rich context (descriptions, samples, synonyms) in linking prompt
+	IncludeRichContext bool `json:"include_rich_context" yaml:"include_rich_context"`
+	// Confidence threshold for table selection
+	ConfidenceThreshold float32 `json:"confidence_threshold" yaml:"confidence_threshold"`
+	// Strategy override (empty = auto)
+	Strategy GroundingStrategy `json:"strategy" yaml:"strategy"`
 }
 
 // DefaultGroundingConfig returns sensible defaults for the grounding pipeline
@@ -178,5 +208,13 @@ func DefaultGroundingConfig() *GroundingConfig {
 			ConfidenceThreshold: 0.5,
 		},
 		ParallelExecution: true,
+		ScaleThreshold:    30, // <= 30 tables: small scale, > 30: large scale
+		LinkingAgent: LinkingAgentConfig{
+			MaxTablesInContext:  50,
+			IncludeColumnDetails: true,
+			IncludeRichContext:   true,
+			ConfidenceThreshold: 0.5,
+			Strategy:            StrategyAuto,
+		},
 	}
 }

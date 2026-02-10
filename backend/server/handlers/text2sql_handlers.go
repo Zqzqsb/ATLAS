@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"lucid/internal/grounding"
+	"lucid/internal/lakebase"
 	"lucid/server/services"
 )
 
@@ -49,6 +52,11 @@ type GroundingInfo struct {
 	ExecutionLogs   []ExecutionLogInfo   `json:"execution_logs,omitempty"`
 	Reasoning       string               `json:"reasoning,omitempty"`
 	Mode            string               `json:"mode,omitempty"`
+
+	// richContextPrompt is a pre-formatted prompt containing full grounding context
+	// (tables, columns, business rules, domain terms, SQL templates).
+	// Not serialized to JSON — used internally by extractLinkedContext.
+	richContextPrompt string
 }
 
 // ExecutionLogInfo represents SQL execution log for frontend transparency.
@@ -125,6 +133,11 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 		FieldDescription: req.FieldDescription,
 	}
 
+	// Inject grounding result into inference to skip redundant Schema Linking
+	if groundingInfo != nil {
+		inferReq.LinkedTables, inferReq.LinkedContextPrompt = extractLinkedContext(groundingInfo)
+	}
+
 	result, err := h.inferenceService.Execute(ctx, inferReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -177,26 +190,65 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		SendSSE(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
 		flusher.Flush()
 
+		var datasourceID int64
 		if h.lakebaseService != nil {
 			datasources, err := h.lakebaseService.ListDatasources(ctx)
 			if err == nil && len(datasources) > 0 {
-				h.groundingService.SetDatasourceID(datasources[0].ID)
+				datasourceID = datasources[0].ID
+				h.groundingService.SetDatasourceID(datasourceID)
 			}
 		}
 
 		SendSSE(c.Writer, "grounding_progress", map[string]string{"stage": "analyzing", "message": "Analyzing query and schema..."})
 		flusher.Flush()
 
-		result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
-		if err != nil {
-			fmt.Printf("Grounding failed (continuing without): %v\n", err)
-			SendSSE(c.Writer, "grounding_error", map[string]string{"error": err.Error()})
+		// Try adaptive grounding first
+		var groundingErr error
+		if h.groundingService.IsAdaptiveAvailable() && h.lakebaseService != nil && datasourceID > 0 {
+			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
+			if err == nil && len(schemas) > 0 {
+				adaptiveReq := &grounding.AdaptiveGroundingRequest{
+					Query:        req.Question,
+					DatasourceID: datasourceID,
+					AllSchemas:   schemas,
+					TableCount:   len(schemas),
+				}
+				result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
+				if err == nil {
+					legacyResult := h.groundingService.ConvertAdaptiveResult(result)
+					groundingInfo = h.convertGroundingResultRich(legacyResult)
+				} else {
+					fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
+					groundingErr = err
+				}
+			}
+		}
+
+		// Fallback to legacy grounding
+		if groundingInfo == nil {
+			result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
+			if err != nil {
+				groundingErr = err
+			} else {
+				groundingInfo = h.convertGroundingResultRich(result)
+			}
+		}
+
+		if groundingErr != nil && groundingInfo == nil {
+			fmt.Printf("Grounding failed (continuing without): %v\n", groundingErr)
+			SendSSE(c.Writer, "grounding_error", map[string]string{"error": groundingErr.Error()})
 			flusher.Flush()
-		} else {
-			groundingInfo = convertGroundingResult(result)
+		} else if groundingInfo != nil {
 			SendSSE(c.Writer, "grounding_complete", groundingInfo)
 			flusher.Flush()
 		}
+	}
+
+	// Extract linked context from grounding for injection into inference
+	var linkedTables []string
+	var linkedContextPrompt string
+	if groundingInfo != nil {
+		linkedTables, linkedContextPrompt = extractLinkedContext(groundingInfo)
 	}
 
 	events := make(chan services.StreamEvent, 100)
@@ -205,13 +257,15 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		defer close(events)
 
 		inferReq := &services.Text2SQLRequest{
-			Question:         req.Question,
-			DatabaseID:       req.DatabaseID,
-			Database:         req.Database,
-			UseRichContext:   req.Options.UseRichContext,
-			UseReact:         req.Options.UseReact,
-			MaxIterations:    req.Options.MaxIterations,
-			FieldDescription: req.FieldDescription,
+			Question:            req.Question,
+			DatabaseID:          req.DatabaseID,
+			Database:            req.Database,
+			UseRichContext:      req.Options.UseRichContext,
+			UseReact:            req.Options.UseReact,
+			MaxIterations:       req.Options.MaxIterations,
+			FieldDescription:    req.FieldDescription,
+			LinkedTables:        linkedTables,
+			LinkedContextPrompt: linkedContextPrompt,
 		}
 
 		if err := h.inferenceService.ExecuteStream(ctx, inferReq, events); err != nil {
@@ -258,27 +312,211 @@ func (h *Handler) SuggestFields(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// --- Schema cache for grounding ---
+
+type groundingSchemaCacheEntry struct {
+	schemas   []grounding.SchemaInfo
+	expiresAt time.Time
+}
+
+var (
+	groundingSchemaCache sync.Map // map[int64]*groundingSchemaCacheEntry
+	groundingSchemaTTL   = 5 * time.Minute
+)
+
+// Warmup pre-loads schema data into caches for faster query execution.
+// This endpoint can be called by the frontend when the user selects a database
+// or starts typing a question, so that the actual query doesn't pay the cold-start cost.
+func (h *Handler) Warmup(c *gin.Context) {
+	var req struct {
+		DatabaseID string `json:"database_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	warmedUp := make(map[string]bool)
+
+	// 1. Warm up inference engine schema cache
+	if h.inferenceService != nil && req.DatabaseID != "" {
+		// Trigger schema load which populates the cache
+		if engine, ok := h.inferenceService.GetEngine().(*services.InferenceEngine); ok {
+			engine.WarmupSchema(ctx, req.DatabaseID)
+			warmedUp["inference_schema"] = true
+		}
+	}
+
+	// 2. Warm up grounding schema cache
+	if h.lakebaseService != nil && h.groundingService != nil {
+		var datasourceID int64
+		datasources, err := h.lakebaseService.ListDatasources(ctx)
+		if err == nil && len(datasources) > 0 {
+			datasourceID = datasources[0].ID
+		}
+		if datasourceID > 0 {
+			_, err := h.loadSchemasForGrounding(ctx, datasourceID)
+			if err == nil {
+				warmedUp["grounding_schema"] = true
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "ok",
+		"warmed_up": warmedUp,
+	})
+}
+
 // --- Helper functions ---
 
 // performGrounding runs semantic grounding if enabled.
+// Prefers adaptive grounding (with full schema from lakebase) when available,
+// falls back to legacy vector-only grounding otherwise.
 func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *GroundingInfo {
 	if !req.Options.UseGrounding || h.groundingService == nil {
 		return nil
 	}
 
+	// Resolve datasource
+	var datasourceID int64
 	if h.lakebaseService != nil {
 		datasources, err := h.lakebaseService.ListDatasources(ctx)
 		if err == nil && len(datasources) > 0 {
-			h.groundingService.SetDatasourceID(datasources[0].ID)
+			datasourceID = datasources[0].ID
+			h.groundingService.SetDatasourceID(datasourceID)
 		}
 	}
 
+	// Try adaptive grounding first (full schema → linking agent)
+	if h.groundingService.IsAdaptiveAvailable() && h.lakebaseService != nil && datasourceID > 0 {
+		schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
+		if err == nil && len(schemas) > 0 {
+			adaptiveReq := &grounding.AdaptiveGroundingRequest{
+				Query:        req.Question,
+				DatasourceID: datasourceID,
+				AllSchemas:   schemas,
+				TableCount:   len(schemas),
+			}
+			result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
+			if err == nil {
+				legacyResult := h.groundingService.ConvertAdaptiveResult(result)
+				return h.convertGroundingResultRich(legacyResult)
+			}
+			fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
+		}
+	}
+
+	// Fallback: legacy vector-only grounding
 	result, err := h.groundingService.Ground(ctx, req.Question, grounding.ModeParallel)
 	if err != nil {
 		fmt.Printf("Grounding failed (continuing without): %v\n", err)
 		return nil
 	}
-	return convertGroundingResult(result)
+	return h.convertGroundingResultRich(result)
+}
+
+// loadSchemasForGrounding loads all table schemas from lakebase for the adaptive grounding pipeline.
+// Uses an in-memory cache with TTL to avoid repeated DB queries across requests.
+func (h *Handler) loadSchemasForGrounding(ctx context.Context, datasourceID int64) ([]grounding.SchemaInfo, error) {
+	// Check cache first
+	if cached, ok := groundingSchemaCache.Load(datasourceID); ok {
+		entry := cached.(*groundingSchemaCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return entry.schemas, nil
+		}
+		groundingSchemaCache.Delete(datasourceID)
+	}
+
+	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, datasourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load tables: %w", err)
+	}
+
+	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, datasourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load columns: %w", err)
+	}
+
+	// Group columns by table
+	columnsByTable := make(map[string][]*lakebase.ColumnInfo)
+	for _, col := range columns {
+		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col)
+	}
+
+	// Also load foreign key relations
+	relations, _ := h.lakebaseService.GetRelationsByDatasource(ctx, datasourceID)
+	fkByTable := make(map[string][]grounding.FKInfo)
+	for _, rel := range relations {
+		fkByTable[rel.FromTable] = append(fkByTable[rel.FromTable], grounding.FKInfo{
+			Column:           rel.FromColumn,
+			ReferencedTable:  rel.ToTable,
+			ReferencedColumn: rel.ToColumn,
+		})
+	}
+
+	var schemas []grounding.SchemaInfo
+	for _, t := range tables {
+		schema := grounding.SchemaInfo{
+			TableName: t.TableName,
+			RowCount:  t.RowCount,
+		}
+		if t.Description.Valid {
+			schema.Description = t.Description.String
+		}
+
+		// Add columns
+		if cols, ok := columnsByTable[t.TableName]; ok {
+			for _, col := range cols {
+				ci := grounding.ColumnInfo{
+					Name:         col.ColumnName,
+					IsPrimaryKey: col.IsPrimaryKey,
+					IsNullable:   col.IsNullable,
+				}
+				if col.DataType.Valid {
+					ci.Type = col.DataType.String
+				}
+				if col.Description.Valid {
+					ci.Description = col.Description.String
+				}
+				if col.SampleValues.Valid {
+					ci.SampleValues = col.SampleValues.String
+				}
+				if col.Synonyms.Valid {
+					ci.Synonyms = col.Synonyms.String
+				}
+				schema.Columns = append(schema.Columns, ci)
+			}
+		}
+
+		// Add foreign keys
+		if fks, ok := fkByTable[t.TableName]; ok {
+			schema.ForeignKeys = fks
+		}
+
+		schemas = append(schemas, schema)
+	}
+
+	// Store in cache
+	groundingSchemaCache.Store(datasourceID, &groundingSchemaCacheEntry{
+		schemas:   schemas,
+		expiresAt: time.Now().Add(groundingSchemaTTL),
+	})
+
+	return schemas, nil
+}
+
+// InvalidateGroundingSchemaCache clears the grounding schema cache.
+// Should be called when schema changes are detected (e.g., after sync).
+func InvalidateGroundingSchemaCache(datasourceID int64) {
+	if datasourceID == 0 {
+		groundingSchemaCache = sync.Map{}
+		return
+	}
+	groundingSchemaCache.Delete(datasourceID)
 }
 
 func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
@@ -330,6 +568,21 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 	return info
 }
 
+// convertGroundingResultRich converts GroundingResult and also generates a rich context prompt
+// using grounding.Service.FormatContextPrompt for injection into inference.
+func (h *Handler) convertGroundingResultRich(result *grounding.GroundingResult) *GroundingInfo {
+	info := convertGroundingResult(result)
+	if info == nil {
+		return nil
+	}
+
+	// Generate rich context prompt (includes business rules, domain terms, SQL templates)
+	if h.groundingService != nil && result.Context != nil {
+		info.richContextPrompt = h.groundingService.FormatContextPrompt(result.Context)
+	}
+	return info
+}
+
 
 func convertReactSteps(steps []services.ReActStep) []ReactStep {
 	result := make([]ReactStep, len(steps))
@@ -344,5 +597,62 @@ func convertReactSteps(steps []services.ReActStep) []ReactStep {
 		}
 	}
 	return result
+}
+
+// extractLinkedContext converts GroundingInfo into linked tables and a context prompt
+// for injection into the inference pipeline, eliminating redundant Schema Linking.
+// If a rich context prompt was pre-generated by FormatContextPrompt (via convertGroundingResultRich),
+// it is used directly — this includes business rules, domain terms, and SQL templates.
+// Otherwise, falls back to a basic prompt built from the GroundingInfo fields.
+func extractLinkedContext(info *GroundingInfo) ([]string, string) {
+	if info == nil || len(info.Tables) == 0 {
+		return nil, ""
+	}
+
+	tables := make([]string, 0, len(info.Tables))
+	for _, t := range info.Tables {
+		tables = append(tables, t.Name)
+	}
+
+	// Prefer rich context prompt (includes business rules, domain terms, SQL templates)
+	if info.richContextPrompt != "" {
+		return tables, info.richContextPrompt
+	}
+
+	// Fallback: build a basic context prompt from GroundingInfo fields
+	var sb strings.Builder
+	sb.WriteString("=== Grounding Context ===\n\n")
+
+	for _, t := range info.Tables {
+		sb.WriteString(fmt.Sprintf("Table: %s", t.Name))
+		if t.Reason != "" {
+			sb.WriteString(fmt.Sprintf(" (reason: %s)", t.Reason))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(info.Columns) > 0 {
+		sb.WriteString("\nRelevant Columns:\n")
+		for _, c := range info.Columns {
+			sb.WriteString(fmt.Sprintf("  - %s.%s", c.TableName, c.ColumnName))
+			if c.Reason != "" {
+				sb.WriteString(fmt.Sprintf(" (%s)", c.Reason))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	if len(info.JoinPaths) > 0 {
+		sb.WriteString("\nJoin Paths:\n")
+		for _, jp := range info.JoinPaths {
+			sb.WriteString(fmt.Sprintf("  - %s.%s → %s.%s\n", jp.FromTable, jp.FromColumn, jp.ToTable, jp.ToColumn))
+		}
+	}
+
+	if info.Reasoning != "" {
+		sb.WriteString(fmt.Sprintf("\nReasoning: %s\n", info.Reasoning))
+	}
+
+	return tables, sb.String()
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NCode, NScrollbar, NTag, NButton, NPagination, NDropdown, NTooltip, NInput, NModal, useMessage } from 'naive-ui'
 
 const props = defineProps<{
@@ -9,6 +9,7 @@ const props = defineProps<{
   result?: any[] | null
   loading?: boolean
   queryId?: string
+  databaseId?: string
 }>()
 
 const emit = defineEmits<{
@@ -25,24 +26,84 @@ const showFeedbackModal = ref(false)
 const feedbackNote = ref('')
 const feedbackType = ref<'positive' | 'negative'>('negative')
 
+// Auto-execute state
+const autoExecuting = ref(false)
+const autoExecuteResult = ref<any[] | null>(null)
+const autoExecuteError = ref<string | null>(null)
+
 // Pagination
 const pageSize = ref(10)
 const currentPage = ref(1)
 
-const hasResult = computed(() => props.result && props.result.length > 0)
+// Use auto-executed result as fallback when pipeline didn't return results
+const effectiveResult = computed(() => props.result && props.result.length > 0 ? props.result : autoExecuteResult.value)
+const hasResult = computed(() => effectiveResult.value && effectiveResult.value.length > 0)
 const resultColumns = computed(() => {
   if (!hasResult.value) return []
-  return Object.keys(props.result![0])
+  return Object.keys(effectiveResult.value![0])
 })
 
-const totalRows = computed(() => props.result?.length || 0)
+const totalRows = computed(() => effectiveResult.value?.length || 0)
 const totalPages = computed(() => Math.ceil(totalRows.value / pageSize.value))
 
 const paginatedResult = computed(() => {
-  if (!props.result) return []
+  if (!effectiveResult.value) return []
   const start = (currentPage.value - 1) * pageSize.value
-  return props.result.slice(start, start + pageSize.value)
+  return effectiveResult.value.slice(start, start + pageSize.value)
 })
+
+// Auto-execute SQL when we have SQL but no result (and not loading)
+watch(
+  () => ({ sql: props.sql, result: props.result, loading: props.loading, error: props.error, dbId: props.databaseId }),
+  async ({ sql, result, loading, error, dbId }) => {
+    if (
+      sql && sql.trim() &&
+      !loading &&
+      !error &&
+      (!result || result.length === 0) &&
+      !autoExecuteResult.value &&
+      !autoExecuting.value &&
+      dbId
+    ) {
+      await autoExecuteSQL(sql, dbId)
+    }
+  },
+  { immediate: true }
+)
+
+// Reset auto-execute state when SQL changes
+watch(() => props.sql, () => {
+  autoExecuteResult.value = null
+  autoExecuteError.value = null
+})
+
+async function autoExecuteSQL(sql: string, databaseId: string) {
+  autoExecuting.value = true
+  autoExecuteError.value = null
+  try {
+    const response = await fetch(`/api/v1/databases/${databaseId}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql })
+    })
+    if (!response.ok) {
+      const errData = await response.json().catch(() => null)
+      throw new Error(errData?.error || `HTTP ${response.status}`)
+    }
+    const data = await response.json()
+    // result is adapter.QueryResult: { columns, rows, row_count, execution_time }
+    if (data.result?.rows && data.result.rows.length > 0) {
+      autoExecuteResult.value = data.result.rows
+    } else {
+      autoExecuteResult.value = []
+    }
+  } catch (e: any) {
+    autoExecuteError.value = e.message || 'Auto-execute failed'
+    console.warn('Auto-execute SQL failed:', e)
+  } finally {
+    autoExecuting.value = false
+  }
+}
 
 // Copy SQL
 function copySql() {
@@ -218,6 +279,18 @@ function submitFeedback() {
         <NScrollbar style="max-height: 300px">
           <NCode :code="sql" language="sql" class="text-sm font-mono text-gray-800" />
         </NScrollbar>
+      </div>
+
+      <!-- Auto-execute loading -->
+      <div v-if="autoExecuting" class="px-6 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+        <div class="i-lucide-loader-2 animate-spin text-blue-500" />
+        <span class="text-sm text-blue-700 font-medium">Executing SQL to preview results...</span>
+      </div>
+
+      <!-- Auto-execute error -->
+      <div v-if="autoExecuteError && !hasResult" class="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+        <div class="i-lucide-alert-triangle text-amber-500" />
+        <span class="text-sm text-amber-700">Preview failed: {{ autoExecuteError }}</span>
       </div>
     </div>
 

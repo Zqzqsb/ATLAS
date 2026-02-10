@@ -30,12 +30,29 @@ const stageTimings = ref({
   sqlGeneration: { start: 0, end: 0 }
 })
 
-// Watch grounding stage changes to track vector search timing
+// Watch grounding stage changes to track timing for progressive stages
 watch(() => workspaceStore.groundingStage, (newStage, oldStage) => {
   if (newStage === 'stage1' && oldStage === 'idle') {
     stageTimings.value.vectorSearch.start = Date.now()
-  } else if (newStage === 'done') {
+  } else if (newStage === 'retrieval_done') {
+    // retrieval_complete SSE arrived → Vector search is done
     stageTimings.value.vectorSearch.end = Date.now()
+  } else if (newStage === 'stage2') {
+    // linking_complete arrived → Schema linking starts
+    if (!stageTimings.value.vectorSearch.end) {
+      stageTimings.value.vectorSearch.end = Date.now()
+    }
+    if (!stageTimings.value.schemaLinking.start) {
+      stageTimings.value.schemaLinking.start = Date.now()
+    }
+  } else if (newStage === 'done') {
+    if (!stageTimings.value.vectorSearch.end) {
+      stageTimings.value.vectorSearch.end = Date.now()
+    }
+    // Mark schema linking end if it started
+    if (stageTimings.value.schemaLinking.start && !stageTimings.value.schemaLinking.end) {
+      stageTimings.value.schemaLinking.end = Date.now()
+    }
   }
 })
 
@@ -161,13 +178,16 @@ const hasGroundingContent = computed((): boolean => {
 
 const vectorSearchStage = computed(() => {
   const { start, end } = stageTimings.value.vectorSearch
-  const stageDone = workspaceStore.groundingStage === 'done' || !!workspaceStore.groundingResult
+  // Vector search is done when we have retrieval data (tables/columns), even if grounding isn't fully complete
+  const hasRetrievalData = workspaceStore.groundingResult && 
+    ((workspaceStore.groundingResult.tables?.length ?? 0) > 0 || (workspaceStore.groundingResult.columns?.length ?? 0) > 0)
+  const stageDone = hasRetrievalData || workspaceStore.groundingStage === 'retrieval_done' || workspaceStore.groundingStage === 'done'
   return {
     active: isExecuting.value && workspaceStore.groundingStage !== 'idle',
     completed: stageDone && hasGroundingContent.value,
     empty: stageDone && !hasGroundingContent.value,
     data: workspaceStore.groundingResult,
-    duration: stageDone && start && end ? end - start : 0
+    duration: end && start ? end - start : 0
   }
 })
 
@@ -178,10 +198,11 @@ const schemaLinkingStage = computed(() => {
   const hasSqlGenerationSteps = workspaceStore.reactSteps.some(s => s.phase === 'sql_generation')
   const completed = end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql
   
-  // Active when: grounding is done AND (no sql generation steps yet OR has schema linking steps)
+  // Active when: grounding stage is at stage2 (linking) or done, AND no sql generation yet
   // Also active when awaiting field confirmation (field panel is shown inside this card)
-  const groundingDone = workspaceStore.groundingStage === 'done' || !!workspaceStore.groundingResult
-  const active = awaitingFieldConfirmation.value || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)
+  const groundingDone = workspaceStore.groundingStage === 'done' || workspaceStore.groundingStage === 'stage2'
+  const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.executionLogs?.length
+  const active = awaitingFieldConfirmation.value || hasLinkingData || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)
   
   return {
     active: active || (isExecuting.value && hasSchemaLinkingSteps),
@@ -210,18 +231,14 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// Field Alignment: watch grounding result for suggested fields
-// When field alignment is on and we did grounding-only, show the panel and wait
-watch(() => workspaceStore.groundingResult, (result) => {
-  if (useFieldAlignment.value && result && result.suggestedFields && result.suggestedFields.length > 0) {
-    suggestedFields.value = result.suggestedFields.map(f => ({ ...f }))
+// Field Alignment: watch grounding result's suggestedFields specifically
+// When field alignment is on, show the panel only after field_suggestions event arrives
+watch(() => workspaceStore.groundingResult?.suggestedFields, (fields) => {
+  if (useFieldAlignment.value && fields && fields.length > 0) {
+    suggestedFields.value = fields.map(f => ({ ...f }))
     showFieldPanel.value = true
-    // If we're in grounding-only mode, mark that we're waiting for confirmation
-    if (awaitingFieldConfirmation.value) {
-      // Stream already completed (grounding_only), user needs to confirm
-    }
   }
-})
+}, { deep: true })
 
 // Toggle field selection
 function toggleField(field: SuggestedFieldFromLinking) {
@@ -933,8 +950,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       
                       <!-- Expandable Execution Plan -->
                       <div v-if="step.observation" class="verify-result">
-                        <NCollapse 
-                          :default-expanded-names="step.observation?.startsWith('❌') ? ['explain'] : []" 
+                      <NCollapse 
+                          :default-expanded-names="['explain']" 
                           arrow-placement="left"
                         >
                           <NCollapseItem name="explain">
@@ -1019,6 +1036,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       :duration="workspaceStore.queryDuration"
       :result="workspaceStore.executionResult"
       :loading="workspaceStore.isQuerying"
+      :database-id="workspaceStore.currentDatabaseId || undefined"
       @retry="handleExecute"
       @feedback="handleFeedback"
     />

@@ -362,60 +362,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   <div class="query-chat min-h-full bg-gray-50 p-6">
     <!-- Control Panel -->
     <div class="control-panel mb-8 p-8 rounded-xl bg-white border border-gray-200 shadow-sm">
-      <!-- Question Input -->
-      <div class="mb-8">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
-            <div class="i-carbon-chat text-xl text-primary-600" />
-          </div>
-          <div>
-            <h3 class="text-lg font-bold text-gray-900">Natural Language Query</h3>
-            <p class="text-sm text-gray-500 font-medium">Ask questions in plain English</p>
-          </div>
-        </div>
-        
-        <div class="relative">
-          <NInput
-            v-model:value="question"
-            type="textarea"
-            :autosize="{ minRows: 3, maxRows: 6 }"
-            placeholder="e.g. List all TV channels with their countries..."
-            :disabled="isExecuting"
-            class="query-input !text-lg !font-medium !p-4"
-            @keydown.ctrl.enter="handleExecute"
-          />
-          <div class="absolute right-4 bottom-4 text-xs text-gray-400 font-medium">
-            Ctrl + Enter to execute
-          </div>
-        </div>
-
-        <!-- Example questions - Collapsible -->
-        <div class="mt-6 example-collapse">
-          <NCollapse :default-expanded-names="['examples']" arrow-placement="left">
-            <NCollapseItem name="examples">
-              <template #header>
-                <div class="flex items-center gap-2">
-                  <span class="text-base font-semibold text-gray-700">Example Questions</span>
-                  <span class="text-sm text-gray-400 font-medium">(Spider Benchmark)</span>
-                </div>
-              </template>
-              <div class="flex flex-wrap gap-3 pt-2">
-                <button
-                  v-for="example in exampleQuestions"
-                  :key="example"
-                  class="text-base px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-all font-medium border border-gray-200 hover:border-primary-200 hover:shadow-sm"
-                  @click="useExample(example)"
-                >
-                  {{ example }}
-                </button>
-              </div>
-            </NCollapseItem>
-          </NCollapse>
-        </div>
-      </div>
-
-      <!-- Parameters -->
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-6 p-6 bg-gray-50 rounded-xl border border-gray-100">
+      <!-- Parameters (at top) -->
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-6 p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
         <!-- Model Selection -->
         <div class="param-item">
           <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Model</label>
@@ -456,7 +404,49 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
       </div>
 
-      <!-- Action Buttons — no more field panel here, it moved to Schema Linking card -->
+      <!-- Question Input -->
+      <div class="mb-8">
+        <div class="relative">
+          <NInput
+            v-model:value="question"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 6 }"
+            placeholder="e.g. List all TV channels with their countries..."
+            :disabled="isExecuting"
+            class="query-input !text-lg !font-medium !p-4"
+            @keydown.ctrl.enter="handleExecute"
+          />
+          <div class="absolute right-4 bottom-4 text-xs text-gray-400 font-medium">
+            Ctrl + Enter to execute
+          </div>
+        </div>
+
+        <!-- Example questions - Collapsible -->
+        <div class="mt-6 example-collapse">
+          <NCollapse :default-expanded-names="['examples']" arrow-placement="left">
+            <NCollapseItem name="examples">
+              <template #header>
+                <div class="flex items-center gap-2">
+                  <span class="text-base font-semibold text-gray-700">Example Questions</span>
+                  <span class="text-sm text-gray-400 font-medium">(Spider Benchmark)</span>
+                </div>
+              </template>
+              <div class="flex flex-wrap gap-3 pt-2">
+                <button
+                  v-for="example in exampleQuestions"
+                  :key="example"
+                  class="text-base px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-all font-medium border border-gray-200 hover:border-primary-200 hover:shadow-sm"
+                  @click="useExample(example)"
+                >
+                  {{ example }}
+                </button>
+              </div>
+            </NCollapseItem>
+          </NCollapse>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
       <div class="flex items-center gap-4 mt-8">
         <button
           :disabled="!question.trim() || isExecuting"

@@ -67,10 +67,10 @@ func (p *Pipeline) reactLoop(ctx context.Context, query string, contextPrompt st
 	}
 	reactHandler := react.NewHandler(stepCB)
 
-	// Use higher actual iterations than what we show in prompt
-	// This gives the model more chances to complete while not overwhelming the prompt
-	actualMaxIterations := p.config.MaxIterations * 4 // e.g., user sets 5, we allow 20
-	claimedMaxIterations := p.config.MaxIterations     // what we tell the model
+	// Actual iterations = claimed + small buffer for error recovery.
+	// No 4x inflation — agent should operate within the budget it sees in the prompt.
+	claimedMaxIterations := p.config.MaxIterations
+	actualMaxIterations := claimedMaxIterations + 3 // small buffer for verify_sql retry
 
 	executor, err := agents.Initialize(
 		p.llm,
@@ -201,15 +201,19 @@ SQL Best Practices:
 		sb.WriteString(`Available Tools:
 - execute_sql: Execute SQL and see results
 - verify_sql: Validate SQL via EXPLAIN before giving Final Answer
-  → Returns: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, plus EXPLAIN execution plan
+  → Returns: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, plus EXPLAIN execution plan and performance warnings
 
 Workflow:
 1. Analyze question and schema
 2. If string values missing from Rich Context → use execute_sql to find them
 3. Write SQL following best practices
 4. ALWAYS call verify_sql once to validate your SQL and inspect the execution plan
-   - If ❌ FAILED: fix the error and give Final Answer directly (do NOT retry verify_sql)
-   - If ✅ PASSED: proceed to Final Answer
+   - If ❌ FAILED: fix the error and try verify_sql again
+   - If ✅ PASSED with no warnings: proceed to Final Answer
+   - If ✅ PASSED with performance warnings: evaluate the warnings:
+     * Full table scan on small tables (≤1000 rows) is acceptable
+     * Full table scan on large tables (>1000 rows): try to optimize (add WHERE, use indexed columns)
+     * If optimization is not feasible, proceed to Final Answer with the current SQL
 5. Provide Final Answer
 
 `)
@@ -230,14 +234,14 @@ B) Give answer:
 `)
 
 		// Critical rules
-		sb.WriteString(`Critical Rules:
+		sb.WriteString(fmt.Sprintf(`Critical Rules:
 1. Field Order: SELECT fields MUST match expected order exactly (no table prefixes)
-2. Iterations: 5 max (update_rich_context doesn't count). Track: "Iteration X/5"
+2. Iterations: %d max. Track: "Iteration X/%d"
 3. Efficiency: Only use execute_sql when truly uncertain about data values.
-4. ALWAYS verify: Call verify_sql exactly once before Final Answer. If it fails, fix and give Final Answer — do NOT retry verify_sql.
+4. ALWAYS verify: Call verify_sql before Final Answer. Review the EXPLAIN plan — optimize if large table scans are avoidable, otherwise accept.
 5. Final Answer: SQL only, no explanations
 
-`)
+`, p.config.MaxIterations, p.config.MaxIterations))
 
 		// 在 ReAct 模式下，再次强调字段要求（防止长程注意力丢失）
 		if p.config.ClarifyMode == "force" && len(p.config.ResultFields) > 0 {

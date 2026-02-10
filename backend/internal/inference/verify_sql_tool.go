@@ -61,7 +61,13 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 		for _, w := range warnings {
 			sb.WriteString(fmt.Sprintf("  - %s\n", w))
 		}
-		sb.WriteString("\nConsider optimizing the SQL if these warnings are critical for the use case.")
+		sb.WriteString(`
+Decision guide:
+  - Full table scan on ≤1000 rows: ACCEPTABLE, proceed to Final Answer.
+  - Full table scan on >1000 rows: Consider adding WHERE conditions or using indexed columns.
+  - Using filesort / temporary on large tables: Consider rewriting ORDER BY or GROUP BY.
+  - If optimization is not possible (e.g., no suitable index exists), proceed to Final Answer anyway.
+`)
 	} else {
 		sb.WriteString("\nExecution plan looks good. You can now provide the final answer.")
 	}
@@ -69,7 +75,8 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 	return sb.String(), nil
 }
 
-// formatExplainPlan formats EXPLAIN QueryResult into a readable summary
+// formatExplainPlan formats EXPLAIN QueryResult into a readable summary.
+// Each row is presented as a structured block so both LLM and human can parse easily.
 func (t *VerifySQLTool) formatExplainPlan(result *adapter.QueryResult) string {
 	if result == nil || len(result.Rows) == 0 {
 		return "  (empty execution plan)\n"
@@ -77,38 +84,45 @@ func (t *VerifySQLTool) formatExplainPlan(result *adapter.QueryResult) string {
 
 	var sb strings.Builder
 
-	// Format column headers
-	if len(result.Columns) > 0 {
-		sb.WriteString("  ")
-		sb.WriteString(strings.Join(result.Columns, " | "))
-		sb.WriteString("\n")
-		sb.WriteString("  " + strings.Repeat("-", 60) + "\n")
-	}
+	// Key columns to display in the compact summary (MariaDB EXPLAIN)
+	keyCols := []string{"table", "type", "possible_keys", "key", "rows", "Extra"}
 
-	// Format rows (limit to first 10 rows for readability)
-	maxRows := 10
-	if len(result.Rows) < maxRows {
-		maxRows = len(result.Rows)
-	}
-	for i := 0; i < maxRows; i++ {
-		row := result.Rows[i]
-		var vals []string
-		for _, col := range result.Columns {
-			if v, ok := row[col]; ok {
-				vals = append(vals, fmt.Sprintf("%v", v))
-			} else {
-				vals = append(vals, "")
-			}
+	for i, row := range result.Rows {
+		if i >= 10 {
+			sb.WriteString(fmt.Sprintf("  ... (%d more steps)\n", len(result.Rows)-10))
+			break
 		}
-		sb.WriteString("  ")
-		sb.WriteString(strings.Join(vals, " | "))
-		sb.WriteString("\n")
-	}
-	if len(result.Rows) > maxRows {
-		sb.WriteString(fmt.Sprintf("  ... (%d more rows)\n", len(result.Rows)-maxRows))
+
+		tableName := valOrDash(row, "table")
+		scanType := valOrDash(row, "type")
+		possibleKeys := valOrDash(row, "possible_keys")
+		usedKey := valOrDash(row, "key")
+		rowsEst := valOrDash(row, "rows")
+		extra := valOrDash(row, "Extra")
+
+		sb.WriteString(fmt.Sprintf("  Step %d: %s\n", i+1, tableName))
+		sb.WriteString(fmt.Sprintf("    scan: %-10s  key: %-20s  rows: %s\n", scanType, usedKey, rowsEst))
+		if possibleKeys != "-" {
+			sb.WriteString(fmt.Sprintf("    possible_keys: %s\n", possibleKeys))
+		}
+		if extra != "-" {
+			sb.WriteString(fmt.Sprintf("    extra: %s\n", extra))
+		}
 	}
 
+	_ = keyCols // used conceptually above
 	return sb.String()
+}
+
+func valOrDash(row map[string]interface{}, key string) string {
+	if v, ok := row[key]; ok && v != nil {
+		s := fmt.Sprintf("%v", v)
+		if s == "" || s == "<nil>" {
+			return "-"
+		}
+		return s
+	}
+	return "-"
 }
 
 // analyzeExplainPlan checks the EXPLAIN plan for potential performance issues

@@ -1009,7 +1009,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                                   :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
                                 />
                                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
-                                <span class="text-xs text-gray-400">(click to expand)</span>
                               </div>
                             </template>
                             <div class="mt-1 rounded-lg overflow-hidden border"

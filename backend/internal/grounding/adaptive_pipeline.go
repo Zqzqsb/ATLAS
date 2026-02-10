@@ -144,12 +144,6 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 		})
 	}
 
-	// Give the frontend time to render the Schema Loaded card before
-	// transitioning to the linking stage. Without this pause the
-	// "Schema Loaded" animation is invisible because the linking agent
-	// starts immediately (same goroutine, synchronous call).
-	time.Sleep(1200 * time.Millisecond)
-
 	// Notify: linking agent starting
 	if req.ProgressCallback != nil {
 		req.ProgressCallback("linking_start", map[string]interface{}{
@@ -161,6 +155,7 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 	linkReq := &LinkingRequest{
 		Query:   req.Query,
 		Schemas: req.AllSchemas,
+		Compact: true, // SmallScale: name+type+PK/FK only, skip RC to reduce prompt size
 	}
 
 	linkResult, err := p.linkingAgent.Link(ctx, linkReq)

@@ -45,6 +45,9 @@ type LinkingRequest struct {
 	Schemas []SchemaInfo
 	// Optional: signals from vector retrieval (large scale mode)
 	VectorSignals []*RetrievalSignal
+	// Compact mode: only output name+type+PK/FK in prompt (skip RC details).
+	// Used in SmallScale where table count is small and RC is not needed for selection.
+	Compact bool
 }
 
 // LinkingResult represents the linking agent's output
@@ -234,14 +237,15 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 		}
 		sb.WriteString("\n")
 
-		if schema.Description != "" {
+		if !req.Compact && schema.Description != "" {
 			sb.WriteString(fmt.Sprintf("Description: %s\n", schema.Description))
 		}
 		if schema.RowCount > 0 {
 			sb.WriteString(fmt.Sprintf("Row count: %d\n", schema.RowCount))
 		}
 
-		// Columns
+		// Columns — compact mode omits RC details to reduce prompt size
+		includeRC := a.config.IncludeRichContext && !req.Compact
 		if len(schema.Columns) > 0 && a.config.IncludeColumnDetails {
 			sb.WriteString("Columns:\n")
 			for _, col := range schema.Columns {
@@ -254,7 +258,7 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 				}
 				sb.WriteString("\n")
 
-				if a.config.IncludeRichContext {
+				if includeRC {
 					if col.Description != "" {
 						sb.WriteString(fmt.Sprintf("    Description: %s\n", col.Description))
 					}

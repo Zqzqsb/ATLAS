@@ -436,10 +436,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 										})
 										flusher.Flush()
 
-										// Delay before field suggestions so the UI shows
-										// linking results first, then the field panel appears.
 										if len(partialInfo.SuggestedFields) > 0 {
-											time.Sleep(800 * time.Millisecond)
 											SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 												"suggested_fields": partialInfo.SuggestedFields,
 											})
@@ -493,7 +490,6 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					"execution_time_ms": groundingInfo.ExecutionTimeMs,
 				})
 				flusher.Flush()
-				time.Sleep(600 * time.Millisecond)
 			}
 			if !linkingCompleteSent {
 				SendSSE(c.Writer, "linking_complete", map[string]interface{}{
@@ -507,7 +503,6 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 				flusher.Flush()
 
 				if len(groundingInfo.SuggestedFields) > 0 {
-					time.Sleep(800 * time.Millisecond)
 					SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 						"suggested_fields": groundingInfo.SuggestedFields,
 					})
@@ -717,14 +712,26 @@ func (h *Handler) loadSchemasForGrounding(ctx context.Context, datasourceID int6
 		groundingSchemaCache.Delete(datasourceID)
 	}
 
-	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, datasourceID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load tables: %w", err)
-	}
+	// Parallel load: tables, columns, relations
+	var (
+		tables    []*lakebase.TableInfo
+		columns   []*lakebase.ColumnInfo
+		relations []*lakebase.Relation
+		tablesErr error
+		colsErr   error
+	)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); tables, tablesErr = h.lakebaseService.GetTablesByDatasource(ctx, datasourceID) }()
+	go func() { defer wg.Done(); columns, colsErr = h.lakebaseService.GetColumnsByDatasource(ctx, datasourceID) }()
+	go func() { defer wg.Done(); relations, _ = h.lakebaseService.GetRelationsByDatasource(ctx, datasourceID) }()
+	wg.Wait()
 
-	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, datasourceID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load columns: %w", err)
+	if tablesErr != nil {
+		return nil, fmt.Errorf("failed to load tables: %w", tablesErr)
+	}
+	if colsErr != nil {
+		return nil, fmt.Errorf("failed to load columns: %w", colsErr)
 	}
 
 	// Group columns by table
@@ -733,8 +740,7 @@ func (h *Handler) loadSchemasForGrounding(ctx context.Context, datasourceID int6
 		columnsByTable[col.TableName] = append(columnsByTable[col.TableName], col)
 	}
 
-	// Also load foreign key relations
-	relations, _ := h.lakebaseService.GetRelationsByDatasource(ctx, datasourceID)
+	// Group foreign keys by table
 	fkByTable := make(map[string][]grounding.FKInfo)
 	for _, rel := range relations {
 		fkByTable[rel.FromTable] = append(fkByTable[rel.FromTable], grounding.FKInfo{

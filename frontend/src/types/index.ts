@@ -135,6 +135,7 @@ export interface GroundingResult {
   executionLogs?: ExecutionLog[] // SQL execution transparency
   reasoning?: string              // LLM reasoning for fine selection
   mode?: string                   // "sequential", "parallel", "coarse_only"
+  strategy?: string               // "small_scale" | "large_scale" — grounding strategy used
 }
 
 // SuggestedFieldFromLinking represents a field suggested by the linking agent

@@ -3,13 +3,13 @@ package grounding
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 )
 
 // AdaptivePipeline implements the adaptive grounding strategy
@@ -84,10 +84,16 @@ type AdaptiveGroundingResult struct {
 // Ground performs adaptive grounding based on schema scale
 func (p *AdaptivePipeline) Ground(ctx context.Context, req *AdaptiveGroundingRequest) (*AdaptiveGroundingResult, error) {
 	start := time.Now()
+	log := logger.With("component", "adaptive_grounding")
 
 	strategy := p.detectStrategy(req)
-	log.Printf("[adaptive-grounding] Using strategy: %s (tables: %d, threshold: %d)",
-		strategy, req.TableCount, p.config.ScaleThreshold)
+	log.Info("[Ground] Strategy selected",
+		"strategy", string(strategy),
+		"query", req.Query,
+		"datasource_id", req.DatasourceID,
+		"table_count", req.TableCount,
+		"threshold", p.config.ScaleThreshold,
+	)
 
 	switch strategy {
 	case StrategySmallScale:
@@ -115,7 +121,30 @@ func (p *AdaptivePipeline) detectStrategy(req *AdaptiveGroundingRequest) Groundi
 // groundSmallScale: pass all schema directly to linking agent
 // No vector retrieval needed - the LLM sees everything
 func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGroundingRequest, start time.Time) (*AdaptiveGroundingResult, error) {
-	log.Printf("[adaptive-grounding] Small-scale mode: passing all %d tables to linking agent", len(req.AllSchemas))
+	log := logger.With("component", "adaptive_grounding")
+	log.Info("[SmallScale] Passing all tables to linking agent",
+		"table_count", len(req.AllSchemas),
+	)
+
+	// Log table names for debugging
+	for _, s := range req.AllSchemas {
+		log.Debug("[SmallScale] Table in schema",
+			"table", s.TableName,
+			"columns", len(s.Columns),
+			"description", s.Description,
+		)
+	}
+
+	// Small-scale: immediately push all tables/columns so the frontend
+	// can show the "schema loaded" card without waiting for the LLM.
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("schema_loaded", map[string]interface{}{
+			"message":     "Schema loaded (small scale — no vector search needed)",
+			"table_count": len(req.AllSchemas),
+			"schemas":     req.AllSchemas,
+			"strategy":    string(StrategySmallScale),
+		})
+	}
 
 	// Notify: linking agent starting
 	if req.ProgressCallback != nil {
@@ -169,7 +198,10 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 // groundLargeScale: vector retrieval → narrow candidates → linking agent
 // Vector retrieval reduces context, then linking agent makes final selection
 func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGroundingRequest, start time.Time) (*AdaptiveGroundingResult, error) {
-	log.Printf("[adaptive-grounding] Large-scale mode: vector retrieval → linking agent (%d total tables)", len(req.AllSchemas))
+	log := logger.With("component", "adaptive_grounding")
+	log.Info("[LargeScale] Starting vector retrieval → linking agent",
+		"total_tables", len(req.AllSchemas),
+	)
 
 	// Stage 1: Coarse retrieval to identify candidate tables
 	if req.ProgressCallback != nil {
@@ -207,7 +239,7 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	})
 	if err != nil {
 		// Fallback to small scale if retrieval fails
-		log.Printf("[adaptive-grounding] Vector retrieval failed, falling back to small-scale: %v", err)
+		log.Warn("[LargeScale] Vector retrieval failed, falling back to small-scale", "error", err)
 		return p.groundSmallScale(ctx, req, start)
 	}
 
@@ -215,7 +247,14 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 
 	// Extract candidate table names from signals
 	candidateTableNames := p.extractCandidateTableNames(coarseResult.Signals)
-	log.Printf("[adaptive-grounding] Vector retrieval identified %d candidate tables", len(candidateTableNames))
+	log.Info("[LargeScale] Vector retrieval complete",
+		"candidate_tables", len(candidateTableNames),
+		"total_signals", len(coarseResult.Signals),
+		"retrieval_time", retrievalTime.Round(time.Millisecond),
+	)
+	for name := range candidateTableNames {
+		log.Debug("[LargeScale] Candidate table", "table", name)
+	}
 
 	// Build candidate schema set - only include tables hit by retrieval
 	// But also respect MaxTablesInContext limit
@@ -234,7 +273,10 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 
 	// If candidates are too few, add more from full schema to avoid missing tables
 	if len(candidateSchemas) < 5 && len(req.AllSchemas) > len(candidateSchemas) {
-		log.Printf("[adaptive-grounding] Too few candidates (%d), expanding with full schema", len(candidateSchemas))
+		log.Info("[LargeScale] Too few candidates, expanding",
+			"current", len(candidateSchemas),
+			"expanding_to", p.config.LinkingAgent.MaxTablesInContext,
+		)
 		candidateSchemas = p.expandCandidates(req.AllSchemas, candidateSchemas, p.config.LinkingAgent.MaxTablesInContext)
 	}
 
@@ -255,7 +297,7 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
 	if err != nil {
 		// Fallback: use coarse results directly
-		log.Printf("[adaptive-grounding] Linking agent failed, using coarse results: %v", err)
+		log.Warn("[LargeScale] Linking agent failed, using coarse results", "error", err)
 		return &AdaptiveGroundingResult{
 			Strategy:       StrategyLargeScale,
 			SelectedTables: p.signalsToSelectedTables(coarseResult.Signals),

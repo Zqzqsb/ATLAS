@@ -19,9 +19,10 @@ type Config struct {
 
 // ServerConfig 服务器配置
 type ServerConfig struct {
-	Host string `yaml:"host" json:"host"`
-	Port int    `yaml:"port" json:"port"`
-	Mode string `yaml:"mode" json:"mode"` // debug | release
+	Host     string `yaml:"host" json:"host"`
+	Port     int    `yaml:"port" json:"port"`
+	Mode     string `yaml:"mode" json:"mode"`           // debug | release
+	LogLevel string `yaml:"log_level" json:"log_level"` // debug | info | warn | error
 }
 
 // LLMConfig LLM配置
@@ -103,6 +104,11 @@ func applyEnvOverrides(config *Config) {
 	if mode := os.Getenv("SERVER_MODE"); mode != "" {
 		config.Server.Mode = mode
 	}
+
+	// 日志级别
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		config.Server.LogLevel = logLevel
+	}
 }
 
 // setDefaults 设置默认值
@@ -112,6 +118,9 @@ func setDefaults(config *Config) {
 	}
 	if config.Server.Mode == "" {
 		config.Server.Mode = "debug"
+	}
+	if config.Server.LogLevel == "" {
+		config.Server.LogLevel = "debug"
 	}
 	if config.React.MaxIterations == 0 {
 		config.React.MaxIterations = 5

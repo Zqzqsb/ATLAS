@@ -3,7 +3,7 @@
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
-.PHONY: rebuild clean-build dev backend frontend paper clean help demo-up demo-down demo-reset
+.PHONY: rebuild clean-build dev backend frontend paper clean help demo-up demo-down demo-reset collect-logs
 
 # ============== Primary Commands ==============
 # Default target: idempotent build (first run or rebuild, preserves data)
@@ -89,6 +89,11 @@ demo-reset:
 
 demo-logs:
 	docker compose -f deploy/docker-compose.yml logs -f
+
+collect-logs:
+	@bash scripts/collect-logs.sh -n
+	@echo ""
+	@echo "💡 For real-time follow: bash scripts/collect-logs.sh"
 
 # ============== Quick Start ==============
 up:
@@ -211,7 +216,8 @@ help:
 	@echo "Quick Start:"
 	@echo "  make up            - Start all services"
 	@echo "  make down          - Stop all services"
-	@echo "  make logs          - View service logs"
+	@echo "  make logs          - View service logs (raw docker)"
+	@echo "  make collect-logs  - Collect & split logs by agent"
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev           - Start with Docker (foreground)"

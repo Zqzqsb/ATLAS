@@ -12,6 +12,7 @@ import (
 
 	"lucid/internal/grounding"
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 	"lucid/server/services"
 )
 
@@ -112,6 +113,29 @@ type JoinPathInfo struct {
 	Reason     string `json:"reason,omitempty"`
 }
 
+// resolveDatasourceIDByName resolves the datasource ID from a database name.
+// Falls back to ListDatasources()[0] only when the name lookup fails.
+func (h *Handler) resolveDatasourceIDByName(ctx context.Context, dbName string) int64 {
+	if h.lakebaseService == nil {
+		return 0
+	}
+
+	// Try to find the exact datasource matching the requested database
+	if dbName != "" {
+		ds, err := h.lakebaseService.GetDatasourceByName(ctx, dbName)
+		if err == nil && ds != nil {
+			return ds.ID
+		}
+	}
+
+	// Fallback: use first datasource (legacy behavior for single-datasource setups)
+	datasources, err := h.lakebaseService.ListDatasources(ctx)
+	if err == nil && len(datasources) > 0 {
+		return datasources[0].ID
+	}
+	return 0
+}
+
 // Text2SQLResponse represents the output.
 type Text2SQLResponse struct {
 	SQL             string      `json:"sql"`
@@ -146,7 +170,7 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 		groundingInfo = req.InjectedGrounding
 		// Regenerate richContextPrompt since it's not serialized in JSON
 		if h.groundingService != nil {
-			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo)
+			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo, req.DatabaseID)
 		}
 	} else {
 		groundingInfo = h.performGrounding(ctx, &req)
@@ -220,7 +244,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		groundingInfo = req.InjectedGrounding
 		// Regenerate richContextPrompt since it's not serialized in JSON
 		if h.groundingService != nil {
-			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo)
+			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo, req.DatabaseID)
 		}
 		SendSSE(c.Writer, "grounding_complete", groundingInfo)
 		flusher.Flush()
@@ -228,14 +252,21 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		SendSSE(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
 		flusher.Flush()
 
-		var datasourceID int64
-		if h.lakebaseService != nil {
-			datasources, err := h.lakebaseService.ListDatasources(ctx)
-			if err == nil && len(datasources) > 0 {
-				datasourceID = datasources[0].ID
-				h.groundingService.SetDatasourceID(datasourceID)
-			}
+		datasourceID := h.resolveDatasourceIDByName(ctx, req.DatabaseID)
+		if datasourceID > 0 {
+			h.groundingService.SetDatasourceID(datasourceID)
 		}
+
+		log := logger.With("component", "text2sql_handler")
+		log.Info("[Stream] Grounding starting",
+			"question", req.Question,
+			"database_id", req.DatabaseID,
+			"datasource_id", datasourceID,
+			"use_grounding", req.Options.UseGrounding,
+			"use_rich_context", req.Options.UseRichContext,
+			"use_react", req.Options.UseReact,
+			"max_iterations", req.Options.MaxIterations,
+		)
 
 		SendSSE(c.Writer, "grounding_progress", map[string]string{"stage": "analyzing", "message": "Analyzing query and schema..."})
 		flusher.Flush()
@@ -260,7 +291,40 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					AllSchemas:   schemas,
 					TableCount:   len(schemas),
 					ProgressCallback: func(stage string, data map[string]interface{}) {
-						switch stage {
+					switch stage {
+						case "schema_loaded":
+							// SmallScale: immediately push all tables/columns so
+							// the frontend can populate the Vector Search card instantly.
+							if !retrievalCompleteSent {
+								retrievalCompleteSent = true
+								var tables []GroundedTableInfo
+								var columns []GroundedColumnInfo
+								if rawSchemas, ok := data["schemas"].([]grounding.SchemaInfo); ok {
+									for _, s := range rawSchemas {
+										tables = append(tables, GroundedTableInfo{
+											Name:        s.TableName,
+											Description: s.Description,
+											Confidence:  1.0,
+										})
+										for _, col := range s.Columns {
+											columns = append(columns, GroundedColumnInfo{
+												TableName:  s.TableName,
+												ColumnName: col.Name,
+												DataType:   col.Type,
+												Confidence: 1.0,
+											})
+										}
+									}
+								}
+								SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
+									"tables":            tables,
+									"columns":           columns,
+									"execution_time_ms": 0,
+									"strategy":          data["strategy"],
+								})
+								flusher.Flush()
+							}
+
 						case "retrieval_start":
 							// Forward as grounding_progress
 							SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
@@ -370,9 +434,8 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 										})
 										flusher.Flush()
 
-										// Field suggestions
+										// Field suggestions — no artificial delay
 										if len(partialInfo.SuggestedFields) > 0 {
-											time.Sleep(300 * time.Millisecond)
 											SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 												"suggested_fields": partialInfo.SuggestedFields,
 											})
@@ -401,8 +464,9 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					legacyResult := h.groundingService.ConvertAdaptiveResult(result)
 					groundingInfo = h.convertGroundingResultRich(legacyResult)
 				} else {
-					fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
-					groundingErr = err
+				fmt.Printf("Adaptive grounding failed, falling back to legacy: %v\n", err)
+				log.Warn("[Stream] Adaptive grounding failed, falling back", "error", err)
+				groundingErr = err
 				}
 			}
 		}
@@ -418,6 +482,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		}
 
 		if groundingErr != nil && groundingInfo == nil {
+			log.Error("[Stream] Grounding failed entirely", "error", groundingErr)
 			fmt.Printf("Grounding failed (continuing without): %v\n", groundingErr)
 			SendSSE(c.Writer, "grounding_error", map[string]string{"error": groundingErr.Error()})
 			flusher.Flush()
@@ -433,7 +498,6 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					"execution_time_ms": groundingInfo.ExecutionTimeMs,
 				})
 				flusher.Flush()
-				time.Sleep(300 * time.Millisecond)
 			}
 			if !linkingCompleteSent {
 				SendSSE(c.Writer, "linking_complete", map[string]interface{}{
@@ -445,14 +509,12 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					"execution_logs": groundingInfo.ExecutionLogs,
 				})
 				flusher.Flush()
-				time.Sleep(300 * time.Millisecond)
 
 				if len(groundingInfo.SuggestedFields) > 0 {
 					SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
 						"suggested_fields": groundingInfo.SuggestedFields,
 					})
 					flusher.Flush()
-					time.Sleep(200 * time.Millisecond)
 				}
 			}
 
@@ -477,6 +539,12 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 	var linkedContextPrompt string
 	if groundingInfo != nil {
 		linkedTables, linkedContextPrompt = extractLinkedContext(groundingInfo, req.FieldDescription)
+		hLog := logger.With("component", "text2sql_handler")
+		hLog.Info("[Stream] Linked context extracted",
+			"linked_tables", strings.Join(linkedTables, ", "),
+			"context_prompt_length", len(linkedContextPrompt),
+		)
+		hLog.Debug("[Stream] Linked context prompt", "prompt", linkedContextPrompt)
 	}
 
 	events := make(chan services.StreamEvent, 100)
@@ -580,11 +648,7 @@ func (h *Handler) Warmup(c *gin.Context) {
 
 	// 2. Warm up grounding schema cache
 	if h.lakebaseService != nil && h.groundingService != nil {
-		var datasourceID int64
-		datasources, err := h.lakebaseService.ListDatasources(ctx)
-		if err == nil && len(datasources) > 0 {
-			datasourceID = datasources[0].ID
-		}
+		datasourceID := h.resolveDatasourceIDByName(ctx, req.DatabaseID)
 		if datasourceID > 0 {
 			_, err := h.loadSchemasForGrounding(ctx, datasourceID)
 			if err == nil {
@@ -609,14 +673,16 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		return nil
 	}
 
-	// Resolve datasource
-	var datasourceID int64
-	if h.lakebaseService != nil {
-		datasources, err := h.lakebaseService.ListDatasources(ctx)
-		if err == nil && len(datasources) > 0 {
-			datasourceID = datasources[0].ID
-			h.groundingService.SetDatasourceID(datasourceID)
-		}
+	// Resolve datasource by database name
+	log := logger.With("component", "text2sql_handler")
+	datasourceID := h.resolveDatasourceIDByName(ctx, req.DatabaseID)
+	log.Info("[performGrounding] Starting",
+		"question", req.Question,
+		"database_id", req.DatabaseID,
+		"datasource_id", datasourceID,
+	)
+	if datasourceID > 0 {
+		h.groundingService.SetDatasourceID(datasourceID)
 	}
 
 	// Try adaptive grounding first (full schema → linking agent)
@@ -631,6 +697,11 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 			}
 			result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
 			if err == nil {
+				log.Info("[performGrounding] Adaptive grounding complete",
+					"strategy", string(result.Strategy),
+					"selected_tables", len(result.SelectedTables),
+					"duration", result.TotalDuration.Round(time.Millisecond),
+				)
 				legacyResult := h.groundingService.ConvertAdaptiveResult(result)
 				return h.convertGroundingResultRich(legacyResult)
 			}
@@ -826,18 +897,14 @@ func (h *Handler) convertGroundingResultRich(result *grounding.GroundingResult) 
 // regenerateRichContextPrompt rebuilds the richContextPrompt from GroundingInfo tables/columns.
 // This is needed when GroundingInfo is deserialized from JSON (Phase 2 skip_grounding),
 // because richContextPrompt is an unexported field that isn't serialized.
-func (h *Handler) regenerateRichContextPrompt(ctx context.Context, info *GroundingInfo) string {
+func (h *Handler) regenerateRichContextPrompt(ctx context.Context, info *GroundingInfo, databaseName string) string {
 	if info == nil || len(info.Tables) == 0 {
 		return ""
 	}
 
 	// Try to load full schema from lakebase and build the prompt
 	if h.lakebaseService != nil {
-		var datasourceID int64
-		datasources, err := h.lakebaseService.ListDatasources(ctx)
-		if err == nil && len(datasources) > 0 {
-			datasourceID = datasources[0].ID
-		}
+		datasourceID := h.resolveDatasourceIDByName(ctx, databaseName)
 		if datasourceID > 0 {
 			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
 			if err == nil && len(schemas) > 0 {

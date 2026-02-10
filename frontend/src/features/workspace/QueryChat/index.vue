@@ -191,6 +191,9 @@ const vectorSearchStage = computed(() => {
   }
 })
 
+// Detect small-scale strategy (no vector search, schema passed directly)
+const isSmallScale = computed(() => workspaceStore.groundingResult?.strategy === 'small_scale')
+
 const schemaLinkingStage = computed(() => {
   const { start, end } = stageTimings.value.schemaLinking
   const steps = workspaceStore.reactSteps.filter(s => s.phase === 'schema_linking')
@@ -539,10 +542,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
     <!-- Real-time Execution Cards -->
     <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-      <!-- Stage 1: Vector Search -->
+      <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
-        title="Vector Search"
-        icon="i-lucide-search"
+        :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
+        :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
         :active="vectorSearchStage.active"
         :stage="workspaceStore.groundingStage"
         :completed="vectorSearchStage.completed"
@@ -651,17 +654,21 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
           </div>
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div class="i-lucide-search animate-pulse text-blue-500 text-xl" />
+            <div :class="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'" class="animate-pulse text-blue-500 text-xl" />
             <div class="space-y-1">
               <span class="font-medium block">
-                {{ workspaceStore.groundingProgress?.stage === 'linking_start' || workspaceStore.groundingProgress?.stage === 'linking_done'
-                  ? 'Vector retrieval complete'
-                  : 'Searching vector database...' }}
+                {{ isSmallScale
+                  ? 'Loading schema (small scale)...'
+                  : (workspaceStore.groundingProgress?.stage === 'linking_start' || workspaceStore.groundingProgress?.stage === 'linking_done'
+                    ? 'Vector retrieval complete'
+                    : 'Searching vector database...') }}
               </span>
               <span class="text-xs text-gray-400">
-                {{ workspaceStore.groundingProgress?.stage === 'retrieval_done'
-                  ? `Found ${workspaceStore.groundingProgress?.data?.candidate_tables || 0} candidate tables`
-                  : 'Identifying relevant tables and columns' }}
+                {{ isSmallScale
+                  ? 'All tables passed directly to linking agent'
+                  : (workspaceStore.groundingProgress?.stage === 'retrieval_done'
+                    ? `Found ${workspaceStore.groundingProgress?.data?.candidate_tables || 0} candidate tables`
+                    : 'Identifying relevant tables and columns') }}
               </span>
             </div>
           </div>

@@ -82,22 +82,18 @@ func (h *Handler) notify(eventType string) {
 func (h *Handler) HandleText(_ context.Context, text string) {}
 
 func (h *Handler) HandleLLMStart(_ context.Context, prompts []string) {
-	if h.logMode == "full" {
-		log := logger.With("component", "react_handler")
-		for i, p := range prompts {
-			log.Debug("LLM prompt", "index", i, "prompt_length", len(p), "prompt", truncate(p, 500))
-		}
+	log := logger.With("component", "react_handler")
+	for i, p := range prompts {
+		log.Debug("[LLM] Prompt sent", "index", i, "prompt_length", len(p), "prompt_preview", truncate(p, 800))
 	}
 }
 
 func (h *Handler) HandleLLMGenerateContentStart(_ context.Context, _ []llms.MessageContent) {}
 
 func (h *Handler) HandleLLMGenerateContentEnd(_ context.Context, res *llms.ContentResponse) {
-	if h.logMode == "full" {
-		log := logger.With("component", "react_handler")
-		for i, c := range res.Choices {
-			log.Debug("LLM response", "choice", i, "content_length", len(c.Content), "content", truncate(c.Content, 500))
-		}
+	log := logger.With("component", "react_handler")
+	for i, c := range res.Choices {
+		log.Debug("[LLM] Response received", "choice", i, "content_length", len(c.Content), "content_preview", truncate(c.Content, 800))
 	}
 }
 
@@ -153,10 +149,8 @@ func (h *Handler) HandleToolEnd(_ context.Context, output string) {
 	h.notify("observation")
 	h.mu.Unlock()
 
-	if h.logMode == "full" {
-		log := logger.With("component", "react_handler")
-		log.Debug("tool observation", "output_length", len(output), "output", truncate(output, 300))
-	}
+	log := logger.With("component", "react_handler")
+	log.Debug("[Tool] Observation", "output_length", len(output), "output_preview", truncate(output, 500))
 }
 
 func (h *Handler) HandleToolError(_ context.Context, err error) {

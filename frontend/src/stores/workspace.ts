@@ -428,6 +428,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               groundingResult.value = {
                 ...groundingResult.value,
                 ...partialRetrieval,
+                // Preserve strategy from schema_loaded (small_scale) or vector search (large_scale)
+                ...(event.data.strategy ? { strategy: event.data.strategy } : {}),
               } as GroundingResult
             }
             break

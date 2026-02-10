@@ -9,6 +9,7 @@ import (
 
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 )
 
 // CoarseRetriever performs parallel vector search across multiple signal types
@@ -56,12 +57,21 @@ type RetrievalResult struct {
 // Retrieve performs speculative parallel retrieval across all signal types
 func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (*RetrievalResult, error) {
 	start := time.Now()
+	log := logger.With("component", "coarse_retriever")
+
+	log.Debug("[Retrieve] Starting vector retrieval",
+		"query", req.Query,
+		"datasource_id", req.DatasourceID,
+		"signal_types", fmt.Sprintf("%v", req.SignalTypes),
+	)
 
 	// Generate query embedding
 	queryVector, err := r.embedder.Embed(ctx, req.Query)
 	if err != nil {
+		log.Error("[Retrieve] Failed to embed query", "error", err)
 		return nil, fmt.Errorf("failed to embed query: %w", err)
 	}
+	log.Debug("[Retrieve] Query embedded", "vector_dim", len(queryVector))
 
 	// Determine which signal types to search
 	signalTypes := req.SignalTypes
@@ -95,9 +105,19 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 			searchDuration := time.Since(searchStart)
 			
 			if err != nil {
+				log.Error("[Retrieve] Signal search failed",
+					"signal_type", signalType,
+					"error", err,
+				)
 				errCh <- err
 				return
 			}
+
+			log.Debug("[Retrieve] Signal search completed",
+				"signal_type", signalType,
+				"results", len(signals),
+				"duration", searchDuration.Round(time.Millisecond),
+			)
 			
 			// Build execution log for transparency
 			entityType := mapSignalToEntityType(signalType)
@@ -147,10 +167,29 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		return allSignals[i].Score > allSignals[j].Score
 	})
 
+	// Log top signals for debugging
+	for i, sig := range allSignals {
+		if i >= 10 {
+			break
+		}
+		log.Debug("[Retrieve] Top signal",
+			"rank", i+1,
+			"type", sig.SignalType,
+			"entity", sig.EntityName,
+			"score", fmt.Sprintf("%.4f", sig.Score),
+			"distance", fmt.Sprintf("%.4f", sig.Distance),
+		)
+	}
+
 	// Apply max signals limit
 	if len(allSignals) > r.config.MaxSignals {
 		allSignals = allSignals[:r.config.MaxSignals]
 	}
+
+	log.Debug("[Retrieve] Completed",
+		"total_signals", len(allSignals),
+		"duration", time.Since(start).Round(time.Millisecond),
+	)
 
 	return &RetrievalResult{
 		Signals:       allSignals,

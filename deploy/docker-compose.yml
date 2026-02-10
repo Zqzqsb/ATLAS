@@ -55,6 +55,8 @@ services:
     environment:
       - GIN_MODE=release
       - SERVER_PORT=19001
+      - SERVER_MODE=${SERVER_MODE:-debug}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
       - LLM_CONFIG_PATH=/app/llm_config.json
       - LLM_API_KEY=${LLM_API_KEY:-}
       - GODEBUG=madvdontneed=1

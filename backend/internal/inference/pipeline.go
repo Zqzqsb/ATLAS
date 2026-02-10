@@ -3,13 +3,13 @@ package inference
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/adapter"
+	"lucid/internal/logger"
 )
 
 // Config holds inference pipeline configuration.
@@ -156,6 +156,16 @@ func (p *Pipeline) SetPreLinkedContext(plc *PreLinkedContext) {
 // Execute runs the inference pipeline.
 func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 	startTime := time.Now()
+	log := logger.With("component", "inference_pipeline")
+
+	log.Info("[Execute] Starting inference",
+		"query", query,
+		"use_rich_context", p.config.UseRichContext,
+		"use_react", p.config.UseReact,
+		"max_iterations", p.config.MaxIterations,
+		"db_name", p.config.DBName,
+		"has_pre_linked", p.preLinked != nil,
+	)
 
 	result := &Result{
 		Query:      query,
@@ -180,7 +190,10 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 			Phase:       "schema_linking",
 		}, "finish")
 
-		log.Printf("[inference] Using pre-linked context: %v", tables)
+		log.Info("[Execute] Using pre-linked context",
+			"tables", strings.Join(tables, ", "),
+			"context_prompt_length", len(contextPrompt),
+		)
 
 		// If the external prompt is empty but we have schema, build it from schema
 		if contextPrompt == "" && p.schema != nil {
@@ -241,19 +254,33 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 			Phase:       "schema_linking",
 		}, "finish")
 
-		log.Printf("[inference] Selected tables: %v", tables)
+		log.Info("[Execute] Internal linking completed",
+			"tables", strings.Join(tables, ", "),
+		)
 
 		// Build schema prompt for SQL generation
 		if p.config.UseRichContext && p.schema != nil {
 			contextPrompt = p.buildRichSchemaPrompt(tables)
-			log.Printf("[inference] Using Rich Context for %d tables", len(tables))
+			log.Info("[Execute] Using Rich Context",
+				"table_count", len(tables),
+				"prompt_length", len(contextPrompt),
+			)
+			log.Debug("[Execute] Rich Context prompt", "prompt", contextPrompt)
 		} else {
 			contextPrompt = p.buildBasicSchema(ctx, tables)
-			log.Printf("[inference] Using Basic Schema for %d tables", len(tables))
+			log.Info("[Execute] Using Basic Schema",
+				"table_count", len(tables),
+				"prompt_length", len(contextPrompt),
+			)
+			log.Debug("[Execute] Basic Schema prompt", "prompt", contextPrompt)
 		}
 	}
 
 	// 2. Generate SQL
+	log.Info("[Execute] Starting SQL generation",
+		"mode", func() string { if p.config.UseReact { return "ReAct" }; return "OneShot" }(),
+		"context_prompt_length", len(contextPrompt),
+	)
 	var sql string
 	var err error
 	if p.config.UseReact {
@@ -268,6 +295,12 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 
 	result.GeneratedSQL = sql
 	result.TotalTime = time.Since(startTime)
+
+	log.Info("[Execute] SQL generated",
+		"sql", sql,
+		"llm_calls", result.LLMCalls,
+		"total_time", result.TotalTime.Round(time.Millisecond),
+	)
 
 	// 3. Execute SQL
 	if sql != "" {

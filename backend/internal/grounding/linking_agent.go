@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
+
+	"lucid/internal/logger"
 )
 
 // SchemaInfo represents full table schema for linking agent input
@@ -84,8 +86,19 @@ func NewLinkingAgent(llm llms.Model, config LinkingAgentConfig) *LinkingAgent {
 // Link performs schema linking given full schema information
 func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingResult, error) {
 	start := time.Now()
+	log := logger.With("component", "linking_agent")
+
+	log.Debug("[Link] Starting schema linking",
+		"query", req.Query,
+		"table_count", len(req.Schemas),
+		"has_vector_signals", len(req.VectorSignals) > 0,
+	)
 
 	prompt := a.buildLinkingPrompt(req)
+	log.Debug("[Link] Built prompt",
+		"prompt_length", len(prompt),
+		"prompt_preview", truncateLinking(prompt, 500),
+	)
 
 	messages := []llms.MessageContent{
 		{Role: llms.ChatMessageTypeSystem, Parts: []llms.ContentPart{llms.TextContent{Text: linkingAgentSystemPrompt}}},
@@ -97,14 +110,23 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 		llms.WithMaxTokens(2000),
 	)
 	if err != nil {
+		log.Error("[Link] LLM call failed", "error", err, "duration", time.Since(start))
 		return nil, fmt.Errorf("linking agent LLM call failed: %w", err)
 	}
 	if len(resp.Choices) == 0 {
+		log.Error("[Link] LLM returned no choices")
 		return nil, fmt.Errorf("linking agent returned no choices")
 	}
 
-	selected, reasoning, err := a.parseLinkingResponse(resp.Choices[0].Content)
+	rawResponse := resp.Choices[0].Content
+	log.Debug("[Link] LLM raw response",
+		"response_length", len(rawResponse),
+		"response", truncateLinking(rawResponse, 1000),
+	)
+
+	selected, reasoning, err := a.parseLinkingResponse(rawResponse)
 	if err != nil {
+		log.Error("[Link] Failed to parse response", "error", err, "raw", truncateLinking(rawResponse, 300))
 		return nil, fmt.Errorf("failed to parse linking response: %w", err)
 	}
 
@@ -113,8 +135,31 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 	for _, t := range selected {
 		if t.Confidence >= a.config.ConfidenceThreshold {
 			filtered = append(filtered, t)
+		} else {
+			log.Debug("[Link] Table filtered out (low confidence)",
+				"table", t.Name,
+				"confidence", fmt.Sprintf("%.2f", t.Confidence),
+				"threshold", fmt.Sprintf("%.2f", a.config.ConfidenceThreshold),
+			)
 		}
 	}
+
+	// Log final result
+	selectedNames := make([]string, len(filtered))
+	for i, t := range filtered {
+		selectedNames[i] = t.Name
+		log.Debug("[Link] Selected table",
+			"table", t.Name,
+			"confidence", fmt.Sprintf("%.2f", t.Confidence),
+			"reason", t.Reason,
+			"relevant_columns", len(t.RelevantColumns),
+		)
+	}
+	log.Info("[Link] Schema linking completed",
+		"selected_tables", strings.Join(selectedNames, ", "),
+		"reasoning", truncateLinking(reasoning, 200),
+		"duration", time.Since(start).Round(time.Millisecond),
+	)
 
 	return &LinkingResult{
 		SelectedTables: filtered,
@@ -243,6 +288,15 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 	sb.WriteString("\nSelect the tables needed to answer the query. Be thorough - missing a table is worse than including an extra one.")
 
 	return sb.String()
+}
+
+func truncateLinking(s string, maxLen int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.TrimSpace(s)
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // linkingResponse represents the LLM's linking response

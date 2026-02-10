@@ -42,13 +42,17 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize structured logger
-	logLevel := "info"
+	// Initialize structured logger (configurable via LOG_LEVEL env or system.yaml)
+	logLevel := cfg.Server.LogLevel
+	if logLevel == "" {
+		logLevel = "debug"
+	}
 	logFormat := "text"
 	if cfg.Server.Mode == "release" {
 		logFormat = "json"
 	}
 	logger.Init(logLevel, logFormat)
+	log.Printf("📋 Log level: %s", logLevel)
 
 	// Set Gin mode
 	if cfg.Server.Mode == "release" {

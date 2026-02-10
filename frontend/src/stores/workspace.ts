@@ -81,6 +81,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const skeletonTables = ref<string[]>([])
   const showSkeleton = ref(false)
 
+  // Grounding sub-stage progress for SSE streaming (linking reasoning, retrieval done, etc.)
+  const groundingProgress = ref<{ stage: string; data: any } | null>(null)
+
   // Abort controller for streaming
   let abortQuery: (() => void) | null = null
 
@@ -278,6 +281,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     reactSteps.value = []
     groundingResult.value = null
     groundingStage.value = 'idle'
+    groundingProgress.value = null
     usedContexts.value = []
     queryDuration.value = 0
     executionResult.value = null
@@ -380,9 +384,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             break
           case 'grounding_start':
             groundingStage.value = 'stage1'
+            groundingProgress.value = null
             // Hide skeleton once real grounding data starts arriving
             showSkeleton.value = false
             break
+          case 'grounding_progress': {
+            // Sub-stage events from adaptive pipeline: retrieval_start, retrieval_done, linking_start, linking_done
+            const stage = event.data?.stage
+            groundingProgress.value = { stage, data: event.data?.data || event.data }
+            // Map sub-stages to groundingStage for UI
+            if (stage === 'linking_start' || stage === 'linking_done') {
+              groundingStage.value = 'stage2'
+            }
+            break
+          }
           case 'grounding_stage1':
             groundingStage.value = 'stage1'
             break
@@ -530,6 +545,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     usedContexts,
     queryDuration,
     executionResult,
+    groundingProgress,
     skeletonTables,
     showSkeleton,
 

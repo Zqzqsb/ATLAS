@@ -141,6 +141,10 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 	var groundingInfo *GroundingInfo
 	if req.Options.SkipGrounding && req.InjectedGrounding != nil {
 		groundingInfo = req.InjectedGrounding
+		// Regenerate richContextPrompt since it's not serialized in JSON
+		if h.groundingService != nil {
+			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo)
+		}
 	} else {
 		groundingInfo = h.performGrounding(ctx, &req)
 	}
@@ -211,6 +215,10 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 	if req.Options.SkipGrounding && req.InjectedGrounding != nil {
 		// Phase 2: Reuse grounding from Phase 1 — skip grounding entirely
 		groundingInfo = req.InjectedGrounding
+		// Regenerate richContextPrompt since it's not serialized in JSON
+		if h.groundingService != nil {
+			groundingInfo.richContextPrompt = h.regenerateRichContextPrompt(ctx, groundingInfo)
+		}
 		SendSSE(c.Writer, "grounding_complete", groundingInfo)
 		flusher.Flush()
 	} else if req.Options.UseGrounding && h.groundingService != nil {
@@ -239,6 +247,14 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					DatasourceID: datasourceID,
 					AllSchemas:   schemas,
 					TableCount:   len(schemas),
+					ProgressCallback: func(stage string, data map[string]interface{}) {
+						// Forward grounding sub-stage progress via SSE
+						SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
+							"stage": stage,
+							"data":  data,
+						})
+						flusher.Flush()
+					},
 				}
 				result, err := h.groundingService.GroundAdaptive(ctx, adaptiveReq)
 				if err == nil {
@@ -627,6 +643,64 @@ func (h *Handler) convertGroundingResultRich(result *grounding.GroundingResult) 
 		info.richContextPrompt = h.groundingService.FormatContextPrompt(result.Context)
 	}
 	return info
+}
+
+// regenerateRichContextPrompt rebuilds the richContextPrompt from GroundingInfo tables/columns.
+// This is needed when GroundingInfo is deserialized from JSON (Phase 2 skip_grounding),
+// because richContextPrompt is an unexported field that isn't serialized.
+func (h *Handler) regenerateRichContextPrompt(ctx context.Context, info *GroundingInfo) string {
+	if info == nil || len(info.Tables) == 0 {
+		return ""
+	}
+
+	// Try to load full schema from lakebase and build the prompt
+	if h.lakebaseService != nil {
+		var datasourceID int64
+		datasources, err := h.lakebaseService.ListDatasources(ctx)
+		if err == nil && len(datasources) > 0 {
+			datasourceID = datasources[0].ID
+		}
+		if datasourceID > 0 {
+			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
+			if err == nil && len(schemas) > 0 {
+				// Build a GroundedContext from the info + schemas for FormatContextPrompt
+				selectedTableNames := make(map[string]bool)
+				for _, t := range info.Tables {
+					selectedTableNames[t.Name] = true
+				}
+
+				gc := &grounding.GroundedContext{
+					Tables:  make([]grounding.TableContext, 0),
+					Columns: make([]grounding.ColumnContext, 0),
+				}
+				for _, schema := range schemas {
+					if !selectedTableNames[schema.TableName] {
+						continue
+					}
+					tc := grounding.TableContext{
+						Name:        schema.TableName,
+						Description: schema.Description,
+					}
+					colNames := make([]string, len(schema.Columns))
+					for i, col := range schema.Columns {
+						colNames[i] = col.Name
+						gc.Columns = append(gc.Columns, grounding.ColumnContext{
+							TableName:   schema.TableName,
+							ColumnName:  col.Name,
+							DataType:    col.Type,
+							Description: col.Description,
+						})
+					}
+					tc.Columns = colNames
+					gc.Tables = append(gc.Tables, tc)
+				}
+
+				return h.groundingService.FormatContextPrompt(gc)
+			}
+		}
+	}
+
+	return ""
 }
 
 

@@ -676,8 +676,16 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div class="i-lucide-search animate-pulse text-blue-500 text-xl" />
             <div class="space-y-1">
-              <span class="font-medium block">Searching vector database...</span>
-              <span class="text-xs text-gray-400">Identifying relevant tables and columns</span>
+              <span class="font-medium block">
+                {{ workspaceStore.groundingProgress?.stage === 'linking_start' || workspaceStore.groundingProgress?.stage === 'linking_done'
+                  ? 'Vector retrieval complete'
+                  : 'Searching vector database...' }}
+              </span>
+              <span class="text-xs text-gray-400">
+                {{ workspaceStore.groundingProgress?.stage === 'retrieval_done'
+                  ? `Found ${workspaceStore.groundingProgress?.data?.candidate_tables || 0} candidate tables`
+                  : 'Identifying relevant tables and columns' }}
+              </span>
             </div>
           </div>
           <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
@@ -818,7 +826,32 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
           <!-- Loading/Waiting states (only when field panel is NOT shown) -->
           <div v-else-if="!showFieldPanel">
-            <div v-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
+            <!-- Linking agent progress from grounding sub-stages -->
+            <div v-if="workspaceStore.groundingProgress?.stage === 'linking_start'" class="space-y-3">
+              <div class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
+                <div class="i-lucide-brain animate-pulse text-cyan-500 text-xl" />
+                <div class="space-y-1">
+                  <span class="font-medium block">Linking agent analyzing schema...</span>
+                  <span class="text-xs text-gray-400">
+                    Selecting relevant tables from {{ workspaceStore.groundingProgress?.data?.table_count || '?' }} candidates
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="workspaceStore.groundingProgress?.stage === 'linking_done'" class="space-y-3 content-fade">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="i-lucide-brain text-sm text-cyan-600" />
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linking Agent Result</span>
+                <span class="text-xs text-gray-400">
+                  {{ workspaceStore.groundingProgress?.data?.selected_tables || 0 }} tables selected
+                  in {{ workspaceStore.groundingProgress?.data?.duration_ms || 0 }}ms
+                </span>
+              </div>
+              <div v-if="workspaceStore.groundingProgress?.data?.reasoning" class="p-3 rounded-lg bg-cyan-50 border border-cyan-100 text-sm text-gray-700 leading-relaxed">
+                {{ workspaceStore.groundingProgress?.data?.reasoning }}
+              </div>
+            </div>
+            <div v-else-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div class="i-lucide-link animate-pulse text-cyan-500 text-xl" />
               <div class="space-y-1">
                 <span class="font-medium block">Analyzing schema structure...</span>

@@ -45,6 +45,10 @@ func NewAdaptivePipeline(
 	}
 }
 
+// GroundingProgressCallback is called during adaptive grounding to report progress via SSE.
+// stage: "retrieval_done" | "linking_start" | "linking_done"
+type GroundingProgressCallback func(stage string, data map[string]interface{})
+
 // AdaptiveGroundingRequest extends GroundingRequest with schema information
 type AdaptiveGroundingRequest struct {
 	Query        string
@@ -53,6 +57,8 @@ type AdaptiveGroundingRequest struct {
 	AllSchemas []SchemaInfo
 	// Table count for the datasource (used for strategy detection)
 	TableCount int
+	// Optional progress callback for SSE streaming
+	ProgressCallback GroundingProgressCallback
 }
 
 // AdaptiveGroundingResult extends GroundingResult with strategy information
@@ -111,6 +117,14 @@ func (p *AdaptivePipeline) detectStrategy(req *AdaptiveGroundingRequest) Groundi
 func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGroundingRequest, start time.Time) (*AdaptiveGroundingResult, error) {
 	log.Printf("[adaptive-grounding] Small-scale mode: passing all %d tables to linking agent", len(req.AllSchemas))
 
+	// Notify: linking agent starting
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_start", map[string]interface{}{
+			"message":     "Linking agent analyzing schema...",
+			"table_count": len(req.AllSchemas),
+		})
+	}
+
 	linkReq := &LinkingRequest{
 		Query:   req.Query,
 		Schemas: req.AllSchemas,
@@ -119,6 +133,15 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
 	if err != nil {
 		return nil, fmt.Errorf("linking agent failed: %w", err)
+	}
+
+	// Notify: linking agent done
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_done", map[string]interface{}{
+			"selected_tables": len(linkResult.SelectedTables),
+			"reasoning":       linkResult.Reasoning,
+			"duration_ms":     linkResult.Duration.Milliseconds(),
+		})
 	}
 
 	// Build grounded context from linking result
@@ -148,6 +171,13 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	log.Printf("[adaptive-grounding] Large-scale mode: vector retrieval → linking agent (%d total tables)", len(req.AllSchemas))
 
 	// Stage 1: Coarse retrieval to identify candidate tables
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("retrieval_start", map[string]interface{}{
+			"message":     "Vector retrieval starting...",
+			"table_count": len(req.AllSchemas),
+		})
+	}
+
 	coarseResult, err := p.coarseRetriever.Retrieve(ctx, &RetrievalRequest{
 		Query:        req.Query,
 		DatasourceID: req.DatasourceID,
@@ -174,6 +204,14 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	// But also respect MaxTablesInContext limit
 	candidateSchemas := p.filterSchemaByCandidates(req.AllSchemas, candidateTableNames)
 
+	// Notify: retrieval done
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("retrieval_done", map[string]interface{}{
+			"candidate_tables": len(candidateTableNames),
+			"duration_ms":      coarseResult.Duration.Milliseconds(),
+		})
+	}
+
 	// If candidates are too few, add more from full schema to avoid missing tables
 	if len(candidateSchemas) < 5 && len(req.AllSchemas) > len(candidateSchemas) {
 		log.Printf("[adaptive-grounding] Too few candidates (%d), expanding with full schema", len(candidateSchemas))
@@ -181,6 +219,13 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	}
 
 	// Stage 2: Linking agent on narrowed candidate set
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_start", map[string]interface{}{
+			"message":     "Linking agent analyzing candidates...",
+			"table_count": len(candidateSchemas),
+		})
+	}
+
 	linkReq := &LinkingRequest{
 		Query:         req.Query,
 		Schemas:       candidateSchemas,
@@ -200,6 +245,15 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 			CoarseSignals:  coarseResult.Signals,
 			ExecutionLogs:  coarseResult.ExecutionLogs,
 		}, nil
+	}
+
+	// Notify: linking agent done
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_done", map[string]interface{}{
+			"selected_tables": len(linkResult.SelectedTables),
+			"reasoning":       linkResult.Reasoning,
+			"duration_ms":     linkResult.Duration.Milliseconds(),
+		})
 	}
 
 	// Build grounded context

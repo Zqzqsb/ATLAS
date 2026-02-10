@@ -43,12 +43,14 @@ export const queryApi = {
         database_id: request.databaseId,
         database: request.database,
         field_description: request.fieldDescription || '',
+        injected_grounding: request.injectedGrounding || undefined,
         options: {
           use_rich_context: request.options.useRichContext,
           use_react: request.options.useReact,
           use_grounding: request.options.useGrounding,
           max_iterations: request.options.maxIterations,
           grounding_only: request.options.groundingOnly || false,
+          skip_grounding: request.options.skipGrounding || false,
           stream: true
         }
       },

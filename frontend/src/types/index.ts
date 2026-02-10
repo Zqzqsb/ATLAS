@@ -205,6 +205,7 @@ export interface Text2SQLRequest {
   database: string
   options: Text2SQLOptions
   fieldDescription?: string // Optional field alignment description
+  injectedGrounding?: any   // Reuse previous grounding result for Phase 2
 }
 
 export interface Text2SQLOptions {
@@ -215,6 +216,7 @@ export interface Text2SQLOptions {
   temperature?: number
   model?: string
   groundingOnly?: boolean // When true, stop after grounding (for field alignment)
+  skipGrounding?: boolean // When true, skip grounding and use injectedGrounding
 }
 
 export interface Text2SQLResult {

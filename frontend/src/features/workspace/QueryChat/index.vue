@@ -236,35 +236,74 @@ function getFieldDescription(): string {
   return selected.map(f => `${f.tableName}.${f.columnName} (${f.reason})`).join(', ')
 }
 
-// Dismiss field panel and execute without field constraints
+// Convert frontend GroundingResult back to backend format for injection
+function serializeGroundingForInjection(): any {
+  const gr = workspaceStore.groundingResult
+  if (!gr) return undefined
+  return {
+    tables: (gr.tables || []).map(t => ({
+      name: t.name,
+      reason: t.matchedTerms?.[0] || '',
+      confidence: t.confidence
+    })),
+    columns: (gr.columns || []).map(c => ({
+      table_name: c.table,
+      column_name: c.column,
+      reason: c.matchedTerms?.[0] || '',
+      confidence: c.confidence
+    })),
+    join_paths: (gr.joinPaths || []).map(jp => ({
+      from_table: jp.from?.table,
+      from_column: jp.from?.column,
+      to_table: jp.to?.table,
+      to_column: jp.to?.column
+    })),
+    suggested_fields: (gr.suggestedFields || []).map(f => ({
+      table_name: f.tableName,
+      column_name: f.columnName,
+      reason: f.reason,
+      selected: f.selected
+    })),
+    execution_time_ms: gr.duration || 0,
+    execution_logs: gr.executionLogs || [],
+    reasoning: gr.reasoning || '',
+    mode: gr.mode || ''
+  }
+}
+
+// Dismiss field panel and execute full pipeline without field constraints (Phase 2: inference only)
 function dismissFieldPanel() {
   showFieldPanel.value = false
   if (awaitingFieldConfirmation.value) {
     awaitingFieldConfirmation.value = false
-    // Execute full query without field constraints
-    doExecuteFull()
+    // Phase 2: skip grounding, reuse previous grounding result, no field constraints
+    const injectedGrounding = serializeGroundingForInjection()
+    workspaceStore.executeQuery(question.value, undefined, false, injectedGrounding)
   }
 }
 
-// Confirm field selection and execute full query with field constraints
+// Confirm field selection and execute inference only with field constraints (Phase 2)
 async function confirmFieldsAndExecute() {
   showFieldPanel.value = false
   awaitingFieldConfirmation.value = false
   const fieldDesc = getFieldDescription()
+  const injectedGrounding = serializeGroundingForInjection()
   try {
-    await workspaceStore.executeQuery(question.value, fieldDesc, false)
+    // Phase 2: skip grounding, reuse grounding result, inject field description
+    await workspaceStore.executeQuery(question.value, fieldDesc, false, injectedGrounding)
   } catch (e: any) {
     message.error(e.message || 'Execution failed')
   }
 }
 
-// Re-execute with updated field selections (for post-SQL adjustment)
+// Re-execute with updated field selections (for post-SQL adjustment — also Phase 2)
 async function reExecuteWithFields() {
   showFieldPanel.value = false
   const fieldDesc = getFieldDescription()
+  const injectedGrounding = serializeGroundingForInjection()
   workspaceStore.abortCurrentQuery()
   try {
-    await workspaceStore.executeQuery(question.value, fieldDesc, false)
+    await workspaceStore.executeQuery(question.value, fieldDesc, false, injectedGrounding)
   } catch (e: any) {
     message.error(e.message || 'Execution failed')
   }

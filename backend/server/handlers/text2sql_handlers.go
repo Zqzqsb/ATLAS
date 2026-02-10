@@ -17,11 +17,12 @@ import (
 
 // Text2SQLRequest represents the input for text2sql conversion.
 type Text2SQLRequest struct {
-	Question         string          `json:"question" binding:"required"`
-	DatabaseID       string          `json:"database_id" binding:"required"`
-	Database         string          `json:"database"`
-	Options          Text2SQLOptions `json:"options"`
-	FieldDescription string          `json:"field_description"`
+	Question           string          `json:"question" binding:"required"`
+	DatabaseID         string          `json:"database_id" binding:"required"`
+	Database           string          `json:"database"`
+	Options            Text2SQLOptions `json:"options"`
+	FieldDescription   string          `json:"field_description"`
+	InjectedGrounding  *GroundingInfo  `json:"injected_grounding,omitempty"` // Reuse previous grounding result
 }
 
 // Text2SQLOptions holds optional parameters.
@@ -32,7 +33,12 @@ type Text2SQLOptions struct {
 	MaxIterations  int  `json:"max_iterations"`
 	Stream         bool `json:"stream"`
 	GroundingOnly  bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
+	SkipGrounding  bool `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
 }
+
+// Text2SQLRequest represents the input for text2sql conversion.
+// InjectedGrounding allows the frontend to pass back previously-obtained grounding
+// results, so that Phase 2 (inference) can reuse them without re-running grounding.
 
 // ReactStep represents a single step in ReAct reasoning.
 type ReactStep struct {
@@ -132,7 +138,12 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
 
-	groundingInfo := h.performGrounding(ctx, &req)
+	var groundingInfo *GroundingInfo
+	if req.Options.SkipGrounding && req.InjectedGrounding != nil {
+		groundingInfo = req.InjectedGrounding
+	} else {
+		groundingInfo = h.performGrounding(ctx, &req)
+	}
 
 	inferReq := &services.Text2SQLRequest{
 		Question:         req.Question,
@@ -195,9 +206,14 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		return
 	}
 
-	// Perform grounding with SSE progress
+	// Perform grounding with SSE progress (or reuse injected grounding from Phase 1)
 	var groundingInfo *GroundingInfo
-	if req.Options.UseGrounding && h.groundingService != nil {
+	if req.Options.SkipGrounding && req.InjectedGrounding != nil {
+		// Phase 2: Reuse grounding from Phase 1 — skip grounding entirely
+		groundingInfo = req.InjectedGrounding
+		SendSSE(c.Writer, "grounding_complete", groundingInfo)
+		flusher.Flush()
+	} else if req.Options.UseGrounding && h.groundingService != nil {
 		SendSSE(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
 		flusher.Flush()
 

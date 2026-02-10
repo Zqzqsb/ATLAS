@@ -287,7 +287,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     showSkeleton.value = false
   }
 
-  async function executeQuery(question?: string, fieldDescription?: string, groundingOnly?: boolean) {
+  // Reset only inference state (preserve grounding results for Phase 2)
+  function resetInferenceState() {
+    generatedSql.value = ''
+    reactSteps.value = []
+    usedContexts.value = []
+    queryDuration.value = 0
+    executionResult.value = null
+    queryError.value = null
+    // NOTE: groundingResult, groundingStage, skeletonTables are preserved
+  }
+
+  async function executeQuery(question?: string, fieldDescription?: string, groundingOnly?: boolean, injectedGrounding?: any) {
     if (!currentDatabaseId.value || !currentDatabase.value) return
 
     const q = question || currentQuestion.value
@@ -296,15 +307,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // Abort previous query if any
     abortCurrentQuery()
 
-    // Reset state
-    resetQueryState()
+    // If skip_grounding (Phase 2), only reset inference state — preserve grounding result
+    const skipGrounding = !!injectedGrounding
+    if (skipGrounding) {
+      resetInferenceState()
+    } else {
+      resetQueryState()
+    }
     currentQuestion.value = q
     isQuerying.value = true
     const startTime = Date.now()
 
     // Skeleton screen: immediately show table names from local schemaCache
     // so the user sees progress before the backend SSE starts streaming
-    if (schemaCache.value && schemaCache.value.tables.length > 0) {
+    if (!skipGrounding && schemaCache.value && schemaCache.value.tables.length > 0) {
       skeletonTables.value = schemaCache.value.tables.map(t => t.name)
       showSkeleton.value = true
     }
@@ -319,8 +335,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         question: q,
         databaseId: currentDatabaseId.value,
         database: currentDatabaseId.value, // Use ID instead of name
-        options: { ...queryOptions.value, groundingOnly: groundingOnly || false },
-        fieldDescription: fieldDescription
+        options: {
+          ...queryOptions.value,
+          groundingOnly: groundingOnly || false,
+          skipGrounding: skipGrounding
+        },
+        fieldDescription: fieldDescription,
+        injectedGrounding: injectedGrounding
       },
       (event: { type: string; data: any }) => {
         console.log('SSE Event:', event.type, event.data) // Debug log

@@ -288,10 +288,25 @@ function submitFeedback() {
       </div>
 
       <!-- Auto-execute error -->
-      <div v-if="autoExecuteError && !hasResult" class="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-        <div class="i-lucide-alert-triangle text-amber-500" />
-        <span class="text-sm text-amber-700">Preview failed: {{ autoExecuteError }}</span>
+      <div v-if="autoExecuteError && !hasResult" class="px-6 py-3 bg-red-50 border-b border-red-100 flex items-center gap-2">
+        <div class="i-lucide-x-circle text-red-500" />
+        <span class="text-sm text-red-700 font-medium">Execution failed</span>
+        <span class="text-xs text-red-500">{{ autoExecuteError }}</span>
       </div>
+
+      <!-- Execution success: 0 rows -->
+      <div v-if="sql && !loading && !autoExecuting && !error && !autoExecuteError && autoExecuteResult !== null && autoExecuteResult.length === 0 && (!result || result.length === 0)" class="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+        <div class="i-lucide-inbox text-amber-500" />
+        <span class="text-sm text-amber-700 font-medium">Query returned 0 rows</span>
+        <span class="text-xs text-amber-500">The query executed successfully but no matching data was found.</span>
+      </div>
+    </div>
+
+    <!-- Execution Status Bar -->
+    <div v-if="sql && !loading && !autoExecuting && !error && hasResult" class="px-6 py-2 bg-green-50 border-b border-green-100 flex items-center gap-2">
+      <div class="i-lucide-check-circle text-green-500" />
+      <span class="text-sm text-green-700 font-medium">Query executed successfully</span>
+      <span class="text-xs text-green-500">{{ totalRows }} rows returned</span>
     </div>
 
     <!-- Execution Result -->

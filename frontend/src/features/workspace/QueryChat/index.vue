@@ -194,6 +194,28 @@ const vectorSearchStage = computed(() => {
 // Detect small-scale strategy (no vector search, schema passed directly)
 const isSmallScale = computed(() => workspaceStore.groundingResult?.strategy === 'small_scale')
 
+// Group linking results by table for collapsible display
+const linkedTableGroups = computed(() => {
+  const tables = workspaceStore.groundingResult?.linkingTables || []
+  const columns = workspaceStore.groundingResult?.linkingColumns || []
+  if (!tables.length) return []
+
+  // Build column lookup by table name
+  const colsByTable = new Map<string, typeof columns>()
+  for (const c of columns) {
+    const list = colsByTable.get(c.table) || []
+    list.push(c)
+    colsByTable.set(c.table, list)
+  }
+
+  return tables.map(t => ({
+    name: t.name,
+    description: t.description || '',
+    confidence: t.confidence || 0,
+    columns: colsByTable.get(t.name) || []
+  }))
+})
+
 const schemaLinkingStage = computed(() => {
   const { start, end } = stageTimings.value.schemaLinking
   const steps = workspaceStore.reactSteps.filter(s => s.phase === 'schema_linking')
@@ -235,9 +257,11 @@ const sqlGenerationStage = computed(() => {
 })
 
 // Field Alignment: watch grounding result's suggestedFields specifically
-// When field alignment is on, show the panel only after field_suggestions event arrives
+// When field alignment is on, show the panel only after field_suggestions event arrives.
+// Only populate once per query cycle — skip if user has already been shown the panel
+// (to avoid overwriting user's checkbox selections on subsequent SSE events).
 watch(() => workspaceStore.groundingResult?.suggestedFields, (fields) => {
-  if (useFieldAlignment.value && fields && fields.length > 0) {
+  if (useFieldAlignment.value && fields && fields.length > 0 && !showFieldPanel.value) {
     suggestedFields.value = fields.map(f => ({ ...f }))
     showFieldPanel.value = true
   }
@@ -417,7 +441,7 @@ function parseExplainPlan(observation: string): { passed: boolean; steps: { tabl
     const stepMatch = line.match(/^\s*Step \d+:\s*(.+)/)
     if (stepMatch) {
       if (currentStep) steps.push(currentStep)
-      currentStep = { table: stepMatch[1].trim(), scan: '-', key: '-', rows: '-', extra: '-' }
+      currentStep = { table: (stepMatch[1] ?? '').trim(), scan: '-', key: '-', rows: '-', extra: '-' }
       continue
     }
     if (currentStep) {
@@ -425,10 +449,10 @@ function parseExplainPlan(observation: string): { passed: boolean; steps: { tabl
       const keyMatch = line.match(/key:\s*(\S+)/)
       const rowsMatch = line.match(/rows:\s*(\S+)/)
       const extraMatch = line.match(/extra:\s*(.+)/)
-      if (scanMatch) currentStep.scan = scanMatch[1]
-      if (keyMatch) currentStep.key = keyMatch[1]
-      if (rowsMatch) currentStep.rows = rowsMatch[1]
-      if (extraMatch) currentStep.extra = extraMatch[1].trim()
+      if (scanMatch?.[1]) currentStep.scan = scanMatch[1]
+      if (keyMatch?.[1]) currentStep.key = keyMatch[1]
+      if (rowsMatch?.[1]) currentStep.rows = rowsMatch[1]
+      if (extraMatch?.[1]) currentStep.extra = extraMatch[1].trim()
     }
     if (line.match(/^\s*-\s+/) && line.includes('scan') || line.includes('table') || line.includes('filesort')) {
       warnings.push(line.replace(/^\s*-\s+/, '').trim())
@@ -763,35 +787,41 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </NCollapse>
             </div>
 
-            <!-- Linking Agent Selected Tables/Columns Summary -->
-            <div v-if="workspaceStore.groundingResult.linkingTables?.length" class="space-y-2 stagger-item" style="--stagger: 1">
-              <div class="flex items-center gap-2 mb-1">
+            <!-- Linking Agent Selected Tables/Columns — Grouped by Table -->
+            <div v-if="linkedTableGroups.length" class="stagger-item" style="--stagger: 1">
+              <div class="flex items-center gap-2 mb-2">
                 <div class="i-lucide-filter text-sm text-teal-600" />
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linked Tables ({{ workspaceStore.groundingResult.linkingTables.length }})</span>
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Linked Schema ({{ linkedTableGroups.length }} tables, {{ workspaceStore.groundingResult.linkingColumns?.length || 0 }} columns)
+                </span>
               </div>
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="t in workspaceStore.groundingResult.linkingTables"
-                  :key="'lt-' + t.name"
-                  class="px-2 py-1 rounded bg-teal-50 border border-teal-100 text-xs font-medium text-teal-700"
-                  :title="t.description"
-                >{{ t.name }}</span>
-              </div>
-              <div v-if="workspaceStore.groundingResult.linkingColumns?.length" class="mt-1">
-                <div class="flex items-center gap-2 mb-1">
-                  <div class="i-lucide-columns-3 text-sm text-teal-500" />
-                  <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linked Columns ({{ workspaceStore.groundingResult.linkingColumns.length }})</span>
-                </div>
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="c in workspaceStore.groundingResult.linkingColumns.slice(0, 10)"
-                    :key="'lc-' + c.table + '.' + c.column"
-                    class="px-2 py-1 rounded bg-teal-50 border border-teal-100 text-xs font-medium"
-                    :title="c.description"
-                  ><span class="text-gray-400">{{ c.table }}.</span><span class="text-teal-700">{{ c.column }}</span></span>
-                  <span v-if="workspaceStore.groundingResult.linkingColumns.length > 10" class="px-2 py-1 text-xs text-gray-400">
-                    +{{ workspaceStore.groundingResult.linkingColumns.length - 10 }} more
-                  </span>
+              <div class="space-y-1.5">
+                <div
+                  v-for="group in linkedTableGroups"
+                  :key="'lg-' + group.name"
+                  class="rounded-lg border border-teal-100 bg-teal-50/50 overflow-hidden"
+                >
+                  <!-- Table header row -->
+                  <div class="flex items-center gap-2 px-3 py-1.5">
+                    <div class="w-5 h-5 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
+                      <div class="i-lucide-table-2 text-xs text-teal-600" />
+                    </div>
+                    <span class="text-xs font-bold text-teal-800">{{ group.name }}</span>
+                    <span class="text-xs text-gray-400 ml-auto">{{ group.columns.length }} cols</span>
+                  </div>
+                  <!-- Columns row -->
+                  <div v-if="group.columns.length" class="px-3 pb-2 flex flex-wrap gap-1">
+                    <span
+                      v-for="c in group.columns"
+                      :key="'lc-' + c.table + '.' + c.column"
+                      class="px-1.5 py-0.5 rounded bg-white border border-teal-100 text-xs font-medium text-teal-700"
+                      :title="[c.dataType, c.description].filter(Boolean).join(' — ')"
+                    >{{ c.column }}<span v-if="c.dataType" class="text-gray-400 ml-0.5 text-[10px]">{{ c.dataType }}</span></span>
+                  </div>
+                  <!-- Description row (if available) -->
+                  <div v-if="group.description" class="px-3 pb-2">
+                    <p class="text-[10px] text-gray-400 leading-snug truncate" :title="group.description">{{ group.description }}</p>
+                  </div>
                 </div>
               </div>
             </div>

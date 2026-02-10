@@ -211,14 +211,15 @@ Workflow:
 1. Analyze question and schema
 2. If string values missing from Rich Context → use execute_sql to find them
 3. Write SQL following best practices
-4. ALWAYS call verify_sql once to validate your SQL and inspect the execution plan
-   - If ❌ FAILED: fix the error and try verify_sql again
+4. ALWAYS call verify_sql to validate your SQL and inspect the execution plan
+   - If ❌ FAILED: fix the SQL error and call verify_sql AGAIN. Repeat until it passes.
+   - NEVER give Final Answer with SQL that has not passed verify_sql.
    - If ✅ PASSED with no warnings: proceed to Final Answer
    - If ✅ PASSED with performance warnings: evaluate the warnings:
      * Full table scan on small tables (≤1000 rows) is acceptable
      * Full table scan on large tables (>1000 rows): try to optimize (add WHERE, use indexed columns)
      * If optimization is not feasible, proceed to Final Answer with the current SQL
-5. Provide Final Answer
+5. Provide Final Answer — the SQL in your Final Answer MUST be the one that passed verify_sql
 
 `)
 

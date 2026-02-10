@@ -33,9 +33,11 @@ func (t *VerifySQLTool) Description() string {
 Input: SQL query string to verify
 Output: ✅ VERIFY_PASSED or ❌ VERIFY_FAILED, with EXPLAIN execution plan
 
-You MUST call this tool exactly once before giving your Final Answer.
-If ❌ VERIFY_FAILED: Fix the SQL error and give Final Answer directly — do NOT call verify_sql again.
-If ✅ VERIFY_PASSED: Proceed to Final Answer.`
+IMPORTANT workflow:
+- You MUST call verify_sql before giving your Final Answer.
+- If ❌ VERIFY_FAILED: fix the SQL error and call verify_sql AGAIN with the corrected SQL. Repeat until it passes.
+- If ✅ VERIFY_PASSED: proceed to Final Answer.
+- NEVER give Final Answer with SQL that has not passed verify_sql.`
 }
 
 // Call executes the verification
@@ -44,7 +46,7 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 
 	// Step 1: Static checks (fast, no DB call)
 	if err := t.quickCheck(sql); err != nil {
-		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nPlease fix the error and try again.", err)
+		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nYou MUST fix the error and call verify_sql again with the corrected SQL. Do NOT give Final Answer until verify_sql passes.", err)
 		t.emitResult(out)
 		return out, nil
 	}
@@ -52,7 +54,7 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 	// Step 2: EXPLAIN validation (safe, doesn't execute the actual query)
 	explainResult, err := t.adapter.DryRunSQL(ctx, sql)
 	if err != nil {
-		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (EXPLAIN check):\n%v\n\nPlease fix the error and try again.", err)
+		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (EXPLAIN check):\n%v\n\nYou MUST fix the error and call verify_sql again with the corrected SQL. Do NOT give Final Answer until verify_sql passes.", err)
 		t.emitResult(out)
 		return out, nil
 	}

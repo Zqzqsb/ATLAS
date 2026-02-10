@@ -14,6 +14,8 @@ import {
   NSpace,
   NProgress,
   NPopconfirm,
+  NCollapse,
+  NCollapseItem,
   useMessage
 } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -50,6 +52,17 @@ const typeOptions = [
   { label: 'Value Mapping', value: 'value_mapping' },
   { label: 'Business Rule', value: 'business_rule' },
   { label: 'Calculation', value: 'calculation' }
+]
+
+// Context type legend — explains what each tag means and its visual identity
+const typeLegend: { type: ContextType; label: string; icon: string; desc: string }[] = [
+  { type: 'description',   label: 'Description',   icon: 'i-lucide-file-text',      desc: 'Natural-language description of a table or column\'s purpose and content.' },
+  { type: 'example',       label: 'Example',       icon: 'i-lucide-list',           desc: 'Representative sample values that help the LLM understand data patterns.' },
+  { type: 'synonym',       label: 'Synonym',       icon: 'i-lucide-languages',      desc: 'Alternative names, abbreviations, or domain aliases for a column.' },
+  { type: 'value_mapping', label: 'Value Mapping',  icon: 'i-lucide-arrow-left-right', desc: 'Maps coded values to human-readable labels (e.g. "M" → "Male").' },
+  { type: 'business_rule', label: 'Business Rule',  icon: 'i-lucide-shield-check',   desc: 'Domain constraints or logic rules that govern data interpretation.' },
+  { type: 'constraint',    label: 'Constraint',    icon: 'i-lucide-alert-triangle', desc: 'Data constraints like NOT NULL, UNIQUE, range limits, or foreign keys.' },
+  { type: 'calculation',   label: 'Calculation',   icon: 'i-lucide-calculator',     desc: 'Derived metric formulas (e.g. profit = revenue − cost).' }
 ]
 
 const tableOptions = computed(() => 
@@ -357,6 +370,35 @@ async function handlePruneAll() {
           Add Context
         </NButton>
       </div>
+    </div>
+
+    <!-- Context Type Legend -->
+    <div class="mb-5">
+      <NCollapse :default-expanded-names="[]" arrow-placement="left">
+        <NCollapseItem name="legend">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <div class="i-lucide-book-open text-sm text-gray-500" />
+              <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Context Type Guide</span>
+            </div>
+          </template>
+          <div class="grid grid-cols-2 gap-3 mt-2">
+            <div
+              v-for="item in typeLegend"
+              :key="item.type"
+              class="flex items-start gap-3 p-3 rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-colors"
+            >
+              <div class="flex-shrink-0 mt-0.5">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold" :class="getTypeBadgeClasses(item.type)">
+                  <div :class="item.icon" class="text-sm" />
+                  {{ item.label }}
+                </span>
+              </div>
+              <p class="text-xs text-gray-500 leading-relaxed">{{ item.desc }}</p>
+            </div>
+          </div>
+        </NCollapseItem>
+      </NCollapse>
     </div>
 
     <!-- Loading -->

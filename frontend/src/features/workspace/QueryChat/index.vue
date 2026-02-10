@@ -401,6 +401,51 @@ function handleClear() {
   workspaceStore.resetQueryState()
 }
 
+// Parse verify_sql observation into structured execution plan steps
+function parseExplainPlan(observation: string): { passed: boolean; steps: { table: string; scan: string; key: string; rows: string; extra: string }[]; warnings: string[]; summary: string } {
+  const passed = observation?.startsWith('✅') ?? false
+  const steps: { table: string; scan: string; key: string; rows: string; extra: string }[] = []
+  const warnings: string[] = []
+  let summary = ''
+
+  if (!observation) return { passed, steps, warnings, summary }
+
+  const lines = observation.split('\n')
+  let currentStep: { table: string; scan: string; key: string; rows: string; extra: string } | null = null
+
+  for (const line of lines) {
+    const stepMatch = line.match(/^\s*Step \d+:\s*(.+)/)
+    if (stepMatch) {
+      if (currentStep) steps.push(currentStep)
+      currentStep = { table: stepMatch[1].trim(), scan: '-', key: '-', rows: '-', extra: '-' }
+      continue
+    }
+    if (currentStep) {
+      const scanMatch = line.match(/scan:\s*(\S+)/)
+      const keyMatch = line.match(/key:\s*(\S+)/)
+      const rowsMatch = line.match(/rows:\s*(\S+)/)
+      const extraMatch = line.match(/extra:\s*(.+)/)
+      if (scanMatch) currentStep.scan = scanMatch[1]
+      if (keyMatch) currentStep.key = keyMatch[1]
+      if (rowsMatch) currentStep.rows = rowsMatch[1]
+      if (extraMatch) currentStep.extra = extraMatch[1].trim()
+    }
+    if (line.match(/^\s*-\s+/) && line.includes('scan') || line.includes('table') || line.includes('filesort')) {
+      warnings.push(line.replace(/^\s*-\s+/, '').trim())
+    }
+    if (line.includes('Execution plan looks good') || line.includes('proceed to Final Answer')) {
+      summary = line.trim()
+    }
+  }
+  if (currentStep) steps.push(currentStep)
+
+  if (!summary) {
+    summary = passed ? 'Execution plan looks good' : 'Query has issues'
+  }
+
+  return { passed, steps, warnings, summary }
+}
+
 async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   // Update query history with feedback
   if (workspaceStore.queryHistory.length > 0) {
@@ -801,21 +846,21 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </button>
               </div>
               
-              <!-- Compact field chips -->
-              <div class="flex flex-wrap gap-2 mb-3">
+              <!-- Field list (vertical) -->
+              <div class="space-y-1.5 mb-3">
                 <button
                   v-for="field in suggestedFields"
                   :key="`${field.tableName}.${field.columnName}`"
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer border"
+                  class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer border"
                   :class="field.selected 
-                    ? 'bg-purple-100 border-purple-300 text-purple-800 shadow-sm' 
+                    ? 'bg-purple-50 border-purple-200 text-purple-800' 
                     : 'bg-white border-gray-200 text-gray-500 hover:border-purple-200'"
                   :title="field.reason"
                   @click="toggleField(field)"
                 >
                   <NCheckbox :checked="field.selected" size="small" @update:checked="(v: boolean) => field.selected = v" @click.stop />
-                  <span class="font-mono">{{ field.columnName }}</span>
-                  <span class="text-gray-400 font-normal">{{ field.tableName }}</span>
+                  <span class="font-mono font-bold">{{ field.columnName }}</span>
+                  <span class="text-gray-400 font-normal ml-auto">{{ field.tableName }}</span>
                 </button>
               </div>
               
@@ -999,28 +1044,51 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                         <NTag v-else-if="step.observation" size="tiny" type="warning" round>CHECKING</NTag>
                       </div>
                       
-                      <!-- Execution Plan (always visible, no collapse) -->
+                      <!-- Execution Plan (structured display) -->
                       <div v-if="step.observation" class="verify-result mt-2">
-                        <div class="flex items-center gap-2 mb-1.5">
-                          <div class="i-lucide-bar-chart-3 text-sm"
-                            :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
-                          />
-                          <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
-                        </div>
                         <div class="rounded-lg overflow-hidden border"
                           :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
                         >
-                          <!-- Summary header -->
-                          <div class="px-3 py-2 text-xs font-medium flex items-center gap-2"
-                            :class="step.observation?.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                          >
-                            <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" />
-                            {{ step.observation?.startsWith('✅') ? 'Query passed verification' : 'Query has issues' }}
+                          <!-- Structured EXPLAIN table -->
+                          <div v-if="parseExplainPlan(step.observation).steps.length > 0" class="p-2">
+                            <table class="w-full text-xs">
+                              <thead>
+                                <tr class="text-left text-gray-400 uppercase tracking-wider">
+                                  <th class="px-2 py-1.5 font-semibold">Table</th>
+                                  <th class="px-2 py-1.5 font-semibold">Scan</th>
+                                  <th class="px-2 py-1.5 font-semibold">Key</th>
+                                  <th class="px-2 py-1.5 font-semibold text-right">Rows</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr
+                                  v-for="(planStep, pi) in parseExplainPlan(step.observation).steps"
+                                  :key="pi"
+                                  class="border-t border-gray-100"
+                                >
+                                  <td class="px-2 py-1.5 font-mono font-medium text-gray-700">{{ planStep.table }}</td>
+                                  <td class="px-2 py-1.5">
+                                    <span class="px-1.5 py-0.5 rounded text-xs font-medium"
+                                      :class="planStep.scan === 'ALL' ? 'bg-red-100 text-red-700' : planStep.scan === 'eq_ref' || planStep.scan === 'const' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
+                                    >{{ planStep.scan }}</span>
+                                  </td>
+                                  <td class="px-2 py-1.5 font-mono text-gray-500">{{ planStep.key }}</td>
+                                  <td class="px-2 py-1.5 text-right font-mono text-gray-500">{{ planStep.rows }}</td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
-                          <!-- Full plan detail -->
-                          <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-48 overflow-y-auto"
+                          <!-- Fallback: raw text if parsing fails -->
+                          <pre v-else class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-48 overflow-y-auto"
                             :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
                           >{{ step.observation }}</pre>
+                          <!-- Summary footer -->
+                          <div class="px-3 py-1.5 text-xs flex items-center gap-1.5 border-t"
+                            :class="step.observation?.startsWith('✅') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'"
+                          >
+                            <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" class="text-xs" />
+                            <span class="font-medium">{{ parseExplainPlan(step.observation).summary }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>

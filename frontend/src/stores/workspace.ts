@@ -439,7 +439,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                   } as GroundingResult
                 }
                 groundingStage.value = 'retrieval_done'
-              }, 1200)
+              }, 2100)
             } else {
               // Large-scale: show data immediately as it arrives
               showSkeleton.value = false

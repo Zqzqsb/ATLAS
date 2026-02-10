@@ -268,6 +268,7 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 			"duration_ms":      coarseResult.Duration.Milliseconds(),
 			"signals":          coarseResult.Signals,
 			"execution_logs":   coarseResult.ExecutionLogs,
+			"strategy":         string(StrategyLargeScale),
 		})
 	}
 

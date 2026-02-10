@@ -398,11 +398,12 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 									}
 								}
 
-								SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
+							SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
 									"tables":            tables,
 									"columns":           columns,
 									"execution_logs":    execLogs,
 									"execution_time_ms": data["duration_ms"],
+									"strategy":          data["strategy"],
 								})
 								flusher.Flush()
 							}

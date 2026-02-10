@@ -440,12 +440,14 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 				for _, col := range schema.Columns {
 					if reason, isRelevant := relevantSet[col.Name]; isRelevant {
 						ctx.Columns = append(ctx.Columns, ColumnContext{
-							TableName:   selected.Name,
-							ColumnName:  col.Name,
-							DataType:    col.Type,
-							Description: col.Description,
-							Relevance:   selected.Confidence,
-							Reason:      reason,
+							TableName:    selected.Name,
+							ColumnName:   col.Name,
+							DataType:     col.Type,
+							Description:  col.Description,
+							SampleValues: col.SampleValues,
+							Synonyms:     col.Synonyms,
+							Relevance:    selected.Confidence,
+							Reason:       reason,
 						})
 					}
 				}
@@ -459,11 +461,13 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 
 				for _, col := range schema.Columns {
 					ctx.Columns = append(ctx.Columns, ColumnContext{
-						TableName:   selected.Name,
-						ColumnName:  col.Name,
-						DataType:    col.Type,
-						Description: col.Description,
-						Relevance:   selected.Confidence,
+						TableName:    selected.Name,
+						ColumnName:   col.Name,
+						DataType:     col.Type,
+						Description:  col.Description,
+						SampleValues: col.SampleValues,
+						Synonyms:     col.Synonyms,
+						Relevance:    selected.Confidence,
 					})
 				}
 			}

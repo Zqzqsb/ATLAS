@@ -630,6 +630,9 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		if col.SampleValues.Valid && col.SampleValues.String != "" {
 			embText += fmt.Sprintf(". Sample values: %s", col.SampleValues.String)
 		}
+		if col.Synonyms.Valid && col.Synonyms.String != "" {
+			embText += fmt.Sprintf(". Synonyms: %s", col.Synonyms.String)
+		}
 		items = append(items, embItem{lakebase.EntityTypeColumn, col.ID, embText})
 		result.ColumnsProcessed++
 	}
@@ -766,6 +769,9 @@ func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, con
 				}
 				if c.SampleValues.Valid && c.SampleValues.String != "" {
 					embText += fmt.Sprintf(". Sample values: %s", c.SampleValues.String)
+				}
+				if c.Synonyms.Valid && c.Synonyms.String != "" {
+					embText += fmt.Sprintf(". Synonyms: %s", c.Synonyms.String)
 				}
 				break
 			}

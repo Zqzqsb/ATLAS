@@ -143,6 +143,12 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 			if c.Description != "" {
 				sb.WriteString(fmt.Sprintf("  Description: %s\n", c.Description))
 			}
+			if c.SampleValues != "" {
+				sb.WriteString(fmt.Sprintf("  Sample values: %s\n", c.SampleValues))
+			}
+			if c.Synonyms != "" {
+				sb.WriteString(fmt.Sprintf("  Synonyms: %s\n", c.Synonyms))
+			}
 			if c.Reason != "" {
 				sb.WriteString(fmt.Sprintf("  Reason: %s\n", c.Reason))
 			}

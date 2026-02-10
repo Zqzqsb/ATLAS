@@ -69,12 +69,14 @@ type TableContext struct {
 
 // ColumnContext represents grounded column information
 type ColumnContext struct {
-	TableName   string  `json:"table_name"`
-	ColumnName  string  `json:"column_name"`
-	DataType    string  `json:"data_type"`
-	Description string  `json:"description"`
-	Relevance   float32 `json:"relevance"`
-	Reason      string  `json:"reason"`
+	TableName    string  `json:"table_name"`
+	ColumnName   string  `json:"column_name"`
+	DataType     string  `json:"data_type"`
+	Description  string  `json:"description"`
+	SampleValues string  `json:"sample_values,omitempty"`
+	Synonyms     string  `json:"synonyms,omitempty"`
+	Relevance    float32 `json:"relevance"`
+	Reason       string  `json:"reason"`
 }
 
 // RelationshipContext represents grounded table relationships

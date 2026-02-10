@@ -31,6 +31,7 @@ type Text2SQLOptions struct {
 	UseGrounding   bool `json:"use_grounding"`
 	MaxIterations  int  `json:"max_iterations"`
 	Stream         bool `json:"stream"`
+	GroundingOnly  bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
 }
 
 // ReactStep represents a single step in ReAct reasoning.
@@ -252,6 +253,16 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			SendSSE(c.Writer, "grounding_complete", groundingInfo)
 			flusher.Flush()
 		}
+	}
+
+	// If grounding_only mode, stop here — frontend will show field panel and re-call with fieldDescription
+	if req.Options.GroundingOnly {
+		SendSSE(c.Writer, "complete", map[string]interface{}{
+			"grounding_only": true,
+			"message":        "Grounding complete. Awaiting field confirmation.",
+		})
+		flusher.Flush()
+		return
 	}
 
 	// Extract linked context from grounding for injection into inference

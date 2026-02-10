@@ -287,7 +287,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     showSkeleton.value = false
   }
 
-  async function executeQuery(question?: string, fieldDescription?: string) {
+  async function executeQuery(question?: string, fieldDescription?: string, groundingOnly?: boolean) {
     if (!currentDatabaseId.value || !currentDatabase.value) return
 
     const q = question || currentQuestion.value
@@ -319,7 +319,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         question: q,
         databaseId: currentDatabaseId.value,
         database: currentDatabaseId.value, // Use ID instead of name
-        options: queryOptions.value,
+        options: { ...queryOptions.value, groundingOnly: groundingOnly || false },
         fieldDescription: fieldDescription
       },
       (event: { type: string; data: any }) => {
@@ -390,6 +390,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             queryDuration.value = Date.now() - startTime
             isQuerying.value = false
             showSkeleton.value = false // Ensure skeleton is hidden on complete
+
+            // If this was a grounding-only request, don't add to history
+            if (event.data.grounding_only) {
+              break
+            }
 
             // Add to history
             if (generatedSql.value) {

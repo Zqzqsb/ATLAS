@@ -48,6 +48,7 @@ export const queryApi = {
           use_react: request.options.useReact,
           use_grounding: request.options.useGrounding,
           max_iterations: request.options.maxIterations,
+          grounding_only: request.options.groundingOnly || false,
           stream: true
         }
       },

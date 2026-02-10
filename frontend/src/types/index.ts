@@ -214,6 +214,7 @@ export interface Text2SQLOptions {
   maxIterations: number
   temperature?: number
   model?: string
+  groundingOnly?: boolean // When true, stop after grounding (for field alignment)
 }
 
 export interface Text2SQLResult {

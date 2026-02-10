@@ -21,6 +21,7 @@ const isExecuting = computed(() => workspaceStore.isQuerying)
 // Now populated from grounding result (zero extra LLM cost) instead of a separate API call
 const suggestedFields = ref<SuggestedFieldFromLinking[]>([])
 const showFieldPanel = ref(false)
+const awaitingFieldConfirmation = ref(false) // True when grounding-only is done, waiting for user
 
 // Stage timing
 const stageTimings = ref({
@@ -208,13 +209,16 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// Field Alignment: no longer blocking — fields come from grounding result
-// Watch grounding result for suggested fields when Field Alignment is enabled
+// Field Alignment: watch grounding result for suggested fields
+// When field alignment is on and we did grounding-only, show the panel and wait
 watch(() => workspaceStore.groundingResult, (result) => {
   if (useFieldAlignment.value && result && result.suggestedFields && result.suggestedFields.length > 0) {
-    // Populate from linking agent's field suggestions (zero extra LLM cost)
     suggestedFields.value = result.suggestedFields.map(f => ({ ...f }))
     showFieldPanel.value = true
+    // If we're in grounding-only mode, mark that we're waiting for confirmation
+    if (awaitingFieldConfirmation.value) {
+      // Stream already completed (grounding_only), user needs to confirm
+    }
   }
 })
 
@@ -231,19 +235,35 @@ function getFieldDescription(): string {
   return selected.map(f => `${f.tableName}.${f.columnName} (${f.reason})`).join(', ')
 }
 
-// Dismiss field panel without re-executing
+// Dismiss field panel and execute without field constraints
 function dismissFieldPanel() {
   showFieldPanel.value = false
+  if (awaitingFieldConfirmation.value) {
+    awaitingFieldConfirmation.value = false
+    // Execute full query without field constraints
+    doExecuteFull()
+  }
 }
 
-// Re-execute with updated field selections — aborts current query and re-runs
+// Confirm field selection and execute full query with field constraints
+async function confirmFieldsAndExecute() {
+  showFieldPanel.value = false
+  awaitingFieldConfirmation.value = false
+  const fieldDesc = getFieldDescription()
+  try {
+    await workspaceStore.executeQuery(question.value, fieldDesc, false)
+  } catch (e: any) {
+    message.error(e.message || 'Execution failed')
+  }
+}
+
+// Re-execute with updated field selections (for post-SQL adjustment)
 async function reExecuteWithFields() {
   showFieldPanel.value = false
   const fieldDesc = getFieldDescription()
-  // Abort current execution if still running
   workspaceStore.abortCurrentQuery()
   try {
-    await workspaceStore.executeQuery(question.value, fieldDesc)
+    await workspaceStore.executeQuery(question.value, fieldDesc, false)
   } catch (e: any) {
     message.error(e.message || 'Execution failed')
   }
@@ -255,31 +275,46 @@ async function handleExecute() {
     return
   }
   
-  // No longer blocks for field alignment — just execute directly.
-  // If Field Alignment is enabled, the linking agent's field suggestions
-  // will appear after grounding completes (non-blocking).
-  await doExecute()
+  if (useFieldAlignment.value) {
+    // Phase 1: Run grounding only, then pause for field confirmation
+    await doExecuteGroundingOnly()
+  } else {
+    // No field alignment — execute full pipeline directly
+    await doExecuteFull()
+  }
 }
 
-async function doExecute() {
-  // Reset timings
+// Execute grounding only (Phase 1 of field alignment flow)
+async function doExecuteGroundingOnly() {
   resetTimings()
-  
-  // Reset field panel
   suggestedFields.value = []
   showFieldPanel.value = false
+  awaitingFieldConfirmation.value = true
   
-  // Update query options
   workspaceStore.queryOptions.maxIterations = maxIterations.value
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
 
-  // When Field Alignment is enabled, field hints are injected automatically
-  // via the linking agent's suggested fields in the grounding context prompt.
-  // No separate fieldDescription needed on the first run.
   try {
-    await workspaceStore.executeQuery(question.value)
+    await workspaceStore.executeQuery(question.value, undefined, true) // groundingOnly=true
+  } catch (e: any) {
+    awaitingFieldConfirmation.value = false
+    message.error(e.message || 'Grounding failed')
+  }
+}
+
+// Execute full pipeline (Phase 2 after field confirmation, or direct when no field alignment)
+async function doExecuteFull(fieldDescription?: string) {
+  resetTimings()
+  
+  workspaceStore.queryOptions.maxIterations = maxIterations.value
+  workspaceStore.queryOptions.useRichContext = useRichContext.value
+  workspaceStore.queryOptions.useReact = useReact.value
+  workspaceStore.queryOptions.useGrounding = useGrounding.value
+
+  try {
+    await workspaceStore.executeQuery(question.value, fieldDescription, false)
   } catch (e: any) {
     message.error(e.message || 'Execution failed')
   }
@@ -689,6 +724,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                     <div class="i-carbon-data-table text-purple-500 text-sm" />
                     <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
                     <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
+                    <span v-if="awaitingFieldConfirmation" class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium animate-pulse">
+                      awaiting confirmation
+                    </span>
                   </div>
                   <button 
                     class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
@@ -716,19 +754,33 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   </button>
                 </div>
                 
-                <!-- Compact action row -->
+                <!-- Action row — different buttons based on state -->
                 <div class="flex items-center justify-between pt-2 border-t border-purple-100">
                   <p class="text-xs text-gray-400">
                     <span class="i-carbon-information inline-block mr-0.5 align-middle" />
-                    Adjust and re-run to refine SQL output
+                    {{ awaitingFieldConfirmation 
+                      ? 'Select the fields you want in the output, then confirm to generate SQL.' 
+                      : 'Adjust fields and re-run to refine SQL output.' }}
                   </p>
-                  <button
-                    class="px-3 py-1.5 rounded-lg bg-purple-600 text-white font-bold text-xs shadow-sm hover:bg-purple-700 hover:-translate-y-0.5 transition-all"
-                    :disabled="isExecuting"
-                    @click="reExecuteWithFields"
-                  >
-                    Re-run with Selection
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="awaitingFieldConfirmation"
+                      class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 font-medium text-xs hover:bg-gray-50 transition-all"
+                      @click="dismissFieldPanel"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all"
+                      :class="awaitingFieldConfirmation 
+                        ? 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700' 
+                        : 'bg-purple-600 hover:bg-purple-700'"
+                      :disabled="isExecuting"
+                      @click="awaitingFieldConfirmation ? confirmFieldsAndExecute() : reExecuteWithFields()"
+                    >
+                      {{ awaitingFieldConfirmation ? 'Confirm & Generate SQL' : 'Re-run with Selection' }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </Transition>

@@ -57,68 +57,62 @@ function enterScenario(scenarioId: string) {
 
 <template>
   <div
-    class="spider-card group relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/60 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:shadow-gray-300/50 transition-all duration-300"
+    class="spider-card group relative overflow-hidden rounded-lg bg-white border border-gray-200 hover:border-gray-300 transition-colors"
     :class="{ 'opacity-60 grayscale': !isConnected }"
   >
     <!-- Top accent bar -->
-    <div class="h-1.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500" />
+    <div class="h-0.5 w-full bg-violet-500" />
 
-    <div class="p-5 flex flex-col h-full">
+    <div class="p-4 flex flex-col h-full">
       <!-- Header -->
-      <div class="flex items-center gap-3 mb-5">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
-          <span class="text-2xl">🕷️</span>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center">
+          <span class="text-xl">🕷️</span>
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="font-bold text-base text-gray-800 leading-tight">Spider Dataset</h3>
-          <p class="text-xs text-gray-500 mt-0.5">Text-to-SQL Benchmark</p>
+          <h3 class="font-medium text-sm text-gray-800 leading-tight">Spider Dataset</h3>
+          <p class="text-xs text-gray-400 mt-0.5">Text-to-SQL Benchmark</p>
         </div>
         <div
-          class="w-3 h-3 rounded-full flex-shrink-0 ring-4"
-          :class="isConnected
-            ? 'bg-green-500 ring-green-500/20 animate-pulse'
-            : 'bg-yellow-500 ring-yellow-500/20'"
+          class="w-2 h-2 rounded-full flex-shrink-0"
+          :class="isConnected ? 'bg-emerald-500' : 'bg-amber-400'"
         />
       </div>
 
       <!-- Scenario list -->
-      <div class="flex-1 space-y-2 mb-4">
+      <div class="flex-1 space-y-1.5 mb-3">
         <div
           v-for="s in scenarios"
           :key="s.id"
-          class="scenario-row flex items-center gap-3 p-3 rounded-xl border border-transparent cursor-pointer transition-all duration-200"
+          class="scenario-row flex items-center gap-2.5 p-2.5 rounded-md border border-transparent cursor-pointer transition-colors"
           :class="s.connected
-            ? 'hover:bg-violet-50 hover:border-violet-200 active:scale-[0.99]'
+            ? 'hover:bg-violet-50 hover:border-violet-200'
             : 'opacity-50 cursor-not-allowed'"
           @click="s.connected && enterScenario(s.id)"
         >
-          <!-- Number badge -->
-          <div class="w-7 h-7 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-extrabold flex-shrink-0">
+          <div class="w-6 h-6 rounded bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">
             {{ s.index }}
           </div>
-          <!-- Icon -->
-          <span class="text-lg flex-shrink-0">{{ s.icon }}</span>
-          <!-- Info -->
+          <span class="text-base flex-shrink-0">{{ s.icon }}</span>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-bold text-gray-800">{{ s.name }}</span>
-              <span class="text-[10px] font-semibold text-gray-400">{{ s.tables }} tables</span>
+              <span class="text-sm font-medium text-gray-700">{{ s.name }}</span>
+              <span class="text-[10px] text-gray-400">{{ s.tables }} tables</span>
             </div>
-            <p class="text-xs text-gray-500 leading-snug mt-0.5 truncate">{{ s.desc }}</p>
+            <p class="text-xs text-gray-400 leading-snug mt-0.5 truncate">{{ s.desc }}</p>
           </div>
-          <!-- Arrow -->
-          <div class="i-carbon-chevron-right text-gray-300 text-sm flex-shrink-0 group-hover/row:text-violet-400 transition-colors" />
+          <div class="i-lucide-chevron-right text-gray-300 text-sm flex-shrink-0" />
         </div>
       </div>
 
       <!-- Footer stats -->
-      <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-        <div class="flex items-center gap-4 text-xs font-semibold text-gray-500">
+      <div class="flex items-center justify-between pt-2.5 border-t border-gray-100">
+        <div class="flex items-center gap-3 text-xs text-gray-400">
           <span>{{ totalTables }} tables</span>
           <span class="w-1 h-1 rounded-full bg-gray-300" />
           <span :class="totalContext > 0 ? 'text-violet-600' : ''">{{ totalContext }} context</span>
         </div>
-        <span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-100 text-violet-600 uppercase tracking-wide">
+        <span class="px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-50 text-violet-600 uppercase tracking-wide">
           {{ databases.length }} scenarios
         </span>
       </div>
@@ -128,6 +122,6 @@ function enterScenario(scenarioId: string) {
 
 <style scoped>
 .spider-card {
-  min-height: 280px;
+  min-height: 220px;
 }
 </style>

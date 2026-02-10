@@ -52,12 +52,12 @@ const progressPercent = computed(() => Math.round((currentStage.value / totalSta
 // Stage icon mapping
 function getStageIcon(stage: EvolutionStage): string {
   switch (stage.id) {
-    case 1: return 'i-carbon-phone'
-    case 2: return 'i-carbon-shopping-cart'
-    case 3: return 'i-carbon-connect'
-    case 4: return 'i-carbon-increase-level'
-    case 5: return 'i-carbon-trash-can'
-    default: return 'i-carbon-data-table'
+    case 1: return 'i-lucide-smartphone'
+    case 2: return 'i-lucide-shopping-cart'
+    case 3: return 'i-lucide-git-merge'
+    case 4: return 'i-lucide-trending-up'
+    case 5: return 'i-lucide-trash-2'
+    default: return 'i-lucide-table-2'
   }
 }
 
@@ -83,11 +83,11 @@ function getChangeTypeColor(type: string): string {
 
 function getActionIcon(type: string): string {
   switch (type) {
-    case 'created': return 'i-carbon-add-filled'
-    case 'expired': return 'i-carbon-warning-alt-filled'
-    case 'refreshed': return 'i-carbon-renew'
-    case 'deleted': return 'i-carbon-close-filled'
-    default: return 'i-carbon-information'
+    case 'created': return 'i-lucide-plus-filled'
+    case 'expired': return 'i-lucide-alert-triangle-alt-filled'
+    case 'refreshed': return 'i-lucide-refresh-cw'
+    case 'deleted': return 'i-lucide-x-filled'
+    default: return 'i-lucide-info'
   }
 }
 
@@ -103,28 +103,28 @@ function getActionColor(type: string): string {
 
 function getEventIcon(type: string): string {
   switch (type) {
-    case 'stage_start': return 'i-carbon-play-filled-alt'
-    case 'ddl_executing': return 'i-carbon-terminal'
-    case 'ddl_complete': return 'i-carbon-checkmark'
-    case 'data_inserting': return 'i-carbon-data-table'
-    case 'data_complete': return 'i-carbon-checkmark'
-    case 'detecting': return 'i-carbon-search'
-    case 'changes_detected': return 'i-carbon-warning-alt'
-    case 'marking_expired': return 'i-carbon-time'
-    case 'context_expired': return 'i-carbon-warning-alt-filled'
-    case 'creating_context': return 'i-carbon-ai-status'
-    case 'context_created': return 'i-carbon-add-filled'
-    case 'context_refreshed': return 'i-carbon-renew'
-    case 'context_deleted': return 'i-carbon-close-filled'
-    case 'refreshing_context': return 'i-carbon-ai-status'
-    case 'context_refreshed_complete': return 'i-carbon-checkmark-filled'
-    case 'updating_embeddings': return 'i-carbon-chart-venn-diagram'
-    case 'stage_complete': return 'i-carbon-checkmark-filled'
-    case 'error': return 'i-carbon-error-filled'
-    case 'execution_complete': return 'i-carbon-trophy-filled'
-    case 'reset_step': return 'i-carbon-reset'
-    case 'reset_complete': return 'i-carbon-checkmark-filled'
-    default: return 'i-carbon-information'
+    case 'stage_start': return 'i-lucide-play-filled-alt'
+    case 'ddl_executing': return 'i-lucide-terminal'
+    case 'ddl_complete': return 'i-lucide-check'
+    case 'data_inserting': return 'i-lucide-table-2'
+    case 'data_complete': return 'i-lucide-check'
+    case 'detecting': return 'i-lucide-search'
+    case 'changes_detected': return 'i-lucide-alert-triangle-alt'
+    case 'marking_expired': return 'i-lucide-clock'
+    case 'context_expired': return 'i-lucide-alert-triangle-alt-filled'
+    case 'creating_context': return 'i-lucide-cpu'
+    case 'context_created': return 'i-lucide-plus-filled'
+    case 'context_refreshed': return 'i-lucide-refresh-cw'
+    case 'context_deleted': return 'i-lucide-x-filled'
+    case 'refreshing_context': return 'i-lucide-cpu'
+    case 'context_refreshed_complete': return 'i-lucide-check-filled'
+    case 'updating_embeddings': return 'i-lucide-circle-dot'
+    case 'stage_complete': return 'i-lucide-check-filled'
+    case 'error': return 'i-lucide-x-circle'
+    case 'execution_complete': return 'i-lucide-trophy'
+    case 'reset_step': return 'i-lucide-rotate-ccw'
+    case 'reset_complete': return 'i-lucide-check-filled'
+    default: return 'i-lucide-info'
   }
 }
 
@@ -255,11 +255,11 @@ onMounted(async () => {
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="bg-gradient-to-r from-indigo-50 via-blue-50 to-purple-50 rounded-2xl p-6 border border-indigo-100/80">
+    <div class="bg-indigo-50 rounded-lg p-5 border border-indigo-100">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-            <div class="i-carbon-bot text-3xl text-white" />
+          <div class="w-11 h-11 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <div class="i-lucide-bot text-3xl text-white" />
           </div>
           <div>
             <h2 class="text-xl font-bold text-gray-900">Schema Evolution Demo</h2>
@@ -284,7 +284,7 @@ onMounted(async () => {
         <div class="h-2.5 bg-white/80 rounded-full overflow-hidden border border-gray-200/50">
           <div 
             class="h-full rounded-full transition-all duration-700 ease-out"
-            :class="isComplete ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gradient-to-r from-indigo-400 to-purple-500'"
+            :class="isComplete ? 'bg-emerald-500' : 'bg-indigo-500'"
             :style="{ width: `${progressPercent}%` }"
           />
         </div>
@@ -294,7 +294,7 @@ onMounted(async () => {
     <!-- Stage Timeline -->
     <div class="card p-6">
       <h3 class="font-bold text-gray-900 mb-5 flex items-center gap-2">
-        <span class="i-carbon-milestone text-indigo-500" />
+        <span class="i-lucide-flag text-indigo-500" />
         Evolution Stages
       </h3>
 
@@ -320,11 +320,11 @@ onMounted(async () => {
             >
               <div 
                 v-if="stage.executed"
-                class="i-carbon-checkmark-filled text-2xl text-green-500"
+                class="i-lucide-check-filled text-2xl text-green-500"
               />
               <div 
                 v-else-if="stage.is_next && executing"
-                class="i-carbon-loading text-2xl text-indigo-500 animate-spin"
+                class="i-lucide-loader-2 text-2xl text-indigo-500 animate-spin"
               />
               <div 
                 v-else
@@ -384,7 +384,7 @@ onMounted(async () => {
         <!-- Action Buttons -->
         <div class="card p-5">
           <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span class="i-carbon-play-filled-alt text-indigo-500" />
+            <span class="i-lucide-play-filled-alt text-indigo-500" />
             Controls
           </h3>
 
@@ -398,7 +398,7 @@ onMounted(async () => {
               @click="executeNextStage"
             >
               <template #icon>
-                <div class="i-carbon-play" />
+                <div class="i-lucide-play" />
               </template>
               {{ executing ? `Executing Stage ${nextStageId}...` : isComplete ? 'All Stages Complete' : `Execute Stage ${nextStageId}` }}
             </NButton>
@@ -413,7 +413,7 @@ onMounted(async () => {
               type="warning"
             >
               <template #icon>
-                <div class="i-carbon-reset" />
+                <div class="i-lucide-rotate-ccw" />
               </template>
               Reset to Initial State
             </NButton>
@@ -444,7 +444,7 @@ onMounted(async () => {
           <!-- Complete state -->
           <div v-else-if="isComplete" class="mt-5 p-4 bg-green-50 rounded-xl border border-green-200">
             <div class="flex items-center gap-2 text-green-700 font-bold mb-1">
-              <span class="i-carbon-trophy-filled text-lg" />
+              <span class="i-lucide-trophy text-lg" />
               All Stages Complete!
             </div>
             <p class="text-xs text-green-600">
@@ -456,7 +456,7 @@ onMounted(async () => {
         <!-- Execution History (compact) -->
         <div v-if="history.length > 0" class="card p-5">
           <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span class="i-carbon-recently-viewed text-blue-500" />
+            <span class="i-lucide-history text-blue-500" />
             Execution History
           </h3>
 
@@ -513,7 +513,7 @@ onMounted(async () => {
         <div class="card p-5 h-full flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-gray-900 flex items-center gap-2">
-              <span class="i-carbon-activity text-green-500" />
+              <span class="i-lucide-activity text-green-500" />
               Real-time Event Log
               <span v-if="executing" class="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                 <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -521,7 +521,7 @@ onMounted(async () => {
               </span>
             </h3>
             <NButton quaternary size="tiny" @click="eventLog = []" :disabled="executing">
-              <template #icon><div class="i-carbon-trash-can" /></template>
+              <template #icon><div class="i-lucide-trash-2" /></template>
               Clear
             </NButton>
           </div>
@@ -532,7 +532,7 @@ onMounted(async () => {
           >
             <div v-if="eventLog.length === 0" class="flex items-center justify-center h-full text-gray-500">
               <div class="text-center">
-                <div class="i-carbon-terminal text-4xl mb-3 opacity-50" />
+                <div class="i-lucide-terminal text-4xl mb-3 opacity-50" />
                 <div class="text-sm">Execute a stage to see real-time events here</div>
               </div>
             </div>
@@ -581,11 +581,11 @@ onMounted(async () => {
     <div v-if="changeLogs.length > 0" class="card p-6">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-gray-900 flex items-center gap-2">
-          <span class="i-carbon-catalog text-purple-500" />
+          <span class="i-lucide-folder-open text-purple-500" />
           Agent Change Logs
         </h3>
         <NButton quaternary size="tiny" @click="fetchChangeLogs">
-          <template #icon><div class="i-carbon-refresh" /></template>
+          <template #icon><div class="i-lucide-refresh-cw" /></template>
           Refresh
         </NButton>
       </div>

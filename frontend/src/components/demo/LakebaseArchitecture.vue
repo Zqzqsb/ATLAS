@@ -4,10 +4,10 @@ import { ref } from 'vue'
 const showArchitecture = ref(true)
 
 const storageItems = [
-  { label: 'Schema 元数据', type: 'RELATIONAL', icon: 'i-carbon-data-table', color: 'blue' },
-  { label: '向量索引', type: 'VECTOR', icon: 'i-carbon-data-vis-4', color: 'purple' },
-  { label: 'Rich Context', type: 'JSON', icon: 'i-carbon-document', color: 'green' },
-  { label: 'SQL 模板', type: 'SQL', icon: 'i-carbon-code', color: 'orange' }
+  { label: 'Schema 元数据', type: 'RELATIONAL', icon: 'i-lucide-table-2', color: 'blue' },
+  { label: '向量索引', type: 'VECTOR', icon: 'i-lucide-shapes', color: 'purple' },
+  { label: 'Rich Context', type: 'JSON', icon: 'i-lucide-file-text', color: 'green' },
+  { label: 'SQL 模板', type: 'SQL', icon: 'i-lucide-code-2', color: 'orange' }
 ]
 </script>
 
@@ -17,7 +17,7 @@ const storageItems = [
     <div class="card p-4">
       <div class="flex-between mb-3">
         <h3 class="font-medium flex items-center gap-2">
-          <span class="i-carbon-cube text-blue-500" />
+          <span class="i-lucide-box text-blue-500" />
           湖基统一存储
         </h3>
         <button 
@@ -70,7 +70,7 @@ const storageItems = [
             <div class="px-2 py-1 bg-white rounded text-xs shadow-sm">Milvus</div>
           </div>
           <div class="text-center text-xs text-red-600">
-            <div class="i-carbon-close-filled inline-block mr-1" />
+            <div class="i-lucide-x-filled inline-block mr-1" />
             数据同步延迟
           </div>
         </div>
@@ -82,7 +82,7 @@ const storageItems = [
             <div class="px-3 py-1 bg-white rounded text-xs shadow-sm">MariaDB</div>
           </div>
           <div class="text-center text-xs text-green-600">
-            <div class="i-carbon-checkmark-filled inline-block mr-1" />
+            <div class="i-lucide-check-filled inline-block mr-1" />
             原生一致性
           </div>
         </div>
@@ -92,24 +92,24 @@ const storageItems = [
     <!-- Innovation Points -->
     <div class="card p-4">
       <h3 class="font-medium mb-3 text-sm flex items-center gap-2">
-        <span class="i-carbon-idea text-yellow-500" />
+        <span class="i-lucide-lightbulb text-yellow-500" />
         核心创新点
       </h3>
       <ul class="space-y-2 text-sm">
         <li class="flex items-start gap-2">
-          <span class="i-carbon-checkmark text-green-500 mt-0.5" />
+          <span class="i-lucide-check text-green-500 mt-0.5" />
           <span>湖基多模统一存储</span>
         </li>
         <li class="flex items-start gap-2">
-          <span class="i-carbon-checkmark text-green-500 mt-0.5" />
+          <span class="i-lucide-check text-green-500 mt-0.5" />
           <span>库内向量检索 Schema Linking</span>
         </li>
         <li class="flex items-start gap-2">
-          <span class="i-carbon-checkmark text-green-500 mt-0.5" />
+          <span class="i-lucide-check text-green-500 mt-0.5" />
           <span>Agent 自维持机制</span>
         </li>
         <li class="flex items-start gap-2">
-          <span class="i-carbon-checkmark text-green-500 mt-0.5" />
+          <span class="i-lucide-check text-green-500 mt-0.5" />
           <span>端到端零外挂</span>
         </li>
       </ul>

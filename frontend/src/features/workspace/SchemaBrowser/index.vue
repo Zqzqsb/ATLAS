@@ -107,9 +107,9 @@ const treeData = computed(() => {
     .map(table => ({
       key: table.name,
       label: table.name,
-      prefix: () => h('div', { class: 'i-carbon-data-table text-blue-500' }),
+      prefix: () => h('div', { class: 'i-lucide-table-2 text-blue-500' }),
       suffix: () => h('div', { class: 'flex items-center gap-1' }, [
-        table.hasContext && h('div', { class: 'i-carbon-magic-wand text-purple-500 text-xs' }),
+        table.hasContext && h('div', { class: 'i-lucide-sparkles text-purple-500 text-xs' }),
         h('span', { class: 'text-xs text-gray-400' }, `${table.columns.length} cols`)
       ]),
       isLeaf: false,
@@ -118,14 +118,14 @@ const treeData = computed(() => {
         label: col.name,
         prefix: () => h('div', { 
           class: col.isPrimaryKey 
-            ? 'i-carbon-key text-yellow-500' 
+            ? 'i-lucide-key-round text-yellow-500' 
             : col.isForeignKey 
-              ? 'i-carbon-link text-green-500'
-              : 'i-carbon-column text-gray-400'
+              ? 'i-lucide-link text-green-500'
+              : 'i-lucide-columns-3 text-gray-400'
         }),
         suffix: () => h('div', { class: 'flex items-center gap-1 text-xs text-gray-400' }, [
           h('span', {}, col.type),
-          col.hasContext && h('div', { class: 'i-carbon-magic-wand text-purple-500' })
+          col.hasContext && h('div', { class: 'i-lucide-sparkles text-purple-500' })
         ]),
         isLeaf: true
       }))
@@ -175,7 +175,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           class="bg-white"
         >
           <template #prefix>
-            <div class="i-carbon-search text-gray-400" />
+            <div class="i-lucide-search text-gray-400" />
           </template>
         </NInput>
       </div>
@@ -203,7 +203,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'"
           @click="rightView = rightView === 'er' ? 'table' : 'er'"
         >
-          <div class="i-carbon-diagram-reference" />
+          <div class="i-lucide-git-branch" />
           ER Diagram
         </button>
       </div>
@@ -216,7 +216,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50/50">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
-              <div class="i-carbon-diagram-reference text-lg text-primary-600" />
+              <div class="i-lucide-git-branch text-lg text-primary-600" />
             </div>
             <h2 class="text-xl font-bold text-gray-900">Entity Relationship Diagram</h2>
             <span class="text-sm text-gray-400">
@@ -227,7 +227,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
             @click="rightView = 'table'"
           >
-            <div class="i-carbon-close" />
+            <div class="i-lucide-x" />
             Close
           </button>
         </div>
@@ -236,7 +236,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <div v-else-if="erError" class="flex flex-col items-center justify-center h-full">
             <div class="text-red-500 text-sm p-6 font-mono bg-red-50 rounded-lg border border-red-200 max-w-xl">
               <div class="font-bold mb-2 flex items-center gap-2">
-                <div class="i-carbon-warning-alt" />
+                <div class="i-lucide-alert-triangle-alt" />
                 Diagram Parse Error
               </div>
               {{ erError }}
@@ -256,7 +256,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <div class="mb-8 pb-6 border-b border-gray-100">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
-              <div class="i-carbon-data-table text-xl text-primary-600" />
+              <div class="i-lucide-table-2 text-xl text-primary-600" />
             </div>
             <h2 class="text-2xl font-bold text-gray-900">
               {{ selectedTable.name }}
@@ -269,16 +269,16 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           
           <div class="flex items-center gap-4 mt-2 text-sm text-gray-500 font-medium">
             <span class="flex items-center gap-1">
-              <div class="i-carbon-column" />
+              <div class="i-lucide-columns-3" />
               {{ selectedTable.columns.length }} Columns
             </span>
             <span v-if="selectedTable.rowCount" class="flex items-center gap-1">
-              <div class="i-carbon-row" />
+              <div class="i-lucide-rows-3" />
               ~{{ selectedTable.rowCount }} Rows
             </span>
             <NTag v-if="selectedTable.hasContext" type="success" size="small" round :bordered="false" class="font-bold">
               <template #icon>
-                <div class="i-carbon-magic-wand" />
+                <div class="i-lucide-sparkles" />
               </template>
               Rich Context Active
             </NTag>
@@ -288,7 +288,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <!-- Columns table -->
         <div class="mb-8">
           <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <div class="i-carbon-list text-primary-600" />
+            <div class="i-lucide-list text-primary-600" />
             Schema Definition
           </h3>
           <div class="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
@@ -307,10 +307,10 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
                     <div class="flex items-center gap-2">
                       <div 
                         :class="col.isPrimaryKey 
-                          ? 'i-carbon-key text-yellow-500' 
+                          ? 'i-lucide-key-round text-yellow-500' 
                           : col.isForeignKey 
-                            ? 'i-carbon-link text-green-500'
-                            : 'i-carbon-column text-gray-400'"
+                            ? 'i-lucide-link text-green-500'
+                            : 'i-lucide-columns-3 text-gray-400'"
                       />
                       <span class="font-bold text-gray-700">{{ col.name }}</span>
                     </div>
@@ -324,8 +324,8 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
                     </div>
                   </td>
                   <td class="px-4 py-3">
-                    <div v-if="col.hasContext" class="i-carbon-checkmark-filled text-primary-600" />
-                    <div v-else class="i-carbon-subtract text-gray-200" />
+                    <div v-if="col.hasContext" class="i-lucide-check-filled text-primary-600" />
+                    <div v-else class="i-lucide-minus text-gray-200" />
                   </td>
                 </tr>
               </tbody>
@@ -336,7 +336,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <!-- Related contexts -->
         <div v-if="tableContexts.length">
           <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <div class="i-carbon-idea text-primary-600" />
+            <div class="i-lucide-lightbulb text-primary-600" />
             Related Context ({{ tableContexts.length }})
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -360,14 +360,14 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
       <!-- No selection -->
       <div v-else class="h-full flex flex-col items-center justify-center text-gray-400">
         <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-          <div class="i-carbon-data-table text-3xl opacity-50" />
+          <div class="i-lucide-table-2 text-3xl opacity-50" />
         </div>
         <p class="font-medium">Select a table to view details</p>
         <button
           class="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 transition-colors cursor-pointer"
           @click="rightView = 'er'"
         >
-          <div class="i-carbon-diagram-reference" />
+          <div class="i-lucide-git-branch" />
           View ER Diagram
         </button>
       </div>

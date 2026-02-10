@@ -361,9 +361,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 <template>
   <div class="query-chat min-h-full bg-gray-50 p-6">
     <!-- Control Panel -->
-    <div class="control-panel mb-8 p-8 rounded-xl bg-white border border-gray-200 shadow-sm">
+    <div class="control-panel mb-6 p-5 rounded-lg bg-white border border-gray-200">
       <!-- Parameters (at top) -->
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-6 p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100 mb-5">
         <!-- Model Selection -->
         <div class="param-item">
           <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Model</label>
@@ -405,7 +405,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </div>
 
       <!-- Question Input -->
-      <div class="mb-8">
+      <div class="mb-5">
         <div class="relative">
           <NInput
             v-model:value="question"
@@ -422,20 +422,20 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
 
         <!-- Example questions - Collapsible -->
-        <div class="mt-6 example-collapse">
+        <div class="mt-4 example-collapse">
           <NCollapse :default-expanded-names="['examples']" arrow-placement="left">
             <NCollapseItem name="examples">
               <template #header>
                 <div class="flex items-center gap-2">
-                  <span class="text-base font-semibold text-gray-700">Example Questions</span>
-                  <span class="text-sm text-gray-400 font-medium">(Spider Benchmark)</span>
+                  <span class="text-sm font-medium text-gray-600">Example Questions</span>
+                  <span class="text-xs text-gray-400">(Spider Benchmark)</span>
                 </div>
               </template>
               <div class="flex flex-wrap gap-3 pt-2">
                 <button
                   v-for="example in exampleQuestions"
                   :key="example"
-                  class="text-base px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-all font-medium border border-gray-200 hover:border-primary-200 hover:shadow-sm"
+                  class="text-sm px-3 py-2 rounded-md bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors font-medium border border-gray-200 hover:border-primary-200"
                   @click="useExample(example)"
                 >
                   {{ example }}
@@ -447,46 +447,46 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </div>
 
       <!-- Action Buttons -->
-      <div class="flex items-center gap-4 mt-8">
+      <div class="flex items-center gap-3 mt-5">
         <button
           :disabled="!question.trim() || isExecuting"
-          class="execute-btn flex items-center gap-3 px-8 py-3.5 rounded-xl text-white font-bold text-base transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          class="execute-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           :class="isExecuting 
-            ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/30 animate-pulse' 
-            : 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700 shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 hover:-translate-y-0.5'"
+            ? 'bg-amber-500 hover:bg-amber-600' 
+            : 'bg-primary-600 hover:bg-primary-700'"
           @click="handleExecute"
         >
-          <div v-if="isExecuting" class="i-carbon-circle-dash animate-spin text-lg" />
-          <div v-else class="i-carbon-play text-lg" />
+          <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin" />
+          <div v-else class="i-lucide-play" />
           {{ isExecuting ? 'Executing...' : 'Execute Query' }}
         </button>
 
         <button
           v-if="isExecuting"
-          class="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold text-base hover:from-red-600 hover:to-rose-700 shadow-lg shadow-red-500/30 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors"
           @click="handleStop"
         >
-          <div class="i-carbon-stop text-lg" />
+          <div class="i-lucide-square" />
           Stop
         </button>
 
         <button
           :disabled="isExecuting"
-          class="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white text-gray-700 font-bold text-base border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 shadow-sm hover:shadow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           @click="handleClear"
         >
-          <div class="i-carbon-clean text-lg" />
+          <div class="i-lucide-eraser" />
           Clear
         </button>
       </div>
     </div>
 
     <!-- Real-time Execution Cards -->
-    <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <!-- Stage 1: Vector Search -->
       <RealtimeCard
         title="Vector Search"
-        icon="i-carbon-search"
+        icon="i-lucide-search"
         :active="vectorSearchStage.active"
         :stage="workspaceStore.groundingStage"
         :completed="vectorSearchStage.completed"
@@ -497,7 +497,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <!-- Skeleton screen: shows table names from local cache while waiting for backend -->
           <div v-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
             <div class="flex items-center gap-2 mb-2">
-              <div class="i-carbon-table-alias text-sm text-blue-400" />
+            <div class="i-lucide-table-2 text-sm text-blue-400" />
               <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Analyzing {{ workspaceStore.skeletonTables.length }} tables...</span>
             </div>
             <div class="space-y-2">
@@ -515,7 +515,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <div v-else-if="vectorSearchStage.empty" class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-carbon-catalog text-3xl mb-2 opacity-40" />
+            <div class="i-lucide-folder-open text-3xl mb-2 opacity-40" />
             <span class="text-sm font-medium">No context available</span>
             <span class="text-xs mt-1 opacity-70">Generate Rich Context to enable vector retrieval</span>
           </div>
@@ -523,7 +523,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Tables with confidence -->
             <div v-if="workspaceStore.groundingResult.tables?.length">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-carbon-table-alias text-sm text-blue-600" />
+                <div class="i-lucide-table-2 text-sm text-blue-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Tables ({{ workspaceStore.groundingResult.tables.length }})</span>
               </div>
               <div class="space-y-2">
@@ -549,7 +549,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Columns grouped by table -->
             <div v-if="workspaceStore.groundingResult.columns?.length">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-carbon-column text-sm text-cyan-600" />
+                <div class="i-lucide-columns-3 text-sm text-cyan-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Columns ({{ workspaceStore.groundingResult.columns.length }})</span>
               </div>
               <div class="flex flex-wrap gap-1.5">
@@ -569,7 +569,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Join paths if any -->
             <div v-if="workspaceStore.groundingResult.joinPaths?.length">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-carbon-connect text-sm text-purple-600" />
+                <div class="i-lucide-git-merge text-sm text-purple-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Join Paths</span>
               </div>
               <div class="space-y-1">
@@ -579,7 +579,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="grounding-item flex items-center gap-2 text-xs text-gray-500 font-medium"
                 >
                   <span class="text-purple-700">{{ path.from?.table }}.{{ path.from?.column }}</span>
-                  <div class="i-carbon-arrow-right text-gray-400" />
+                  <div class="i-lucide-arrow-right text-gray-400" />
                   <span class="text-purple-700">{{ path.to?.table }}.{{ path.to?.column }}</span>
                 </div>
               </div>
@@ -591,7 +591,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <NCollapseItem name="reasoning">
                   <template #header>
                     <div class="flex items-center gap-2">
-                      <div class="i-carbon-machine-learning-model text-sm text-indigo-500" />
+                      <div class="i-lucide-brain text-sm text-indigo-500" />
                       <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">LLM Fine Selection</span>
                       <span v-if="workspaceStore.groundingResult.mode" class="px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">
                         {{ workspaceStore.groundingResult.mode }}
@@ -611,7 +611,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <NCollapseItem name="logs">
                   <template #header>
                     <div class="flex items-center gap-2">
-                      <div class="i-carbon-terminal text-sm text-gray-500" />
+                      <div class="i-lucide-terminal text-sm text-gray-500" />
                       <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Log</span>
                       <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }} queries)</span>
                     </div>
@@ -635,14 +635,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div class="i-carbon-search animate-pulse text-blue-500 text-xl" />
+            <div class="i-lucide-search animate-pulse text-blue-500 text-xl" />
             <div class="space-y-1">
               <span class="font-medium block">Searching vector database...</span>
               <span class="text-xs text-gray-400">Identifying relevant tables and columns</span>
             </div>
           </div>
           <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-carbon-search text-3xl mb-2 opacity-30" />
+            <div class="i-lucide-search text-3xl mb-2 opacity-30" />
             <span class="text-sm font-medium">Waiting for query...</span>
           </div>
         </template>
@@ -651,7 +651,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- Stage 2: Schema Linking -->
       <RealtimeCard
         title="ReAct Schema Linking"
-        icon="i-carbon-connection-signal"
+        icon="i-lucide-link"
         :active="schemaLinkingStage.active"
         :completed="schemaLinkingStage.completed"
         :duration="schemaLinkingStage.duration"
@@ -660,10 +660,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         <template #content>
           <!-- Field Suggestions Panel — shown when grounding-only completes, BEFORE any linking steps -->
           <Transition name="field-panel">
-            <div v-if="showFieldPanel && suggestedFields.length > 0" class="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200/60">
+          <div v-if="showFieldPanel && suggestedFields.length > 0" class="p-4 rounded-lg bg-purple-50 border border-purple-200">
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
-                  <div class="i-carbon-data-table text-purple-500 text-sm" />
+                  <div class="i-lucide-table-2 text-purple-500 text-sm" />
                   <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
                   <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
                   <span v-if="awaitingFieldConfirmation" class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium animate-pulse">
@@ -674,7 +674,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
                   @click="dismissFieldPanel"
                 >
-                  <div class="i-carbon-close text-sm" />
+                  <div class="i-lucide-x text-sm" />
                 </button>
               </div>
               
@@ -699,7 +699,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <!-- Action row — different buttons based on state -->
               <div class="flex items-center justify-between pt-2 border-t border-purple-100">
                 <p class="text-xs text-gray-400">
-                  <span class="i-carbon-information inline-block mr-0.5 align-middle" />
+                  <span class="i-lucide-info inline-block mr-0.5 align-middle" />
                   {{ awaitingFieldConfirmation 
                     ? 'Select the fields you want in the output, then confirm to generate SQL.' 
                     : 'Adjust fields and re-run to refine SQL output.' }}
@@ -715,7 +715,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <button
                     class="px-3 py-1.5 rounded-lg text-white font-bold text-xs shadow-sm hover:-translate-y-0.5 transition-all"
                     :class="awaitingFieldConfirmation 
-                      ? 'bg-gradient-to-r from-primary-500 to-blue-600 hover:from-primary-600 hover:to-blue-700' 
+                      ? 'bg-primary-600 hover:bg-primary-700' 
                       : 'bg-purple-600 hover:bg-purple-700'"
                     :disabled="isExecuting"
                     @click="awaitingFieldConfirmation ? confirmFieldsAndExecute() : reExecuteWithFields()"
@@ -753,13 +753,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div class="flex-1 min-w-0 space-y-3">
                   <!-- Thought -->
                   <div v-if="step.thought" class="flex items-start gap-2">
-                    <div class="i-carbon-idea text-cyan-600 mt-0.5 flex-shrink-0" />
+                    <div class="i-lucide-lightbulb text-cyan-600 mt-0.5 flex-shrink-0" />
                     <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                   </div>
                   
                   <!-- Action -->
                   <div v-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-cyan-100">
-                    <div class="i-carbon-play-filled text-teal-600 mt-0.5 flex-shrink-0" />
+                    <div class="i-lucide-play text-teal-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <span class="text-xs text-teal-700 font-mono font-bold">{{ step.action }}</span>
                       <span v-if="step.actionInput" class="text-xs text-gray-500 ml-2 font-mono">
@@ -770,7 +770,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   
                   <!-- Observation -->
                   <div v-if="step.observation" class="flex items-start gap-2">
-                    <div class="i-carbon-view text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
                     <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
                   </div>
                 </div>
@@ -780,14 +780,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <!-- Loading/Waiting states (only when field panel is NOT shown) -->
           <div v-else-if="!showFieldPanel">
             <div v-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-              <div class="i-carbon-connection-signal animate-pulse text-cyan-500 text-xl" />
+            <div class="i-lucide-link animate-pulse text-cyan-500 text-xl" />
               <div class="space-y-1">
                 <span class="font-medium block">Analyzing schema structure...</span>
                 <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
               </div>
             </div>
             <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-              <div class="i-carbon-connection-signal text-3xl mb-2 opacity-30" />
+            <div class="i-lucide-link text-3xl mb-2 opacity-30" />
               <span class="text-sm font-medium">Waiting for schema linking...</span>
             </div>
           </div>
@@ -797,7 +797,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- Stage 3: SQL Generation -->
       <RealtimeCard
         title="ReAct SQL Generation"
-        icon="i-carbon-code"
+        icon="i-lucide-code-2"
         :active="sqlGenerationStage.active"
         :completed="sqlGenerationStage.completed"
         :duration="sqlGenerationStage.duration"
@@ -834,7 +834,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   
                   <div class="flex-1 min-w-0 space-y-3">
                     <div v-if="step.thought" class="flex items-start gap-2">
-                      <div class="i-carbon-idea text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div class="i-lucide-lightbulb text-purple-600 mt-0.5 flex-shrink-0" />
                       <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                     </div>
                     
@@ -843,7 +843,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       <div class="flex items-center gap-2 bg-white p-2 rounded border"
                         :class="step.observation?.startsWith('✅') ? 'border-green-200' : step.observation?.startsWith('❌') ? 'border-red-200' : 'border-purple-100'"
                       >
-                        <div class="i-carbon-checkmark-outline mt-0.5 flex-shrink-0"
+                        <div class="i-lucide-check-circle mt-0.5 flex-shrink-0"
                           :class="step.observation?.startsWith('✅') ? 'text-green-600' : step.observation?.startsWith('❌') ? 'text-red-600' : 'text-pink-600'"
                         />
                         <span class="text-xs font-mono font-bold"
@@ -863,7 +863,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                           <NCollapseItem name="explain">
                             <template #header>
                               <div class="flex items-center gap-2">
-                                <div class="i-carbon-analytics text-sm"
+                                <div class="i-lucide-bar-chart-3 text-sm"
                                   :class="step.observation?.startsWith('✅') ? 'text-green-500' : 'text-red-500'"
                                 />
                                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Plan</span>
@@ -877,7 +877,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                               <div class="px-3 py-2 text-xs font-medium flex items-center gap-2"
                                 :class="step.observation?.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
                               >
-                                <div :class="step.observation?.startsWith('✅') ? 'i-carbon-checkmark-filled' : 'i-carbon-warning-alt'" />
+                                <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" />
                                 {{ step.observation?.startsWith('✅') ? 'Query passed verification' : 'Query has issues' }}
                               </div>
                               <!-- Full plan detail -->
@@ -892,13 +892,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                     
                     <!-- Regular action (non-verify_sql) -->
                     <div v-else-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
-                      <div class="i-carbon-play-filled text-pink-600 mt-0.5 flex-shrink-0" />
+                      <div class="i-lucide-play text-pink-600 mt-0.5 flex-shrink-0" />
                       <span class="text-xs text-pink-600 font-mono font-bold">{{ step.action }}</span>
                     </div>
                     
                     <!-- Observation for non-verify_sql actions -->
                     <div v-if="step.observation && step.action !== 'verify_sql'" class="flex items-start gap-2">
-                      <div class="i-carbon-view text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
                       <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
                     </div>
                   </div>
@@ -909,7 +909,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Generated SQL Preview -->
             <div v-if="sqlGenerationStage.sql" class="mt-4 p-4 rounded-lg bg-gray-900 border border-gray-800 shadow-inner sql-highlight-enter">
               <div class="flex items-center gap-2 mb-3 border-b border-gray-800 pb-2">
-                <div class="i-carbon-checkmark-filled text-green-400" />
+                <div class="i-lucide-check text-green-400" />
                 <span class="text-xs text-green-400 font-bold uppercase tracking-wide">SQL Generated</span>
               </div>
               <pre class="text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
@@ -918,14 +918,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Loading state -->
             <div v-if="!sqlGenerationStage.steps.length && !sqlGenerationStage.sql">
               <div v-if="sqlGenerationStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-                <div class="i-carbon-code animate-pulse text-purple-500 text-xl" />
+            <div class="i-lucide-code-2 animate-pulse text-purple-500 text-xl" />
                 <div class="space-y-1">
                   <span class="font-medium block">Generating SQL query...</span>
                   <span class="text-xs text-gray-400">Building optimized query from context</span>
                 </div>
               </div>
               <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-                <div class="i-carbon-code text-3xl mb-2 opacity-30" />
+            <div class="i-lucide-code-2 text-3xl mb-2 opacity-30" />
                 <span class="text-sm font-medium">Waiting for SQL generation...</span>
               </div>
             </div>

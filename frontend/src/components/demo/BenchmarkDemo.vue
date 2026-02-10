@@ -9,7 +9,7 @@ const store = useDemoStore()
     <!-- Title -->
     <div class="card p-6">
       <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-        <span class="i-carbon-chart-line text-blue-500" />
+        <span class="i-lucide-trending-up text-blue-500" />
         基准测试
       </h2>
       <p class="text-gray-600 text-sm">
@@ -50,7 +50,7 @@ const store = useDemoStore()
         :disabled="!store.question || store.isLoading"
         class="btn-primary"
       >
-        <span v-if="store.isLoading" class="i-carbon-loading animate-spin mr-2" />
+        <span v-if="store.isLoading" class="i-lucide-loader-2 animate-spin mr-2" />
         {{ store.isLoading ? '推理中...' : '开始推理' }}
       </button>
     </div>

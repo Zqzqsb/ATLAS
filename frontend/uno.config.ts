@@ -24,29 +24,30 @@ export default defineConfig({
     transformerVariantGroup()
   ],
   shortcuts: {
-    'btn': 'px-4 py-2 rounded-lg font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm tracking-wide',
-    'btn-primary': 'btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-sm hover:shadow',
-    'btn-secondary': 'btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm',
-    'btn-success': 'btn bg-green-600 text-white hover:bg-green-700 shadow-sm',
-    'card': 'bg-white rounded-xl border border-gray-200 shadow-sm transition-all',
-    'card-hover': 'card hover:shadow-md hover:border-gray-300',
+    'btn': 'px-3.5 py-2 rounded-lg font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm',
+    'btn-primary': 'btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800',
+    'btn-secondary': 'btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300',
+    'btn-success': 'btn bg-emerald-600 text-white hover:bg-emerald-700',
+    'btn-ghost': 'btn text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+    'card': 'bg-white rounded-lg border border-gray-200 transition-colors',
+    'card-hover': 'card hover:border-gray-300',
     'flex-center': 'flex items-center justify-center',
     'flex-between': 'flex items-center justify-between',
   },
   theme: {
     colors: {
       primary: {
-        50: '#f0f5ff',
-        100: '#e0ebff',
-        200: '#c2d6ff',
-        300: '#94b5ff',
-        400: '#5e8aff',
-        500: '#3b66f5', // Academic Blue
-        600: '#254adb',
-        700: '#1d3bbf',
-        800: '#1e329b',
-        900: '#1e2d7a',
-        950: '#141b4b',
+        50: '#f0f4ff',
+        100: '#dbe4ff',
+        200: '#bac8ff',
+        300: '#91a7ff',
+        400: '#748ffc',
+        500: '#5c7cfa',
+        600: '#4c6ef5',
+        700: '#4263eb',
+        800: '#3b5bdb',
+        900: '#364fc7',
+        950: '#1e2a5e',
       }
     }
   }

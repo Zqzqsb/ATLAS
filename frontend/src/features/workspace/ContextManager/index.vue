@@ -291,7 +291,7 @@ async function handlePruneAll() {
           style="width: 240px"
         >
           <template #prefix>
-            <div class="i-carbon-search text-gray-400" />
+            <div class="i-lucide-search text-gray-400" />
           </template>
         </NInput>
 
@@ -315,7 +315,7 @@ async function handlePruneAll() {
       <div class="flex items-center gap-2">
         <NButton @click="workspaceStore.fetchContexts">
           <template #icon>
-            <div class="i-carbon-refresh" />
+            <div class="i-lucide-refresh-cw" />
           </template>
           Refresh
         </NButton>
@@ -331,7 +331,7 @@ async function handlePruneAll() {
               :disabled="filteredContexts.length === 0"
             >
               <template #icon>
-                <div class="i-carbon-trash-can" />
+                <div class="i-lucide-trash-2" />
               </template>
               Clear All
             </NButton>
@@ -346,13 +346,13 @@ async function handlePruneAll() {
           @click="openGenerateConsole"
         >
           <template #icon>
-            <div class="i-carbon-machine-learning-model" />
+            <div class="i-lucide-brain" />
           </template>
           AI Generate
         </NButton>
         <NButton type="primary" @click="openCreateDialog">
           <template #icon>
-            <div class="i-carbon-add" />
+            <div class="i-lucide-plus" />
           </template>
           Add Context
         </NButton>
@@ -382,11 +382,11 @@ async function handlePruneAll() {
       <!-- Expand/Collapse All -->
       <div class="flex gap-2 mb-4">
         <NButton size="small" quaternary @click="expandAll">
-          <template #icon><div class="i-carbon-expand-all" /></template>
+          <template #icon><div class="i-lucide-unfold-vertical" /></template>
           Expand All
         </NButton>
         <NButton size="small" quaternary @click="collapseAll">
-          <template #icon><div class="i-carbon-collapse-all" /></template>
+          <template #icon><div class="i-lucide-fold-vertical" /></template>
           Collapse All
         </NButton>
         <span class="text-sm text-gray-500 ml-auto">
@@ -407,7 +407,7 @@ async function handlePruneAll() {
           @click="toggleTable(group.tableName)"
         >
           <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <div class="i-carbon-data-table text-lg text-blue-600" />
+            <div class="i-lucide-table-2 text-lg text-blue-600" />
           </div>
           
           <span class="font-semibold text-gray-900">{{ group.tableName }}</span>
@@ -421,7 +421,7 @@ async function handlePruneAll() {
               class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
               @click.stop="openCreateDialogForTable(group.tableName)"
             >
-              <div class="i-carbon-add text-sm text-gray-600" />
+              <div class="i-lucide-plus text-sm text-gray-600" />
             </button>
             
             <!-- Modern expand/collapse indicator -->
@@ -429,7 +429,7 @@ async function handlePruneAll() {
               class="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center transition-transform duration-200"
               :class="{ 'rotate-180': expandedTables.has(group.tableName) }"
             >
-              <div class="i-carbon-chevron-down text-sm text-gray-500" />
+              <div class="i-lucide-chevron-down text-sm text-gray-500" />
             </div>
           </div>
         </div>
@@ -446,16 +446,16 @@ async function handlePruneAll() {
           >
             <div class="flex items-center gap-2 mb-2">
               <div class="w-6 h-6 rounded bg-amber-100 flex items-center justify-center">
-                <div class="i-carbon-document text-amber-600 text-sm" />
+                <div class="i-lucide-file-text text-amber-600 text-sm" />
               </div>
               <span class="text-sm font-semibold text-gray-900">Table Description</span>
               <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(group.tableContext.type)">{{ group.tableContext.type }}</span>
               <div class="ml-auto flex gap-1">
                 <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(group.tableContext!)">
-                  <div class="i-carbon-edit text-sm text-gray-500" />
+                  <div class="i-lucide-pencil text-sm text-gray-500" />
                 </button>
                 <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(group.tableContext!)">
-                  <div class="i-carbon-trash-can text-sm text-red-500" />
+                  <div class="i-lucide-trash-2 text-sm text-red-500" />
                 </button>
               </div>
             </div>
@@ -470,16 +470,16 @@ async function handlePruneAll() {
           >
             <div class="flex items-center gap-2 mb-2">
               <div class="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center">
-                <div class="i-carbon-column text-emerald-600 text-sm" />
+                <div class="i-lucide-columns-3 text-emerald-600 text-sm" />
               </div>
               <span class="text-sm font-semibold text-gray-900">{{ colCtx.columnName }}</span>
               <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(colCtx.type)">{{ colCtx.type }}</span>
               <div class="ml-auto flex gap-1">
                 <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(colCtx)">
-                  <div class="i-carbon-edit text-sm text-gray-500" />
+                  <div class="i-lucide-pencil text-sm text-gray-500" />
                 </button>
                 <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(colCtx)">
-                  <div class="i-carbon-trash-can text-sm text-red-500" />
+                  <div class="i-lucide-trash-2 text-sm text-red-500" />
                 </button>
               </div>
             </div>

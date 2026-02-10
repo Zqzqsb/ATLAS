@@ -253,7 +253,7 @@ onMounted(async () => {
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center gap-6">
           <div class="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center border border-primary-100">
-            <div class="i-carbon-bot text-3xl text-primary-600" />
+            <div class="i-lucide-bot text-3xl text-primary-600" />
           </div>
           <div>
             <h2 class="text-2xl font-bold text-gray-900">Agent Self-Maintenance</h2>
@@ -293,21 +293,21 @@ onMounted(async () => {
       <div class="flex items-center gap-4 border-b border-gray-100 pb-8 mb-8">
         <NButton type="primary" size="large" @click="runMaintenance" :disabled="!agentRunning">
           <template #icon>
-            <div class="i-carbon-renew" />
+            <div class="i-lucide-refresh-cw" />
           </template>
           Run Maintenance
         </NButton>
         
         <NButton size="large" @click="refreshContext" :disabled="!agentRunning">
           <template #icon>
-            <div class="i-carbon-reset" />
+            <div class="i-lucide-rotate-ccw" />
           </template>
           Refresh Expired Context
         </NButton>
         
         <NButton type="warning" size="large" ghost @click="openDDLModal">
           <template #icon>
-            <div class="i-carbon-sql" />
+            <div class="i-lucide-database" />
           </template>
           Simulate DDL Change
         </NButton>
@@ -316,7 +316,7 @@ onMounted(async () => {
         
         <NButton quaternary size="large" @click="fetchChangeLogs">
           <template #icon>
-            <div class="i-carbon-refresh" />
+            <div class="i-lucide-refresh-cw" />
           </template>
           Refresh Logs
         </NButton>
@@ -325,7 +325,7 @@ onMounted(async () => {
       <!-- Last maintenance result -->
       <div v-if="agentStatus?.last_result" class="p-6 rounded-xl bg-gray-50 border border-gray-200">
         <div class="flex items-center gap-2 mb-4">
-          <div class="i-carbon-time text-gray-500" />
+          <div class="i-lucide-clock text-gray-500" />
           <span class="text-sm font-medium text-gray-500">
             Last Run: {{ new Date(agentStatus.last_run).toLocaleString() }}
           </span>
@@ -363,7 +363,7 @@ onMounted(async () => {
         <div class="stat-card p-6 rounded-xl bg-white border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all">
           <div class="flex items-center gap-4 mb-4">
             <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-              <div class="i-carbon-query text-2xl text-blue-600" />
+              <div class="i-lucide-search text-2xl text-blue-600" />
             </div>
             <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Total Queries</span>
           </div>
@@ -375,7 +375,7 @@ onMounted(async () => {
         <div class="stat-card p-6 rounded-xl bg-white border border-gray-200 hover:shadow-lg hover:border-green-200 transition-all">
           <div class="flex items-center gap-4 mb-4">
             <div class="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
-              <div class="i-carbon-time text-2xl text-green-600" />
+              <div class="i-lucide-clock text-2xl text-green-600" />
             </div>
             <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Avg Duration</span>
           </div>
@@ -387,7 +387,7 @@ onMounted(async () => {
         <div class="stat-card p-6 rounded-xl bg-white border border-gray-200 hover:shadow-lg hover:border-amber-200 transition-all">
           <div class="flex items-center gap-4 mb-4">
             <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-              <div class="i-carbon-checkmark-filled text-2xl text-amber-600" />
+              <div class="i-lucide-check-filled text-2xl text-amber-600" />
             </div>
             <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Success Rate</span>
           </div>
@@ -399,7 +399,7 @@ onMounted(async () => {
         <div class="stat-card p-6 rounded-xl bg-white border border-gray-200 hover:shadow-lg hover:border-purple-200 transition-all">
           <div class="flex items-center gap-4 mb-4">
             <div class="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
-              <div class="i-carbon-magic-wand text-2xl text-purple-600" />
+              <div class="i-lucide-sparkles text-2xl text-purple-600" />
             </div>
             <span class="text-sm font-bold text-gray-500 uppercase tracking-wide">Context Usage</span>
           </div>
@@ -415,7 +415,7 @@ onMounted(async () => {
         <div class="log-panel p-6 rounded-xl bg-white border border-gray-200 shadow-sm h-full">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <div class="i-carbon-activity text-xl text-primary-600" />
+              <div class="i-lucide-activity text-xl text-primary-600" />
               <h3 class="text-xl font-bold text-gray-900">Change Logs</h3>
             </div>
             <NTag type="info" size="small" round>{{ changeLogs.length }} records</NTag>
@@ -441,12 +441,12 @@ onMounted(async () => {
         <div class="log-panel p-6 rounded-xl bg-white border border-gray-200 shadow-sm h-full">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-              <div class="i-carbon-recently-viewed text-xl text-blue-600" />
+              <div class="i-lucide-history text-xl text-blue-600" />
               <h3 class="text-xl font-bold text-gray-900">Query History</h3>
             </div>
             <NButton secondary size="tiny" @click="workspaceStore.fetchQueryHistory">
               <template #icon>
-                <div class="i-carbon-refresh" />
+                <div class="i-lucide-refresh-cw" />
               </template>
               Refresh
             </NButton>
@@ -472,7 +472,7 @@ onMounted(async () => {
     <NModal v-model:show="showDDLModal" preset="card" title="Simulate DDL Change" style="width: 700px;" size="huge">
       <div class="space-y-6">
         <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 flex gap-3">
-          <div class="i-carbon-information text-blue-600 text-lg mt-0.5 shrink-0" />
+          <div class="i-lucide-info text-blue-600 text-lg mt-0.5 shrink-0" />
           <p class="text-sm text-blue-800">
             Enter a DDL statement to simulate a schema change. The Agent will detect this change and automatically update the affected Rich Context without manual intervention.
           </p>
@@ -506,7 +506,7 @@ onMounted(async () => {
         <!-- Result display -->
         <div v-if="ddlResult" class="p-5 rounded-lg bg-gray-50 border border-gray-200">
           <div class="flex items-center gap-2 mb-4">
-            <div class="i-carbon-checkmark-filled text-green-600" />
+            <div class="i-lucide-check-filled text-green-600" />
             <span class="font-bold text-green-700">DDL Processed Successfully</span>
           </div>
           
@@ -550,7 +550,7 @@ onMounted(async () => {
           <NButton @click="showDDLModal = false" size="medium">Cancel</NButton>
           <NButton type="primary" :loading="simulatingDDL" @click="simulateDDL" size="medium">
             <template #icon>
-              <div class="i-carbon-play" />
+              <div class="i-lucide-play" />
             </template>
             Execute Change
           </NButton>

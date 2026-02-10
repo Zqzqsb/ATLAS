@@ -6,9 +6,9 @@ import type { ComparisonCase } from '@/types'
 const store = useDemoStore()
 
 const categories = [
-  { key: 'dirty_data', label: '脏数据处理', icon: 'i-carbon-clean', color: 'orange' },
-  { key: 'complex_schema', label: '复杂Schema', icon: 'i-carbon-diagram', color: 'blue' },
-  { key: 'business_rule', label: '业务规则', icon: 'i-carbon-rule', color: 'purple' }
+  { key: 'dirty_data', label: '脏数据处理', icon: 'i-lucide-eraser', color: 'orange' },
+  { key: 'complex_schema', label: '复杂Schema', icon: 'i-lucide-git-branch', color: 'blue' },
+  { key: 'business_rule', label: '业务规则', icon: 'i-lucide-scale', color: 'purple' }
 ] as const
 
 const groupedCases = computed(() => {
@@ -31,7 +31,7 @@ function selectCase(c: ComparisonCase) {
     <!-- Title -->
     <div class="card p-6">
       <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-        <span class="i-carbon-compare text-blue-500" />
+        <span class="i-lucide-columns-2 text-blue-500" />
         Rich Context 效果对比
       </h2>
       <p class="text-gray-600 text-sm">
@@ -71,7 +71,7 @@ function selectCase(c: ComparisonCase) {
     <!-- Comparison Result -->
     <div v-if="store.selectedCase" class="card p-6">
       <h3 class="font-medium mb-4 flex items-center gap-2">
-        <span class="i-carbon-task text-blue-500" />
+        <span class="i-lucide-clipboard-check text-blue-500" />
         测试用例: {{ store.selectedCase.name }}
       </h3>
       
@@ -83,7 +83,7 @@ function selectCase(c: ComparisonCase) {
 
       <!-- Loading -->
       <div v-if="store.isComparing" class="flex-center py-12">
-        <div class="animate-spin i-carbon-loading text-3xl text-blue-500" />
+        <div class="animate-spin i-lucide-loader-2 text-3xl text-blue-500" />
         <span class="ml-3 text-gray-600">正在执行对比测试...</span>
       </div>
 
@@ -157,7 +157,7 @@ function selectCase(c: ComparisonCase) {
 
     <!-- No case selected -->
     <div v-else class="card p-12 text-center text-gray-500">
-      <span class="i-carbon-touch-1 text-4xl mb-3 block" />
+      <span class="i-lucide-pointer text-4xl mb-3 block" />
       请选择一个测试用例开始对比
     </div>
   </div>

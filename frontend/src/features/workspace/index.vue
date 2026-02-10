@@ -18,10 +18,10 @@ const workspaceStore = useWorkspaceStore()
 const databaseStore = useDatabaseStore()
 
 const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
-  { key: 'query', label: 'Query', icon: 'i-carbon-chat' },
-  { key: 'schema', label: 'Schema', icon: 'i-carbon-data-table' },
-  { key: 'context', label: 'Context', icon: 'i-carbon-document' },
-  { key: 'monitor', label: 'Monitor', icon: 'i-carbon-analytics' }
+  { key: 'query', label: 'Query', icon: 'i-lucide-message-square' },
+  { key: 'schema', label: 'Schema', icon: 'i-lucide-table-2' },
+  { key: 'context', label: 'Context', icon: 'i-lucide-file-text' },
+  { key: 'monitor', label: 'Monitor', icon: 'i-lucide-bar-chart-3' }
 ]
 
 // Spider database name patterns
@@ -115,28 +115,28 @@ function goBack() {
 </script>
 
 <template>
-  <div class="workspace-page min-h-screen bg-gradient-to-br from-slate-100 via-gray-50 to-blue-50/50">
+  <div class="workspace-page min-h-screen bg-slate-50">
     <!-- Loading state -->
     <div v-if="workspaceStore.loadingSchema" class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <div class="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-          <div class="i-carbon-data-base text-3xl text-primary-600 animate-pulse" />
+        <div class="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center mx-auto mb-3">
+          <div class="i-lucide-database text-2xl text-primary-600 animate-pulse" />
         </div>
-        <p class="text-gray-500 font-medium">Loading database schema...</p>
+        <p class="text-gray-500 text-sm">Loading database schema...</p>
       </div>
     </div>
 
     <!-- Database not found -->
     <div v-else-if="!workspaceStore.currentDatabase" class="flex items-center justify-center h-screen">
       <div class="text-center">
-        <div class="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
-          <div class="i-carbon-warning text-3xl text-red-500" />
+        <div class="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center mx-auto mb-3">
+          <div class="i-lucide-alert-triangle text-2xl text-red-500" />
         </div>
-        <p class="text-xl text-gray-900 font-bold mb-2">Database not found</p>
-        <p class="text-gray-500 mb-6">The database may not exist or is not connected</p>
-        <NButton type="primary" @click="goBack">
+        <p class="text-lg text-gray-900 font-medium mb-1">Database not found</p>
+        <p class="text-gray-400 text-sm mb-5">The database may not exist or is not connected</p>
+        <NButton type="primary" size="small" @click="goBack">
           <template #icon>
-            <div class="i-carbon-arrow-left" />
+            <div class="i-lucide-arrow-left" />
           </template>
           Back to Home
         </NButton>
@@ -145,32 +145,32 @@ function goBack() {
 
     <!-- Workspace content -->
     <template v-else>
-      <!-- Database header - modernized -->
-      <div class="database-header bg-gradient-to-r from-white via-white to-slate-50/80 border-b border-gray-200/80 px-8 py-5 sticky top-0 z-20 backdrop-blur-sm">
+      <!-- Database header -->
+      <div class="database-header bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-20">
         <div class="max-w-[1800px] mx-auto">
-          <div class="flex items-center gap-5">
+          <div class="flex items-center gap-4">
             <button 
-              class="group w-11 h-11 rounded-xl bg-gradient-to-br from-gray-100 to-slate-200 flex items-center justify-center shadow-md hover:shadow-lg hover:from-primary-50 hover:to-blue-100 hover:-translate-y-0.5 transition-all duration-200"
+              class="group w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-primary-50 transition-colors"
               @click="goBack"
             >
-              <div class="i-carbon-arrow-left text-xl text-gray-600 group-hover:text-primary-600 transition-colors" />
+              <div class="i-lucide-arrow-left text-lg text-gray-500 group-hover:text-primary-600 transition-colors" />
             </button>
             
-            <div class="flex items-center gap-4 flex-1">
+            <div class="flex items-center gap-3 flex-1">
               <!-- Spider mode: special icon -->
               <div 
-                class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                class="w-10 h-10 rounded-lg flex items-center justify-center"
                 :class="isSpiderMode 
-                  ? 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/30' 
-                  : 'bg-gradient-to-br from-primary-500 to-blue-600 shadow-primary-500/30'"
+                  ? 'bg-violet-100 text-violet-600' 
+                  : 'bg-primary-50 text-primary-600'"
               >
-                <span v-if="isSpiderMode" class="text-2xl">🕷️</span>
-                <div v-else class="i-carbon-data-base text-2xl text-white" />
+                <span v-if="isSpiderMode" class="text-xl">🕷️</span>
+                <div v-else class="i-lucide-database text-xl" />
               </div>
 
               <div class="flex-1">
-                <div class="flex items-center gap-4">
-                  <h1 class="text-2xl font-bold text-gray-900 leading-tight">
+                <div class="flex items-center gap-3">
+                  <h1 class="text-lg font-semibold text-gray-900">
                     <template v-if="isSpiderMode">
                       Spider Dataset
                     </template>
@@ -180,14 +180,14 @@ function goBack() {
                   </h1>
                   
                   <!-- Spider scenario switcher -->
-                  <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-2">
+                  <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-1.5">
                     <button
                       v-for="scenario in spiderScenarios"
                       :key="scenario.id"
-                      class="scenario-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200"
+                      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
                       :class="scenario.id === currentScenarioId 
-                        ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-600'"
+                        ? 'bg-violet-100 text-violet-700' 
+                        : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-600'"
                       @click="switchSpiderScenario(scenario.id)"
                     >
                       <span>{{ scenario.icon }}</span>
@@ -196,27 +196,27 @@ function goBack() {
                   </div>
                 </div>
                 
-                <div class="flex items-center gap-3 mt-1.5">
+                <div class="flex items-center gap-2.5 mt-1">
                   <span 
-                    class="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide shadow-sm"
+                    class="px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide"
                     :class="isSpiderMode 
-                      ? 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700' 
-                      : 'bg-gradient-to-r from-gray-100 to-slate-200 text-gray-700'"
+                      ? 'bg-violet-50 text-violet-600' 
+                      : 'bg-gray-100 text-gray-600'"
                   >
                     {{ isSpiderMode ? 'Text-to-SQL Benchmark' : workspaceStore.currentDatabase.type }}
                   </span>
-                  <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-sm font-medium text-gray-500 flex items-center gap-1.5">
-                    <div class="i-carbon-ibm-cloud-citrix-daas text-gray-400" />
+                  <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-sm text-gray-400 flex items-center gap-1">
+                    <div class="i-lucide-server text-gray-400 text-xs" />
                     {{ workspaceStore.currentDatabase.host }}
                   </span>
-                  <div class="w-1.5 h-1.5 rounded-full bg-gray-300"></div>
-                  <span class="text-sm font-semibold text-gray-600">
+                  <div class="w-1 h-1 rounded-full bg-gray-300"></div>
+                  <span class="text-sm text-gray-500">
                     {{ workspaceStore.currentDatabase.tableCount }} tables
                   </span>
                   <template v-if="workspaceStore.hasRichContext">
-                    <div class="w-1.5 h-1.5 rounded-full bg-primary-400"></div>
-                    <span class="text-sm font-bold text-primary-600 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-50">
-                      <div class="i-carbon-magic-wand" />
+                    <div class="w-1 h-1 rounded-full bg-primary-400"></div>
+                    <span class="text-sm text-primary-600 flex items-center gap-1 px-2 py-0.5 rounded bg-primary-50">
+                      <div class="i-lucide-sparkles text-xs" />
                       {{ workspaceStore.contexts.length }} contexts
                     </span>
                   </template>
@@ -228,11 +228,11 @@ function goBack() {
       </div>
 
       <!-- Tab navigation -->
-      <div class="tab-navigation bg-white border-b border-gray-200 px-8 sticky top-[105px] z-10">
+      <div class="tab-navigation bg-white border-b border-gray-200 px-6 sticky top-[73px] z-10">
         <div class="max-w-[1800px] mx-auto">
           <NTabs 
             type="line"
-            size="large"
+            size="medium"
             :value="workspaceStore.activeTab"
             @update:value="handleTabChange"
           >
@@ -243,9 +243,9 @@ function goBack() {
               :tab="tab.label"
             >
               <template #tab>
-                <div class="flex items-center gap-2.5 py-1">
-                  <div :class="[tab.icon, 'text-lg']" />
-                  <span class="text-base font-medium">{{ tab.label }}</span>
+                <div class="flex items-center gap-2 py-0.5">
+                  <div :class="[tab.icon, 'text-base']" />
+                  <span class="text-sm font-medium">{{ tab.label }}</span>
                 </div>
               </template>
             </NTabPane>
@@ -254,7 +254,7 @@ function goBack() {
       </div>
 
       <!-- Tab content -->
-      <div class="workspace-content max-w-[1800px] mx-auto p-8">
+      <div class="workspace-content max-w-[1800px] mx-auto p-6">
         <QueryChat v-if="workspaceStore.activeTab === 'query'" />
         <SchemaBrowser v-else-if="workspaceStore.activeTab === 'schema'" />
         <ContextManager v-else-if="workspaceStore.activeTab === 'context'" />
@@ -266,6 +266,6 @@ function goBack() {
 
 <style scoped>
 .workspace-content {
-  min-height: calc(100vh - 200px);
+  min-height: calc(100vh - 180px);
 }
 </style>

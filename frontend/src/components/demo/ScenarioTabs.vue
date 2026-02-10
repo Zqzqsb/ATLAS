@@ -4,9 +4,9 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 type ScenarioKey = 'benchmark' | 'comparison' | 'selfmaintain'
 
 const scenarios: { key: ScenarioKey; label: string; icon: string; badge: string }[] = [
-  { key: 'comparison', label: 'Context 效果对比', icon: 'i-carbon-compare', badge: '核心' },
-  { key: 'selfmaintain', label: '自维持演示', icon: 'i-carbon-recycle', badge: 'NEW' },
-  { key: 'benchmark', label: '基准测试', icon: 'i-carbon-chart-line', badge: '' }
+  { key: 'comparison', label: 'Context 效果对比', icon: 'i-lucide-columns-2', badge: '核心' },
+  { key: 'selfmaintain', label: '自维持演示', icon: 'i-lucide-refresh-cw', badge: 'NEW' },
+  { key: 'benchmark', label: '基准测试', icon: 'i-lucide-trending-up', badge: '' }
 ]
 
 const model = defineModel<ScenarioKey>()

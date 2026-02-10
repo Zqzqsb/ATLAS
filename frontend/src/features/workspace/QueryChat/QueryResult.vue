@@ -121,7 +121,7 @@ function submitFeedback() {
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center border border-green-100">
-            <div class="i-carbon-sql text-xl text-green-600" />
+            <div class="i-lucide-database text-xl text-green-600" />
           </div>
           <div>
             <h3 class="font-bold text-gray-900">Generated SQL</h3>
@@ -144,7 +144,7 @@ function submitFeedback() {
                   :disabled="feedbackGiven !== null"
                   @click="handleQuickFeedback('positive')"
                 >
-                  <div class="i-carbon-thumbs-up" />
+                  <div class="i-lucide-thumbs-up" />
                 </NButton>
               </template>
               SQL is correct
@@ -159,7 +159,7 @@ function submitFeedback() {
                   :disabled="feedbackGiven !== null"
                   @click="handleQuickFeedback('negative')"
                 >
-                  <div class="i-carbon-thumbs-down" />
+                  <div class="i-lucide-thumbs-down" />
                 </NButton>
               </template>
               SQL has issues
@@ -173,21 +173,21 @@ function submitFeedback() {
             @click="copySql"
           >
             <template #icon>
-              <div class="i-carbon-copy" />
+              <div class="i-lucide-copy" />
             </template>
             Copy
           </NButton>
 
           <NTag v-if="loading" type="warning" size="small">
             <template #icon>
-              <div class="i-carbon-hourglass animate-spin" />
+              <div class="i-lucide-loader-2 animate-spin" />
             </template>
             Executing...
           </NTag>
 
           <NTag v-if="feedbackGiven" :type="feedbackGiven === 'positive' ? 'success' : 'warning'" size="small">
             <template #icon>
-              <div :class="feedbackGiven === 'positive' ? 'i-carbon-checkmark' : 'i-carbon-warning'" />
+              <div :class="feedbackGiven === 'positive' ? 'i-lucide-check' : 'i-lucide-alert-triangle'" />
             </template>
             {{ feedbackGiven === 'positive' ? 'Marked Correct' : 'Marked for Review' }}
           </NTag>
@@ -198,7 +198,7 @@ function submitFeedback() {
       <div v-if="error" class="p-6 bg-red-50 border-l-4 border-red-500">
         <div class="flex items-start justify-between">
           <div class="flex items-start gap-3">
-            <div class="i-carbon-warning text-xl text-red-500 flex-shrink-0 mt-1" />
+            <div class="i-lucide-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
             <div>
               <h4 class="text-red-700 font-bold mb-1">Error</h4>
               <p class="text-sm text-red-600">{{ error }}</p>
@@ -206,7 +206,7 @@ function submitFeedback() {
           </div>
           <NButton size="small" type="error" ghost @click="emit('retry')">
             <template #icon>
-              <div class="i-carbon-reset" />
+              <div class="i-lucide-rotate-ccw" />
             </template>
             Retry
           </NButton>
@@ -226,7 +226,7 @@ function submitFeedback() {
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
-            <div class="i-carbon-data-table text-xl text-blue-600" />
+            <div class="i-lucide-table-2 text-xl text-blue-600" />
           </div>
           <div>
             <h3 class="font-bold text-gray-900">Query Result</h3>
@@ -243,7 +243,7 @@ function submitFeedback() {
         >
           <NButton quaternary size="small">
             <template #icon>
-              <div class="i-carbon-download" />
+              <div class="i-lucide-download" />
             </template>
             Export
           </NButton>
@@ -306,7 +306,7 @@ function submitFeedback() {
     <!-- Empty State -->
     <div v-if="!sql && !error && !hasResult" class="p-12 text-center bg-gray-50/50">
       <div class="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center mx-auto mb-4">
-        <div class="i-carbon-query text-3xl text-gray-400" />
+        <div class="i-lucide-search text-3xl text-gray-400" />
       </div>
       <p class="text-gray-500 font-medium">No query result yet</p>
     </div>
@@ -330,7 +330,7 @@ function submitFeedback() {
         
         <div class="p-3 rounded-lg bg-blue-50 border border-blue-100">
           <div class="flex items-start gap-2">
-            <div class="i-carbon-information text-blue-600 mt-0.5" />
+            <div class="i-lucide-info text-blue-600 mt-0.5" />
             <p class="text-xs text-blue-800 font-medium">
               Your feedback will be used to update the Rich Context, helping the system generate better SQL in the future.
             </p>
@@ -343,7 +343,7 @@ function submitFeedback() {
           <NButton @click="showFeedbackModal = false">Cancel</NButton>
           <NButton type="primary" @click="submitFeedback">
             <template #icon>
-              <div class="i-carbon-send" />
+              <div class="i-lucide-send" />
             </template>
             Submit Feedback
           </NButton>

@@ -282,6 +282,35 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			SendSSE(c.Writer, "grounding_error", map[string]string{"error": groundingErr.Error()})
 			flusher.Flush()
 		} else if groundingInfo != nil {
+			// Progressive SSE: send 3 separate events so frontend renders step-by-step
+			// Step 1: Retrieval results (tables, columns, join_paths) → Vector Search card
+			SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
+				"tables":            groundingInfo.Tables,
+				"columns":           groundingInfo.Columns,
+				"join_paths":        groundingInfo.JoinPaths,
+				"execution_time_ms": groundingInfo.ExecutionTimeMs,
+			})
+			flusher.Flush()
+			time.Sleep(150 * time.Millisecond) // Let browser render
+
+			// Step 2: Linking agent results (reasoning, logs, mode) → Schema Linking card
+			SendSSE(c.Writer, "linking_complete", map[string]interface{}{
+				"reasoning":      groundingInfo.Reasoning,
+				"mode":           groundingInfo.Mode,
+				"execution_logs": groundingInfo.ExecutionLogs,
+			})
+			flusher.Flush()
+			time.Sleep(150 * time.Millisecond) // Let browser render
+
+			// Step 3: Field suggestions → Field alignment panel in Schema Linking card
+			if len(groundingInfo.SuggestedFields) > 0 {
+				SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
+					"suggested_fields": groundingInfo.SuggestedFields,
+				})
+				flusher.Flush()
+			}
+
+			// Also send the full grounding_complete for downstream use (extractLinkedContext etc.)
 			SendSSE(c.Writer, "grounding_complete", groundingInfo)
 			flusher.Flush()
 		}

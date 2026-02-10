@@ -72,7 +72,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const generatedSql = ref('')
   const reactSteps = ref<ReActStep[]>([])
   const groundingResult = ref<GroundingResult | null>(null)
-  const groundingStage = ref<'idle' | 'stage1' | 'stage2' | 'done'>('idle')
+  const groundingStage = ref<'idle' | 'stage1' | 'retrieval_done' | 'stage2' | 'done'>('idle')
   const usedContexts = ref<RichContext[]>([])
   const queryDuration = ref(0)
   const executionResult = ref<any[] | null>(null)
@@ -404,10 +404,80 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           case 'grounding_stage2':
             groundingStage.value = 'stage2'
             break
+          case 'retrieval_complete': {
+            // Progressive Step 1: retrieval results only → Vector Search card
+            groundingStage.value = 'retrieval_done'
+            showSkeleton.value = false
+            // Build partial grounding result with only retrieval data
+            const partialRetrieval = transformGroundingResult({
+              tables: event.data.tables,
+              columns: event.data.columns,
+              join_paths: event.data.join_paths,
+              execution_time_ms: event.data.execution_time_ms,
+            })
+            if (partialRetrieval) {
+              // Merge into existing or create new
+              groundingResult.value = {
+                ...groundingResult.value,
+                ...partialRetrieval,
+              } as GroundingResult
+            }
+            break
+          }
+          case 'linking_complete': {
+            // Progressive Step 2: linking agent results → Schema Linking card
+            groundingStage.value = 'stage2'
+            if (groundingResult.value) {
+              groundingResult.value = {
+                ...groundingResult.value,
+                reasoning: event.data.reasoning || '',
+                mode: event.data.mode || '',
+                executionLogs: (event.data.execution_logs || []).map((log: any) => ({
+                  phase: log.phase,
+                  sql: log.sql,
+                  result_count: log.result_count,
+                  duration_ms: log.duration_ms,
+                  summary: log.summary
+                })),
+              }
+            }
+            break
+          }
+          case 'field_suggestions': {
+            // Progressive Step 3: field suggestions → Field alignment panel
+            if (groundingResult.value) {
+              groundingResult.value = {
+                ...groundingResult.value,
+                suggestedFields: (event.data.suggested_fields || []).map((f: any) => ({
+                  tableName: f.table_name,
+                  columnName: f.column_name,
+                  reason: f.reason || '',
+                  selected: f.selected !== false
+                })),
+              }
+            }
+            break
+          }
           case 'grounding_complete':
             groundingStage.value = 'done'
-            // Transform backend format to frontend format
-            groundingResult.value = transformGroundingResult(event.data)
+            // Full grounding result — merge any remaining fields not yet sent
+            // (this ensures downstream extractLinkedContext has everything)
+            if (!groundingResult.value) {
+              groundingResult.value = transformGroundingResult(event.data)
+            } else {
+              // Only fill in what's missing (don't overwrite progressive data)
+              const full = transformGroundingResult(event.data)
+              if (full) {
+                groundingResult.value = {
+                  ...full,
+                  ...groundingResult.value,
+                  // Ensure suggestedFields from full result is used if not set yet
+                  suggestedFields: groundingResult.value.suggestedFields?.length
+                    ? groundingResult.value.suggestedFields
+                    : full.suggestedFields,
+                }
+              }
+            }
             break
           case 'context_retrieved':
             usedContexts.value = event.data.contexts || []

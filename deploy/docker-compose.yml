@@ -28,6 +28,7 @@ services:
       - "${LUCID_FRONTEND_PORT:-19000}:80"
     environment:
       - BACKEND_URL=http://lucid-backend:19001
+      - TZ=${TZ:-Asia/Shanghai}
     depends_on:
       backend:
         condition: service_healthy
@@ -61,6 +62,7 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - GODEBUG=madvdontneed=1
       - GOMAXPROCS=2
+      - TZ=${TZ:-Asia/Shanghai}
     volumes:
       # Configuration
       - ../backend/server/configs:/app/configs:ro
@@ -92,7 +94,7 @@ services:
       MARIADB_DATABASE: lucid
       MARIADB_USER: lucid
       MARIADB_PASSWORD: lucid2024
-      TZ: UTC
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - lucid-mariadb-data:/var/lib/mysql
       - ./init/mariadb:/docker-entrypoint-initdb.d:ro

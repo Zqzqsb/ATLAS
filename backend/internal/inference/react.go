@@ -355,7 +355,7 @@ Output: Query results`
 
 func (t *SQLTool) Call(ctx context.Context, input string) (string, error) {
 	t.ExecutionCount++
-	sql := strings.TrimSpace(input)
+	sql := stripCodeFence(strings.TrimSpace(input))
 
 	if t.useDryRun {
 		if _, err := t.adapter.DryRunSQL(ctx, sql); err != nil {

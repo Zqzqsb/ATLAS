@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -42,10 +43,15 @@ IMPORTANT workflow:
 
 // Call executes the verification
 func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) {
-	sql := strings.TrimSpace(input)
+	sql := stripCodeFence(strings.TrimSpace(input))
 
 	// Step 1: Static checks (fast, no DB call)
 	if err := t.quickCheck(sql); err != nil {
+		slog.Warn("[VerifySQL] Static check failed",
+			"component", "verify_sql",
+			"error", err.Error(),
+			"sql_preview", truncate(sql, 200),
+		)
 		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nYou MUST fix the error and call verify_sql again with the corrected SQL. Do NOT give Final Answer until verify_sql passes.", err)
 		t.emitResult(out)
 		return out, nil
@@ -197,11 +203,26 @@ func (t *VerifySQLTool) quickCheck(sql string) error {
 	return nil
 }
 
-// checkIllegalAliases checks for illegal alias patterns
-func (t *VerifySQLTool) checkIllegalAliases(sql string) error {
-	illegalAliasPattern := regexp.MustCompile(`(?i)\s+AS\s+([a-z_]+\s*\([^)]*\))`)
+// Patterns used by checkIllegalAliases.
+var (
+	// Matches CAST(... AS type(...)) — legitimate SQL type casting, not an alias.
+	castPattern = regexp.MustCompile(`(?i)CAST\s*\([^)]*\s+AS\s+[A-Z_]+\s*\([^)]*\)\s*\)`)
+	// Matches CONVERT(expr, type(...)) — also legitimate.
+	convertPattern = regexp.MustCompile(`(?i)CONVERT\s*\([^,]+,\s*[A-Z_]+\s*\([^)]*\)\s*\)`)
+	// Detects "AS func(...)" which is an illegal alias (e.g. SELECT x AS count(*)).
+	illegalAliasPattern = regexp.MustCompile(`(?i)\s+AS\s+([a-z_]+\s*\([^)]*\))`)
+)
 
-	matches := illegalAliasPattern.FindAllStringSubmatch(sql, -1)
+// checkIllegalAliases checks for illegal alias patterns like "AS count(*)".
+// It first strips CAST/CONVERT expressions to avoid false positives on
+// legitimate syntax like "CAST(x AS DECIMAL(10,2))".
+func (t *VerifySQLTool) checkIllegalAliases(sql string) error {
+	// Remove CAST(... AS TYPE(...)) and CONVERT(x, TYPE(...)) so they
+	// don't get mistaken for column aliases.
+	cleaned := castPattern.ReplaceAllString(sql, "/*CAST*/")
+	cleaned = convertPattern.ReplaceAllString(cleaned, "/*CONVERT*/")
+
+	matches := illegalAliasPattern.FindAllStringSubmatch(cleaned, -1)
 	if len(matches) > 0 {
 		aliases := make([]string, 0, len(matches))
 		for _, match := range matches {
@@ -231,6 +252,28 @@ func (t *VerifySQLTool) checkParentheses(sql string) error {
 		return fmt.Errorf("unmatched opening parenthesis: %d unclosed", stack)
 	}
 	return nil
+}
+
+// stripCodeFence removes markdown code fences (```sql ... ``` or ``` ... ```)
+// that LLMs frequently wrap around SQL output.
+func stripCodeFence(s string) string {
+	trimmed := strings.TrimSpace(s)
+	// Handle ```sql\n...\n``` or ```\n...\n```
+	if strings.HasPrefix(trimmed, "```") {
+		// Remove opening fence line
+		idx := strings.Index(trimmed, "\n")
+		if idx >= 0 {
+			trimmed = trimmed[idx+1:]
+		} else {
+			// Single line like ```SELECT 1```
+			trimmed = strings.TrimPrefix(trimmed, "```sql")
+			trimmed = strings.TrimPrefix(trimmed, "```")
+		}
+		// Remove closing fence
+		trimmed = strings.TrimSuffix(strings.TrimSpace(trimmed), "```")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	return trimmed
 }
 
 // NewVerifySQLTool creates a verification tool
@@ -290,4 +333,12 @@ func convertQueryResultFormat(data []map[string]interface{}) [][]string {
 	}
 
 	return result
+}
+
+// truncate shortens a string to maxLen, appending "..." if truncated.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

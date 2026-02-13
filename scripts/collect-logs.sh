@@ -63,7 +63,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo "      grounding.log   - [Ground] Semantic Grounding agent"
     echo "      linking.log     - [Link] Schema Linking agent"
     echo "      react.log       - ReAct agent (schema linking & SQL gen)"
-    echo "      sqlgen.log      - [Execute] SQL generation pipeline"
+    echo "      sqlgen.log      - [Execute] SQL generation + [Connect/ExecuteQuery] DB adapter"
     echo "      lakebase.log    - [Lakebase] Lake-Base storage operations"
     echo "      embedding.log   - Embedding operations"
     echo "      agent.log       - [Agent] Self-maintenance agent"
@@ -188,6 +188,12 @@ route_backend_line() {
         *"[Execute]"*|*"SQL gen"*|*"sql_gen"*|*"Generated SQL"*)
             agent_file="$AGENT_DIR/sqlgen.log"
             ;;
+        *"[Connect]"*|*"[ExecuteQuery]"*|*"mysql_adapter"*)
+            agent_file="$AGENT_DIR/sqlgen.log"
+            ;;
+        *"[NewService]"*|*"grounding_service"*)
+            agent_file="$AGENT_DIR/grounding.log"
+            ;;
         *"[Lakebase]"*|*"[SyncSchema]"*|*"[SyncAllSchemas]"*|*"Lake-Base"*|*"Rich Context"*|*"rich context"*|*"rc_"*)
             agent_file="$AGENT_DIR/lakebase.log"
             ;;
@@ -258,9 +264,7 @@ collect_log() {
         if [ "$KEEP_COLOR" = true ]; then
             docker logs $docker_opts "$container" 2>&1 | \
                 while IFS= read -r line; do
-                    local ts
-                    ts=$(date '+%H:%M:%S')
-                    local tagged="[$ts][$short_name] $line"
+                    local tagged="[$short_name] $line"
                     echo "$tagged" >> "$log_file"
                     echo "$tagged" >> "$all_log"
                     # Route backend lines to agent-specific files
@@ -272,9 +276,7 @@ collect_log() {
             docker logs $docker_opts "$container" 2>&1 | \
                 sed -u "$STRIP_ANSI" | \
                 while IFS= read -r line; do
-                    local ts
-                    ts=$(date '+%H:%M:%S')
-                    local tagged="[$ts][$short_name] $line"
+                    local tagged="[$short_name] $line"
                     echo "$tagged" >> "$log_file"
                     echo "$tagged" >> "$all_log"
                     # Route backend lines to agent-specific files

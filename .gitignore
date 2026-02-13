@@ -56,3 +56,5 @@ Thumbs.db
 # === Private ===
 iterations/
 paper/
+
+spider/*

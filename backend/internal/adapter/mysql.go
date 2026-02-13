@@ -7,6 +7,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+
+	"lucid/internal/logger"
 )
 
 // MySQLAdapter MySQL适配器
@@ -33,6 +35,14 @@ func NewMySQLAdapter(config *MySQLConfig) *MySQLAdapter {
 
 // Connect 连接数据库
 func (a *MySQLAdapter) Connect(ctx context.Context) error {
+	log := logger.With("component", "mysql_adapter")
+	log.Info("[Connect] Connecting to database",
+		"host", a.config.Host,
+		"port", a.config.Port,
+		"database", a.config.Database,
+		"user", a.config.User,
+	)
+
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		a.config.User,
 		a.config.Password,
@@ -43,14 +53,19 @@ func (a *MySQLAdapter) Connect(ctx context.Context) error {
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
+		log.Error("[Connect] Failed to open database", "error", err)
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
 	// 测试连接
 	if err := db.PingContext(ctx); err != nil {
+		log.Error("[Connect] Failed to ping database", "error", err)
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
+	log.Info("[Connect] Database connected successfully",
+		"database", a.config.Database,
+	)
 	a.db = db
 	return nil
 }
@@ -65,19 +80,33 @@ func (a *MySQLAdapter) Close() error {
 
 // ExecuteQuery 执行查询
 func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryResult, error) {
+	log := logger.With("component", "mysql_adapter")
 	start := time.Now()
+
+	log.Info("[ExecuteQuery] Executing SQL",
+		"database", a.config.Database,
+		"query", query,
+	)
 
 	rows, err := a.db.QueryContext(ctx, query)
 	if err != nil {
+		elapsed := time.Since(start)
+		log.Error("[ExecuteQuery] Query failed",
+			"database", a.config.Database,
+			"query", query,
+			"error", err,
+			"duration", elapsed.Round(time.Millisecond),
+		)
 		return &QueryResult{
 			Error:         err.Error(),
-			ExecutionTime: time.Since(start).Milliseconds(),
+			ExecutionTime: elapsed.Milliseconds(),
 		}, err
 	}
 	defer rows.Close()
 
 	columns, err := rows.Columns()
 	if err != nil {
+		log.Error("[ExecuteQuery] Failed to get columns", "error", err)
 		return nil, err
 	}
 
@@ -89,6 +118,7 @@ func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryRe
 			valuePtrs[i] = &values[i]
 		}
 		if err := rows.Scan(valuePtrs...); err != nil {
+			log.Error("[ExecuteQuery] Failed to scan row", "error", err)
 			return nil, err
 		}
 		row := make(map[string]interface{})
@@ -104,14 +134,24 @@ func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryRe
 	}
 
 	if err := rows.Err(); err != nil {
+		log.Error("[ExecuteQuery] Row iteration error", "error", err)
 		return nil, err
 	}
+
+	elapsed := time.Since(start)
+	log.Info("[ExecuteQuery] Query completed",
+		"database", a.config.Database,
+		"row_count", len(result),
+		"column_count", len(columns),
+		"columns", columns,
+		"duration", elapsed.Round(time.Millisecond),
+	)
 
 	return &QueryResult{
 		Columns:       columns,
 		Rows:          result,
 		RowCount:      len(result),
-		ExecutionTime: time.Since(start).Milliseconds(),
+		ExecutionTime: elapsed.Milliseconds(),
 	}, nil
 }
 

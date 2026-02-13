@@ -304,12 +304,32 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 
 	// 3. Execute SQL
 	if sql != "" {
+		log.Info("[Execute] Executing generated SQL",
+			"sql", sql,
+			"database", p.config.DBName,
+		)
 		execResult, err := p.adapter.ExecuteQuery(ctx, sql)
-		if err == nil {
+		if err != nil {
+			log.Error("[Execute] SQL execution failed",
+				"sql", sql,
+				"error", err,
+			)
+		} else {
 			result.ExecutionResult = execResult
 			result.SQLExecutions++
+			log.Info("[Execute] SQL execution completed",
+				"row_count", execResult.RowCount,
+				"columns", execResult.Columns,
+				"execution_time_ms", execResult.ExecutionTime,
+			)
 		}
 	}
+
+	log.Info("[Execute] Pipeline complete",
+		"total_time", time.Since(startTime).Round(time.Millisecond),
+		"llm_calls", result.LLMCalls,
+		"sql_executions", result.SQLExecutions,
+	)
 
 	return result, nil
 }

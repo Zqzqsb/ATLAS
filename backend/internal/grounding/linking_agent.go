@@ -122,8 +122,10 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 	}
 
 	rawResponse := resp.Choices[0].Content
-	log.Debug("[Link] LLM raw response",
+	log.Info("[Link] LLM response received",
 		"response_length", len(rawResponse),
+	)
+	log.Debug("[Link] LLM raw response",
 		"response", truncateLinking(rawResponse, 1000),
 	)
 

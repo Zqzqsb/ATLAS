@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
+	"lucid/internal/logger"
 )
 
 // Service provides the main entry point for Semantic Grounding.
@@ -35,6 +37,8 @@ type ServiceConfig struct {
 
 // NewService creates a new grounding service
 func NewService(cfg *ServiceConfig) *Service {
+	log := logger.With("component", "grounding_service")
+
 	if cfg.Config == nil {
 		cfg.Config = DefaultGroundingConfig()
 	}
@@ -49,6 +53,14 @@ func NewService(cfg *ServiceConfig) *Service {
 
 	if cfg.LLMModel != nil {
 		svc.pipeline = NewAdaptivePipeline(cfg.VectorRepo, cfg.Embedder, cfg.LLMModel, cfg.Config)
+		log.Info("[NewService] Grounding service created with pipeline",
+			"datasource_id", cfg.DatasourceID,
+			"scale_threshold", cfg.Config.ScaleThreshold,
+		)
+	} else {
+		log.Warn("[NewService] Grounding service created WITHOUT LLM (pipeline disabled)",
+			"datasource_id", cfg.DatasourceID,
+		)
 	}
 
 	return svc
@@ -58,7 +70,10 @@ func NewService(cfg *ServiceConfig) *Service {
 // Requires AllSchemas to be provided via AdaptiveGroundingRequest.
 // For backward compatibility, this method builds a minimal request.
 func (s *Service) Ground(ctx context.Context, req *AdaptiveGroundingRequest) (*GroundingResult, error) {
+	log := logger.With("component", "grounding_service")
+
 	if s.pipeline == nil {
+		log.Error("[Ground] Pipeline not available (LLM required)")
 		return nil, fmt.Errorf("grounding pipeline not available (LLM required)")
 	}
 
@@ -66,12 +81,31 @@ func (s *Service) Ground(ctx context.Context, req *AdaptiveGroundingRequest) (*G
 		req.DatasourceID = s.datasourceID
 	}
 
+	log.Info("[Ground] Starting grounding",
+		"query", req.Query,
+		"datasource_id", req.DatasourceID,
+		"table_count", req.TableCount,
+		"schema_count", len(req.AllSchemas),
+	)
+
 	result, err := s.pipeline.Ground(ctx, req)
 	if err != nil {
+		log.Error("[Ground] Grounding failed",
+			"query", req.Query,
+			"error", err,
+		)
 		return nil, err
 	}
 
-	return s.convertResult(result), nil
+	converted := s.convertResult(result)
+	log.Info("[Ground] Grounding completed",
+		"query", req.Query,
+		"strategy", string(result.Strategy),
+		"selected_tables", len(result.SelectedTables),
+		"total_duration", result.TotalDuration.Round(time.Millisecond),
+	)
+
+	return converted, nil
 }
 
 // GroundAdaptive is an alias for Ground for explicit adaptive grounding calls.

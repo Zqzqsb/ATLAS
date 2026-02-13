@@ -158,10 +158,23 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 		Compact: true, // SmallScale: name+type+PK/FK only, skip RC to reduce prompt size
 	}
 
+	log.Info("[SmallScale] Calling linking agent",
+		"query", req.Query,
+		"schema_count", len(req.AllSchemas),
+		"compact", true,
+	)
+
 	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
 	if err != nil {
+		log.Error("[SmallScale] Linking agent failed", "error", err)
 		return nil, fmt.Errorf("linking agent failed: %w", err)
 	}
+
+	log.Info("[SmallScale] Linking agent completed",
+		"selected_tables", len(linkResult.SelectedTables),
+		"duration", linkResult.Duration.Round(time.Millisecond),
+		"reasoning", linkResult.Reasoning,
+	)
 
 	// Build grounded context before the callback so we can push the full result
 	groundedCtx := p.buildGroundedContext(req.Query, linkResult, req.AllSchemas)

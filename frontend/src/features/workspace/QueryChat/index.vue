@@ -623,6 +623,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
         :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
         :active="vectorSearchStage.active"
+        :pending="isExecuting && !vectorSearchStage.active && !vectorSearchStage.completed"
         :stage="workspaceStore.groundingStage"
         :completed="vectorSearchStage.completed"
         :duration="vectorSearchStage.duration"
@@ -748,6 +749,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </span>
             </div>
           </div>
+          <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
+            <div class="i-lucide-search animate-pulse text-blue-400 text-xl" />
+            <div class="space-y-1">
+              <span class="font-medium block text-gray-600">Preparing vector search...</span>
+              <span class="text-xs text-gray-400">Waiting for pipeline to start</span>
+            </div>
+          </div>
           <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
             <div class="i-lucide-search text-3xl mb-2 opacity-30" />
             <span class="text-sm font-medium">Waiting for query...</span>
@@ -760,6 +768,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         title="ReAct Schema Linking"
         icon="i-lucide-link"
         :active="schemaLinkingStage.active"
+        :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"
         :completed="schemaLinkingStage.completed"
         :duration="schemaLinkingStage.duration"
         color="cyan"
@@ -1005,6 +1014,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
               </div>
             </div>
+            <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
+            <div class="i-lucide-link animate-pulse text-cyan-400 text-xl" />
+              <div class="space-y-1">
+                <span class="font-medium block text-gray-600">Waiting for schema linking...</span>
+                <span class="text-xs text-gray-400">Will start after vector retrieval completes</span>
+              </div>
+            </div>
             <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
             <div class="i-lucide-link text-3xl mb-2 opacity-30" />
               <span class="text-sm font-medium">Waiting for schema linking...</span>
@@ -1018,6 +1034,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         title="ReAct SQL Generation"
         icon="i-lucide-code-2"
         :active="sqlGenerationStage.active"
+        :pending="isExecuting && !sqlGenerationStage.active && !sqlGenerationStage.completed"
         :completed="sqlGenerationStage.completed"
         :duration="sqlGenerationStage.duration"
         color="purple"
@@ -1165,6 +1182,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div class="space-y-1">
                   <span class="font-medium block">Generating SQL query...</span>
                   <span class="text-xs text-gray-400">Building optimized query from context</span>
+                </div>
+              </div>
+              <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
+            <div class="i-lucide-code-2 animate-pulse text-purple-400 text-xl" />
+                <div class="space-y-1">
+                  <span class="font-medium block text-gray-600">Waiting for SQL generation...</span>
+                  <span class="text-xs text-gray-400">Will start after schema linking completes</span>
                 </div>
               </div>
               <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">

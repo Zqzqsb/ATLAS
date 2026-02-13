@@ -5,6 +5,7 @@ const props = defineProps<{
   title: string
   icon: string
   active: boolean
+  pending?: boolean // query started but this stage hasn't begun yet
   stage?: string
   color?: 'blue' | 'cyan' | 'purple'
   duration?: number // Duration in ms
@@ -50,32 +51,34 @@ const colorClasses = computed(() => {
         ? `bg-white border-2 ${colorClasses.border} shadow-sm`
         : completed
           ? 'bg-white border border-emerald-200'
-          : 'bg-white border border-gray-200 opacity-70'
+          : pending
+            ? `bg-white border border-dashed ${colorClasses.border} opacity-90`
+            : 'bg-white border border-gray-200 opacity-70'
     ]"
   >
     <!-- Header -->
     <div 
       class="card-header px-4 py-3 border-b transition-colors duration-200" 
-      :class="active ? colorClasses.border : completed ? 'border-emerald-100' : 'border-gray-100'"
+      :class="active ? colorClasses.border : completed ? 'border-emerald-100' : pending ? 'border-gray-200' : 'border-gray-100'"
     >
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <div 
             class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-200"
-            :class="active ? `${colorClasses.iconBg}` : completed ? 'bg-emerald-50' : 'bg-gray-100'"
+            :class="active ? `${colorClasses.iconBg}` : completed ? 'bg-emerald-50' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-100'"
           >
             <div 
               :class="[
                 icon, 
                 'text-lg transition-colors duration-200', 
-                active ? colorClasses.icon : completed ? 'text-emerald-600' : 'text-gray-400'
+                active ? colorClasses.icon : completed ? 'text-emerald-600' : pending ? `${colorClasses.icon} opacity-60` : 'text-gray-400'
               ]" 
             />
           </div>
           <div>
             <h3 
               class="font-medium text-sm transition-colors duration-200" 
-              :class="active || completed ? 'text-gray-900' : 'text-gray-400'"
+              :class="active || completed ? 'text-gray-900' : pending ? 'text-gray-600' : 'text-gray-400'"
             >
               {{ title }}
             </h3>
@@ -101,6 +104,14 @@ const colorClasses = computed(() => {
               <span v-if="duration" class="text-xs font-medium">{{ (duration / 1000).toFixed(2) }}s</span>
               <span v-else class="text-xs font-medium">Done</span>
             </div>
+          </template>
+          <template v-else-if="pending">
+            <div class="flex items-center gap-1.5">
+              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" />
+              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" style="animation-delay: 0.3s" />
+              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" style="animation-delay: 0.6s" />
+            </div>
+            <span class="text-xs text-gray-400 ml-1">Queued</span>
           </template>
         </div>
       </div>
@@ -147,6 +158,22 @@ const colorClasses = computed(() => {
   }
   50% {
     opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Pending dots animation (slower, subtler) */
+.pending-dot {
+  animation: pendingPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pendingPulse {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 0.7;
     transform: scale(1);
   }
 }

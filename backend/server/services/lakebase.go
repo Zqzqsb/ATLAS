@@ -390,8 +390,19 @@ func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config
 			Port:         sql.NullInt32{Int32: int32(dbCfg.Port), Valid: dbCfg.Port > 0},
 			Username:     sql.NullString{String: dbCfg.User, Valid: dbCfg.User != ""},
 			DatabaseName: sql.NullString{String: dbCfg.Database, Valid: dbCfg.Database != ""},
+			Description:  sql.NullString{String: dbCfg.Description, Valid: dbCfg.Description != ""},
 			Status:       "active",
 		})
+		if err != nil {
+			logger.L().Warn("SyncAllSchemas: failed to get/create datasource", "db", dbCfg.ID, "error", err)
+			continue
+		}
+
+		// Update description if it changed (GetOrCreate may return existing with old/empty description)
+		if dbCfg.Description != "" && (!ds.Description.Valid || ds.Description.String != dbCfg.Description) {
+			ds.Description = sql.NullString{String: dbCfg.Description, Valid: true}
+			_ = s.repo.UpdateDatasource(ctx, ds)
+		}
 		if err != nil {
 			logger.L().Warn("SyncAllSchemas: failed to get/create datasource", "db", dbCfg.ID, "error", err)
 			continue

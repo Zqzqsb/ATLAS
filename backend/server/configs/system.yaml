@@ -32,6 +32,7 @@ databases:
     user: "root"
     password: "lucid_root_2024"
     database: "spider_tvshow"
+    description: "TV show & channel queries — inference pipeline demo"
 
   # Spider Flight
   - id: "spider_flight"
@@ -42,6 +43,7 @@ databases:
     user: "root"
     password: "lucid_root_2024"
     database: "spider_flight"
+    description: "Airport & flight queries — multi-table join demo"
 
   # Spider WTA Tennis
   - id: "spider_wta"
@@ -52,6 +54,18 @@ databases:
     user: "root"
     password: "lucid_root_2024"
     database: "spider_wta"
+    description: "WTA tennis rankings & matches — complex schema demo (8 tables)"
+
+  # Evolution Demo
+  - id: "lucid_evolution"
+    name: "Lucid Evolution"
+    type: "mysql"
+    host: "lucid-mariadb"
+    port: 3306
+    user: "lucid"
+    password: "lucid2024"
+    database: "lucid_evolution"
+    description: "Agent self-maintenance — 5-stage DDL evolution demo"
 
 react:
   max_iterations: 5

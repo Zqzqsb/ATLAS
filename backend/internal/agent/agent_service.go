@@ -377,3 +377,5 @@ func (s *AgentService) GetChangeLogSummary(ctx context.Context, dsID int64, limi
 func (s *AgentService) GetRecentChanges(ctx context.Context, dsID int64, limit int) ([]*lakebase.ChangeLog, error) {
 	return s.logger.GetRecentChanges(ctx, dsID, limit)
 }
+
+

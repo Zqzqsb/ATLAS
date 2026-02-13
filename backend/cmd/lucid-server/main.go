@@ -263,6 +263,13 @@ func main() {
 		api.POST("/evolution/reset", h.ResetEvolution)
 		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
+		// Agent routes
+		api.GET("/agent/status", h.GetAgentStatus)
+		api.GET("/agent/logs/:id", h.GetAgentChangeLogs)
+		api.GET("/agent/logs/:id/summary", h.GetAgentChangeLogSummary)
+		api.POST("/agent/maintenance/:id", h.RunAgentMaintenance)
+		api.POST("/agent/refresh/:id", h.TriggerContextRefresh)
+
 		// Grounding is integrated into text2sql pipeline — no standalone routes needed
 	}
 

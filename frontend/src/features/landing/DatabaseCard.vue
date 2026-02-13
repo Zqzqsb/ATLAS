@@ -99,6 +99,9 @@ async function handleDelete(e: Event) {
             <span class="px-1.5 py-0.5 rounded bg-gray-100 font-bold text-gray-600">{{ database.type.toUpperCase() }}</span>
             <span v-if="database.host" class="text-gray-400 truncate">{{ database.host }}</span>
           </p>
+          <p v-if="database.description" class="text-xs text-gray-400 mt-1 truncate" :title="database.description">
+            {{ database.description }}
+          </p>
         </div>
 
         <!-- Status indicator with pulse -->

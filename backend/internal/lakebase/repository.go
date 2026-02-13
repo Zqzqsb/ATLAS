@@ -522,6 +522,17 @@ func (r *MySQLRepository) GetContextByDatasource(ctx context.Context, dsID int64
 	return r.queryBusinessContext(ctx, query, dsID)
 }
 
+// GetExpiredContextByDatasource returns only expired context for a datasource.
+func (r *MySQLRepository) GetExpiredContextByDatasource(ctx context.Context, dsID int64) ([]*BusinessContext, error) {
+	query := `
+		SELECT id, datasource_id, table_name, column_name, context_type, content, source, confidence,
+		       is_expired, expires_at, version, created_at, updated_at, created_by, updated_by, update_reason
+		FROM rc_business_context WHERE datasource_id = ? AND is_expired = 1
+		ORDER BY table_name, column_name, context_type
+	`
+	return r.queryBusinessContext(ctx, query, dsID)
+}
+
 func (r *MySQLRepository) GetContextByTable(ctx context.Context, dsID int64, tableName string) ([]*BusinessContext, error) {
 	query := `
 		SELECT id, datasource_id, table_name, column_name, context_type, content, source, confidence,

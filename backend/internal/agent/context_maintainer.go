@@ -123,24 +123,7 @@ func buildExpiryReason(changes []SchemaChange) string {
 
 // GetExpiredContext retrieves all expired context for a datasource
 func (m *ContextMaintainer) GetExpiredContext(ctx context.Context, dsID int64) ([]*lakebase.BusinessContext, error) {
-	// Get all context and filter expired
-	allContext, err := m.repo.GetContextByDatasource(ctx, dsID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Note: GetContextByDatasource already filters out expired, so we need a different query
-	// For now, we'll get all context including expired using raw query
-	// This is a limitation - in production, we'd add a method to get expired context
-
-	var expired []*lakebase.BusinessContext
-	for _, bc := range allContext {
-		if bc.IsExpired {
-			expired = append(expired, bc)
-		}
-	}
-
-	return expired, nil
+	return m.repo.GetExpiredContextByDatasource(ctx, dsID)
 }
 
 // RefreshContext regenerates context for a specific entry using LLM

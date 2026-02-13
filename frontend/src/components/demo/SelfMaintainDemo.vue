@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { NButton, NTag, NProgress, NSwitch, NScrollbar, NEmpty, NTooltip, useMessage } from 'naive-ui'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { evolutionApi } from '@/api/evolution'
 import { agentApi } from '@/api/agent'
 import type { EvolutionStatus, EvolutionStage, StageExecution, ContextAction } from '@/api/evolution'
 import type { ChangeLog } from '@/api/agent'
 
 const message = useMessage()
+const workspaceStore = useWorkspaceStore()
 
 // ========================================
 // State
@@ -34,8 +36,10 @@ const changeLogs = ref<ChangeLog[]>([])
 // Auto-scroll ref
 const logScrollRef = ref<any>(null)
 
-// Datasource ID for the evolution database
-const datasourceId = ref(1) // Will be configurable
+// Datasource ID from workspace store (dynamic, not hardcoded)
+const datasourceId = computed(() => {
+  return workspaceStore.currentDatabase?.metadata?.lakebaseId ?? 1
+})
 
 // ========================================
 // Computed

@@ -354,19 +354,20 @@ func SchemaChangeToJSON(change SchemaChange) json.RawMessage {
 	return data
 }
 
-// ParseDDLStatement attempts to parse a DDL statement and detect the type of change
-// This is useful for immediate detection when DDL is executed through the system
+// ParseDDLStatement attempts to parse a DDL statement and detect the type of change.
+// Preserves original table/column name casing for correct lake-base matching.
 func ParseDDLStatement(sql string) *SchemaChange {
-	sql = strings.TrimSpace(strings.ToUpper(sql))
+	sql = strings.TrimSpace(sql)
+	upper := strings.ToUpper(sql)
 
 	// ALTER TABLE detection
-	if strings.HasPrefix(sql, "ALTER TABLE") {
+	if strings.HasPrefix(upper, "ALTER TABLE") {
 		return parseDDLAlterTable(sql)
 	}
 
 	// CREATE TABLE detection
-	if strings.HasPrefix(sql, "CREATE TABLE") {
-		tableName := extractTableName(sql, "CREATE TABLE")
+	if strings.HasPrefix(upper, "CREATE TABLE") {
+		tableName := extractTableName(sql, upper, "CREATE TABLE")
 		if tableName != "" {
 			return &SchemaChange{
 				ChangeType: ChangeTypeTableAdded,
@@ -377,8 +378,8 @@ func ParseDDLStatement(sql string) *SchemaChange {
 	}
 
 	// DROP TABLE detection
-	if strings.HasPrefix(sql, "DROP TABLE") {
-		tableName := extractTableName(sql, "DROP TABLE")
+	if strings.HasPrefix(upper, "DROP TABLE") {
+		tableName := extractTableName(sql, upper, "DROP TABLE")
 		if tableName != "" {
 			return &SchemaChange{
 				ChangeType: ChangeTypeTableDropped,
@@ -391,16 +392,15 @@ func ParseDDLStatement(sql string) *SchemaChange {
 	return nil
 }
 
-// parseDDLAlterTable parses ALTER TABLE statements
+// parseDDLAlterTable parses ALTER TABLE statements, preserving original casing.
 func parseDDLAlterTable(sql string) *SchemaChange {
-	// Extract table name
 	parts := strings.Fields(sql)
 	if len(parts) < 4 {
 		return nil
 	}
 
 	tableName := strings.Trim(parts[2], "`\"'")
-	action := parts[3]
+	action := strings.ToUpper(parts[3])
 
 	change := &SchemaChange{
 		TableName:  tableName,
@@ -410,12 +410,16 @@ func parseDDLAlterTable(sql string) *SchemaChange {
 	switch action {
 	case "ADD":
 		if len(parts) > 4 {
-			if parts[4] == "COLUMN" && len(parts) > 5 {
+			kw := strings.ToUpper(parts[4])
+			if kw == "COLUMN" && len(parts) > 5 {
 				change.ChangeType = ChangeTypeColumnAdded
 				change.ColumnName = strings.Trim(parts[5], "`\"'")
-			} else if parts[4] == "INDEX" || parts[4] == "KEY" {
+			} else if kw == "INDEX" || kw == "KEY" {
 				change.ChangeType = ChangeTypeIndexAdded
-			} else if parts[4] == "FOREIGN" {
+			} else if kw == "FOREIGN" {
+				change.ChangeType = ChangeTypeForeignKeyAdded
+			} else if kw == "CONSTRAINT" {
+				// ADD CONSTRAINT ... FOREIGN KEY (...)
 				change.ChangeType = ChangeTypeForeignKeyAdded
 			} else {
 				// Might be ADD COLUMN without COLUMN keyword
@@ -426,12 +430,13 @@ func parseDDLAlterTable(sql string) *SchemaChange {
 
 	case "DROP":
 		if len(parts) > 4 {
-			if parts[4] == "COLUMN" && len(parts) > 5 {
+			kw := strings.ToUpper(parts[4])
+			if kw == "COLUMN" && len(parts) > 5 {
 				change.ChangeType = ChangeTypeColumnDropped
 				change.ColumnName = strings.Trim(parts[5], "`\"'")
-			} else if parts[4] == "INDEX" || parts[4] == "KEY" {
+			} else if kw == "INDEX" || kw == "KEY" {
 				change.ChangeType = ChangeTypeIndexDropped
-			} else if parts[4] == "FOREIGN" {
+			} else if kw == "FOREIGN" {
 				change.ChangeType = ChangeTypeForeignKeyDropped
 			} else {
 				change.ChangeType = ChangeTypeColumnDropped
@@ -442,7 +447,12 @@ func parseDDLAlterTable(sql string) *SchemaChange {
 	case "MODIFY", "CHANGE":
 		change.ChangeType = ChangeTypeColumnModified
 		if len(parts) > 4 {
-			change.ColumnName = strings.Trim(parts[4], "`\"'")
+			kw := strings.ToUpper(parts[4])
+			if kw == "COLUMN" && len(parts) > 5 {
+				change.ColumnName = strings.Trim(parts[5], "`\"'")
+			} else {
+				change.ColumnName = strings.Trim(parts[4], "`\"'")
+			}
 		}
 	}
 
@@ -453,20 +463,30 @@ func parseDDLAlterTable(sql string) *SchemaChange {
 	return change
 }
 
-// extractTableName extracts table name from DDL statement
-func extractTableName(sql, prefix string) string {
-	sql = strings.TrimPrefix(sql, prefix)
-	sql = strings.TrimSpace(sql)
+// extractTableName extracts table name from DDL statement, preserving original casing.
+// origSQL is the original-case SQL, upperSQL is the uppercased version, prefix is the uppercased command prefix.
+func extractTableName(origSQL, upperSQL, prefix string) string {
+	// Trim the prefix from original by using the length of the prefix
+	idx := strings.Index(upperSQL, prefix)
+	if idx < 0 {
+		return ""
+	}
+	rest := strings.TrimSpace(origSQL[idx+len(prefix):])
 
 	// Handle IF EXISTS / IF NOT EXISTS
-	if strings.HasPrefix(sql, "IF") {
-		parts := strings.Fields(sql)
-		if len(parts) >= 3 {
-			sql = strings.Join(parts[2:], " ")
+	upperRest := strings.ToUpper(rest)
+	if strings.HasPrefix(upperRest, "IF") {
+		parts := strings.Fields(rest)
+		if len(parts) >= 3 && (strings.EqualFold(parts[1], "EXISTS") || strings.EqualFold(parts[1], "NOT")) {
+			if strings.EqualFold(parts[1], "NOT") && len(parts) >= 4 {
+				rest = strings.Join(parts[3:], " ")
+			} else {
+				rest = strings.Join(parts[2:], " ")
+			}
 		}
 	}
 
-	parts := strings.Fields(sql)
+	parts := strings.Fields(rest)
 	if len(parts) > 0 {
 		return strings.Trim(parts[0], "`\"'(")
 	}

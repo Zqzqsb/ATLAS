@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS rc_business_context (
     datasource_id INT NOT NULL,
     table_name VARCHAR(255) NOT NULL,
     column_name VARCHAR(255) NULL COMMENT 'NULL for table-level context',
-    context_type ENUM('description', 'example', 'constraint', 'synonym', 'value_mapping', 'business_rule', 'calculation') NOT NULL DEFAULT 'description',
+    context_type ENUM('description', 'example', 'constraint', 'synonym', 'value_mapping', 'business_rule', 'calculation', 'semantic', 'enum_meaning', 'join_hint', 'data_quality') NOT NULL DEFAULT 'description',
     content TEXT NOT NULL COMMENT 'The actual context content',
     source ENUM('catalog', 'llm', 'user', 'analysis') DEFAULT 'llm',
     confidence DECIMAL(3,2) DEFAULT 0.80 COMMENT 'Confidence score 0-1',

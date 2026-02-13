@@ -22,6 +22,7 @@ const isExecuting = computed(() => workspaceStore.isQuerying)
 const suggestedFields = ref<SuggestedFieldFromLinking[]>([])
 const showFieldPanel = ref(false)
 const awaitingFieldConfirmation = ref(false) // True when grounding-only is done, waiting for user
+const fieldPanelConsumed = ref(false) // True after user confirms/dismisses — prevents watcher re-trigger
 
 // Stage timing
 const stageTimings = ref({
@@ -259,9 +260,9 @@ const sqlGenerationStage = computed(() => {
 // Field Alignment: watch grounding result's suggestedFields specifically
 // When field alignment is on, show the panel only after field_suggestions event arrives.
 // Only populate once per query cycle — skip if user has already been shown the panel
-// (to avoid overwriting user's checkbox selections on subsequent SSE events).
+// or has already confirmed/dismissed (fieldPanelConsumed prevents re-trigger after Phase 2 starts).
 watch(() => workspaceStore.groundingResult?.suggestedFields, (fields) => {
-  if (useFieldAlignment.value && fields && fields.length > 0 && !showFieldPanel.value) {
+  if (useFieldAlignment.value && fields && fields.length > 0 && !showFieldPanel.value && !fieldPanelConsumed.value) {
     suggestedFields.value = fields.map(f => ({ ...f }))
     showFieldPanel.value = true
   }
@@ -325,6 +326,7 @@ function serializeGroundingForInjection(): any {
 // Dismiss field panel and execute full pipeline without field constraints (Phase 2: inference only)
 function dismissFieldPanel() {
   showFieldPanel.value = false
+  fieldPanelConsumed.value = true
   if (awaitingFieldConfirmation.value) {
     awaitingFieldConfirmation.value = false
     // Phase 2: skip grounding, reuse previous grounding result, no field constraints
@@ -337,6 +339,7 @@ function dismissFieldPanel() {
 async function confirmFieldsAndExecute() {
   showFieldPanel.value = false
   awaitingFieldConfirmation.value = false
+  fieldPanelConsumed.value = true
   const fieldDesc = getFieldDescription()
   const injectedGrounding = serializeGroundingForInjection()
   try {
@@ -350,6 +353,7 @@ async function confirmFieldsAndExecute() {
 // Re-execute with updated field selections (for post-SQL adjustment — also Phase 2)
 async function reExecuteWithFields() {
   showFieldPanel.value = false
+  fieldPanelConsumed.value = true
   const fieldDesc = getFieldDescription()
   const injectedGrounding = serializeGroundingForInjection()
   workspaceStore.abortCurrentQuery()
@@ -381,6 +385,7 @@ async function doExecuteGroundingOnly() {
   suggestedFields.value = []
   showFieldPanel.value = false
   awaitingFieldConfirmation.value = true
+  fieldPanelConsumed.value = false
   
   workspaceStore.queryOptions.maxIterations = maxIterations.value
   workspaceStore.queryOptions.useRichContext = useRichContext.value

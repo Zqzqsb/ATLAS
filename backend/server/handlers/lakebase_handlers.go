@@ -116,8 +116,9 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 		// Get table count for this datasource
 		tables, _ := h.lakebaseService.GetTablesByDatasource(ctx, ds.ID)
 		columns, _ := h.lakebaseService.GetColumnsByDatasource(ctx, ds.ID)
+		terms, _ := h.lakebaseService.GetTermsByDatasource(ctx, ds.ID)
 
-		// Count contexts from table and column descriptions (consistent with detail API)
+		// Count ALL context types — consistent with detail API
 		contextCount := 0
 		for _, t := range tables {
 			if t.Description.Valid && t.Description.String != "" {
@@ -128,6 +129,19 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 			if c.Description.Valid && c.Description.String != "" {
 				contextCount++
 			}
+			if c.SampleValues.Valid && c.SampleValues.String != "" {
+				contextCount++
+			}
+			if c.Synonyms.Valid && c.Synonyms.String != "" {
+				contextCount++
+			}
+		}
+		contextCount += len(terms) // business_rule contexts
+
+		// Datasource-level description
+		desc := ""
+		if ds.Description.Valid {
+			desc = ds.Description.String
 		}
 
 		result[i] = map[string]interface{}{
@@ -137,6 +151,7 @@ func (h *Handler) ListLakebaseDatasources(c *gin.Context) {
 			"host":          ds.Host,
 			"port":          ds.Port,
 			"database_name": ds.DatabaseName,
+			"description":   desc,
 			"status":        ds.Status,
 			"last_sync_at":  ds.LastSyncAt,
 			"created_at":    ds.CreatedAt,

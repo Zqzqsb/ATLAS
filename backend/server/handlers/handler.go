@@ -5,10 +5,12 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/agent"
 	"lucid/internal/config"
 	"lucid/internal/grounding"
+	"lucid/internal/logger"
 	"lucid/server/services"
 )
 
@@ -67,13 +69,26 @@ func (h *Handler) InitEvolution() {
 		return
 	}
 	h.agentService = agent.NewAgentService(pool, nil)
-	if h.agentService != nil {
-		h.evolutionService = agent.NewEvolutionService(pool, repo, h.agentService)
+	if h.agentService == nil {
+		return
 	}
+
+	// Wire LLM model into the agent service so ContextMaintainer can work
+	if llmRaw := h.inferenceService.GetLLMModel(); llmRaw != nil {
+		if llmModel, ok := llmRaw.(llms.Model); ok {
+			h.agentService.SetLLMModel(llmModel)
+			logger.L().Info("Agent service LLM model set")
+		}
+	}
+
+	h.evolutionService = agent.NewEvolutionService(pool, repo, h.agentService)
 }
 
 // Close cleans up resources.
 func (h *Handler) Close() {
+	if h.agentService != nil {
+		h.agentService.Stop()
+	}
 	if h.dbService != nil {
 		h.dbService.Close()
 	}

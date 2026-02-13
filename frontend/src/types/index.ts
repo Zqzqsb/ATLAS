@@ -364,7 +364,7 @@ export interface SSEEvent<T = any> {
 // Workspace Types
 // ============================================
 
-export type WorkspaceTab = 'query' | 'schema' | 'context' | 'monitor'
+export type WorkspaceTab = 'query' | 'schema' | 'context' | 'monitor' | 'evolution'
 
 export interface WorkspaceState {
   databaseId: string

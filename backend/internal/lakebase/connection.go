@@ -181,6 +181,11 @@ func (p *ConnectionPool) IsConnected() bool {
 	return p.db != nil && !p.closed
 }
 
+// GetConfig returns the pool's connection configuration (read-only).
+func (p *ConnectionPool) GetConfig() *Config {
+	return p.config
+}
+
 // ExecContext executes a query without returning any rows
 func (p *ConnectionPool) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	db, err := p.DB()

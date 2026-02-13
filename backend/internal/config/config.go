@@ -33,14 +33,15 @@ type LLMConfig struct {
 
 // DatabaseConfig 数据库连接配置
 type DatabaseConfig struct {
-	ID       string `yaml:"id" json:"id"`
-	Name     string `yaml:"name" json:"name"`
-	Type     string `yaml:"type" json:"type"` // mysql, mariadb
-	Host     string `yaml:"host" json:"host"`
-	Port     int    `yaml:"port" json:"port"`
-	User     string `yaml:"user" json:"user"`
-	Password string `yaml:"password" json:"password"`
-	Database string `yaml:"database" json:"database"`
+	ID          string `yaml:"id" json:"id"`
+	Name        string `yaml:"name" json:"name"`
+	Type        string `yaml:"type" json:"type"` // mysql, mariadb
+	Host        string `yaml:"host" json:"host"`
+	Port        int    `yaml:"port" json:"port"`
+	User        string `yaml:"user" json:"user"`
+	Password    string `yaml:"password" json:"password"`
+	Database    string `yaml:"database" json:"database"`
+	Description string `yaml:"description" json:"description"`
 }
 
 // ReactConfig ReAct配置

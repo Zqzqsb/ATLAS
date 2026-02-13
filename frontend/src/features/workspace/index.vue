@@ -11,18 +11,35 @@ import QueryChat from './QueryChat/index.vue'
 import SchemaBrowser from './SchemaBrowser/index.vue'
 import ContextManager from './ContextManager/index.vue'
 import Monitor from './Monitor/index.vue'
+import SelfMaintainDemo from '@/components/demo/SelfMaintainDemo.vue'
 
 const route = useRoute()
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const databaseStore = useDatabaseStore()
 
-const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
+const baseTabs: { key: WorkspaceTab; label: string; icon: string }[] = [
   { key: 'query', label: 'Query', icon: 'i-lucide-message-square' },
   { key: 'schema', label: 'Schema', icon: 'i-lucide-table-2' },
   { key: 'context', label: 'Context', icon: 'i-lucide-file-text' },
   { key: 'monitor', label: 'Monitor', icon: 'i-lucide-bar-chart-3' }
 ]
+
+// Whether current database is the evolution demo DB
+const isEvolutionDb = computed(() => {
+  return workspaceStore.currentDatabase?.name === 'lucid_evolution'
+})
+
+// Tabs — include Evolution tab only for evolution demo DB
+const tabs = computed(() => {
+  if (isEvolutionDb.value) {
+    return [
+      ...baseTabs,
+      { key: 'evolution' as WorkspaceTab, label: 'Evolution', icon: 'i-lucide-git-branch' }
+    ]
+  }
+  return baseTabs
+})
 
 // Spider database name patterns
 const SPIDER_PATTERNS = ['spider_tvshow', 'spider_flight', 'spider_wta']
@@ -162,9 +179,12 @@ function goBack() {
                 class="w-10 h-10 rounded-lg flex items-center justify-center"
                 :class="isSpiderMode 
                   ? 'bg-violet-100 text-violet-600' 
-                  : 'bg-primary-50 text-primary-600'"
+                  : isEvolutionDb 
+                    ? 'bg-amber-100 text-amber-600'
+                    : 'bg-primary-50 text-primary-600'"
               >
                 <span v-if="isSpiderMode" class="text-xl">🕷️</span>
+                <span v-else-if="isEvolutionDb" class="text-xl">🧬</span>
                 <div v-else class="i-lucide-database text-xl" />
               </div>
 
@@ -259,6 +279,7 @@ function goBack() {
         <SchemaBrowser v-else-if="workspaceStore.activeTab === 'schema'" />
         <ContextManager v-else-if="workspaceStore.activeTab === 'context'" />
         <Monitor v-else-if="workspaceStore.activeTab === 'monitor'" />
+        <SelfMaintainDemo v-else-if="workspaceStore.activeTab === 'evolution' && isEvolutionDb" />
       </div>
     </template>
   </div>

@@ -2,14 +2,21 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tmc/langchaingo/llms"
 
 	"lucid/internal/agent"
+	"lucid/internal/lakebase"
 	"lucid/internal/logger"
+	"lucid/internal/react"
+	"lucid/internal/react/scenarios"
+	reacttools "lucid/internal/react/tools"
 )
 
 // GetEvolutionStatus returns the current evolution demo state
@@ -185,17 +192,39 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 			return
 		case event, ok := <-events:
 			if !ok {
-				// Channel closed — send final result
+				// Channel closed — stage execution finished
 				if execErr != nil {
 					SendSSE(c.Writer, "error", map[string]interface{}{
 						"error": execErr.Error(),
 					})
-				} else {
-					SendSSE(c.Writer, "execution_complete", map[string]interface{}{
-						"success":   true,
-						"execution": execution,
-					})
+					flusher.Flush()
+					return
 				}
+
+				// Regenerate embeddings after successful stage
+				if h.lakebaseService != nil {
+					SendSSE(c.Writer, "embedding_update", map[string]interface{}{
+						"phase":   "embed",
+						"message": "Updating vector embeddings...",
+					})
+					flusher.Flush()
+
+					embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(reqCtx, req.DatasourceID)
+					if embErr != nil {
+						logger.L().Warn("Embedding generation after stage failed", "error", embErr)
+					} else if embResult != nil {
+						SendSSE(c.Writer, "embedding_complete", map[string]interface{}{
+							"phase":   "embed",
+							"message": fmt.Sprintf("Updated %d embeddings", embResult.TotalEmbeddings),
+						})
+						flusher.Flush()
+					}
+				}
+
+				SendSSE(c.Writer, "execution_complete", map[string]interface{}{
+					"success":   true,
+					"execution": execution,
+				})
 				flusher.Flush()
 				return
 			}
@@ -229,7 +258,7 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 		return
 	}
 
-	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
 	defer cancel()
 
 	if err := h.evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
@@ -239,15 +268,15 @@ func (h *Handler) ResetEvolution(c *gin.Context) {
 		return
 	}
 
-	// Re-sync schema to lake-base
-	if err := h.evolutionService.SyncSchemaToLakebase(reqCtx, req.DatasourceID); err != nil {
-		// Non-fatal: log warning
-		logger.L().Warn("Failed to sync schema after reset", "error", err)
+	// Run real onboarding pipeline
+	onboardErr := h.runOnboardingForDatasource(reqCtx, req.DatasourceID, "lucid_evolution", func(_, _ string) {})
+	if onboardErr != nil {
+		logger.L().Warn("Onboarding during reset failed", "error", onboardErr)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
-		"message":       "Reset to initial state",
+		"message":       "Reset to initial state with onboarding",
 		"current_stage": 0,
 	})
 }
@@ -286,7 +315,8 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 		return
 	}
 
-	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	// Longer timeout — the ReAct agent may take several minutes
+	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
 	defer cancel()
 
 	sendStep := func(phase, msg string) {
@@ -317,9 +347,17 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 		sendStep("sync_schema_done", "Schema synced to lake-base")
 	}
 
-	// Step 3: Regenerate context
-	sendStep("generate_context", "Regenerating initial Rich Context...")
-	// Context regeneration could be triggered here if needed
+	// Step 3: Run real Onboarding ReAct Agent to generate Rich Context
+	sendStep("generate_context", "Running Onboarding ReAct agent to explore database and generate Rich Context...")
+
+	onboardErr := h.runOnboardingForDatasource(reqCtx, req.DatasourceID, "lucid_evolution", func(phase, msg string) {
+		sendStep(phase, msg)
+	})
+	if onboardErr != nil {
+		sendStep("generate_context_warn", "Onboarding warning: "+onboardErr.Error())
+	} else {
+		sendStep("generate_context_done", "Onboarding ReAct agent completed — Rich Context generated from real data")
+	}
 
 	// Complete
 	SendSSE(c.Writer, "reset_complete", map[string]interface{}{
@@ -330,3 +368,122 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	flusher.Flush()
 }
 
+// runOnboardingForDatasource runs the real Onboarding ReAct pipeline for an
+// already-registered datasource. This is the same pipeline used when a user
+// clicks "Onboard" on a new database — ReAct agent queries real data, discovers
+// distributions, and writes Rich Context + embeddings.
+//
+// connectionID must match an entry in system.yaml databases[] so we can get a
+// DBAdapter that points at the live business database.
+func (h *Handler) runOnboardingForDatasource(
+	ctx context.Context,
+	dsID int64,
+	connectionID string,
+	progress func(phase, msg string),
+) error {
+	// 1. Get a live DB adapter for the business database
+	adapter, err := h.dbService.GetAdapter(connectionID)
+	if err != nil {
+		return fmt.Errorf("failed to get adapter for %s: %w", connectionID, err)
+	}
+
+	// 2. Ensure lakebase service is available
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		return fmt.Errorf("lakebase service not available")
+	}
+
+	// 3. Use lakebase SyncSchema to properly sync via information_schema
+	// (replaces the evolution-specific SyncSchemaToLakebase which is less complete)
+	syncResult, err := h.lakebaseService.SyncSchema(ctx, dsID, adapter)
+	if err != nil {
+		return fmt.Errorf("schema sync failed: %w", err)
+	}
+	progress("schema_synced", fmt.Sprintf("Schema synced: %d tables, %d columns, %d relations",
+		syncResult.TablesCount, syncResult.ColumnsCount, syncResult.RelationsCount))
+
+	// 4. Load schema metadata for the ReAct prompt
+	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		return fmt.Errorf("failed to load tables: %w", err)
+	}
+	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, dsID)
+	if err != nil {
+		return fmt.Errorf("failed to load columns: %w", err)
+	}
+	relations, _ := h.lakebaseService.GetRelationsByDatasource(ctx, dsID)
+
+	// 5. Get LLM model
+	llmModelInterface := h.inferenceService.GetLLMModel()
+	if llmModelInterface == nil {
+		return fmt.Errorf("LLM not available")
+	}
+	llmModel, ok := llmModelInterface.(llms.Model)
+	if !ok {
+		return fmt.Errorf("LLM type assertion failed")
+	}
+
+	// 6. Build and run the ReAct onboarding engine
+	progress("react_start", "ReAct agent exploring database...")
+
+	repo := h.lakebaseService.GetRepository()
+	rcWriter := reacttools.NewLakebaseRCWriter(repo)
+
+	engineCfg := scenarios.BuildOnboardingEngine(adapter, rcWriter, scenarios.OnboardingConfig{
+		DatasourceID:  dsID,
+		DBType:        "mysql",
+		Tables:        tables,
+		Columns:       columns,
+		Relations:     relations,
+		MaxIterations: 20,
+		MinIterations: 5,
+		StepCallback: func(step react.Step, eventType string) {
+			msg := ""
+			if step.Thought != "" {
+				msg = step.Thought
+			}
+			if step.Action != "" {
+				msg = fmt.Sprintf("[%s] %v", step.Action, step.ActionInput)
+			}
+			if len(msg) > 200 {
+				msg = msg[:200] + "..."
+			}
+			progress("react_"+eventType, msg)
+		},
+	})
+
+	engine := react.New(llmModel, engineCfg)
+	result, err := engine.Execute(ctx, "")
+	if err != nil {
+		return fmt.Errorf("ReAct agent failed: %w", err)
+	}
+	progress("react_complete", fmt.Sprintf("Agent finished in %d iterations, %dms",
+		result.Iterations, result.Duration.Milliseconds()))
+
+	// 7. Generate embeddings from the newly written Rich Context
+	progress("embedding_start", "Generating vector embeddings...")
+
+	embResult, err := h.lakebaseService.GenerateAndSaveEmbeddings(ctx, dsID)
+	if err != nil {
+		logger.L().Warn("Embedding generation warning", "error", err)
+		progress("embedding_warn", "Embedding warning: "+err.Error())
+	} else if embResult != nil {
+		progress("embedding_done", fmt.Sprintf("Generated %d embeddings", embResult.TotalEmbeddings))
+	}
+
+	// 8. Log change
+	changeDetail, _ := json.Marshal(map[string]interface{}{
+		"tables":     syncResult.TablesCount,
+		"columns":    syncResult.ColumnsCount,
+		"iterations": result.Iterations,
+		"trigger":    "evolution_reset",
+	})
+	h.lakebaseService.CreateChangeLog(ctx, &lakebase.ChangeLog{
+		DatasourceID:  dsID,
+		ChangeType:    lakebase.ChangeTypeContextUpdate,
+		ChangeDetail:  changeDetail,
+		TriggerSource: lakebase.TriggerSourceSystem,
+		ChangeReason:  "Evolution reset — onboarding completed",
+	})
+
+	return nil
+}

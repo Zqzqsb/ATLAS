@@ -21,8 +21,9 @@ import (
 // EngineConfig configures a ReAct engine instance for a specific scenario.
 type EngineConfig struct {
 	// Hyperparams
-	MaxIterations int // Max ReAct iterations (what we tell the LLM)
-	MinIterations int // Minimum iterations before allowing early stop (informational, embedded in prompt)
+	MaxIterations    int // Max ReAct iterations (what we tell the LLM)
+	MinIterations    int // Minimum iterations before allowing early stop (informational, embedded in prompt)
+	ActualMaxOverride int // If > 0, use this as the actual max instead of MaxIterations*3. Set to 0 for default behaviour.
 
 	// Prompt
 	SystemPrompt string // The full prompt including goals, workflow, examples
@@ -36,6 +37,17 @@ type EngineConfig struct {
 	// Cross-cutting
 	LogMode string // "simple" | "full" | "quiet"
 	Verbose bool   // Extra logging
+}
+
+// ObservationInjectable is implemented by tools that need direct observation
+// injection (bypassing langchaingo's unreliable HandleToolEnd).
+type ObservationInjectable interface {
+	SetObservationInjector(injector ObservationInjector)
+}
+
+// ObservationInjector pushes observations into the ReAct handler.
+type ObservationInjector interface {
+	InjectObservation(output string)
 }
 
 // StepCallback is invoked on each ReAct step for real-time streaming.
@@ -89,10 +101,20 @@ func (e *Engine) Execute(ctx context.Context, input string) (*Result, error) {
 		stepCallback: e.config.StepCallback,
 	}
 
+	// Wire up observation injection for tools that need it
+	for _, tool := range e.config.Tools {
+		if injectable, ok := tool.(ObservationInjectable); ok {
+			injectable.SetObservationInjector(handler)
+		}
+	}
+
 	// Actual iterations: give the agent more room than what we claim in the prompt
-	actualMax := e.config.MaxIterations * 3
-	if actualMax < 15 {
-		actualMax = 15
+	actualMax := e.config.ActualMaxOverride
+	if actualMax <= 0 {
+		actualMax = e.config.MaxIterations * 3
+		if actualMax < 15 {
+			actualMax = 15
+		}
 	}
 
 	executor, err := agents.Initialize(

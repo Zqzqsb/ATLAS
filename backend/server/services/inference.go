@@ -48,14 +48,6 @@ func (s *InferenceService) SwitchModel(modelID string) error {
 	return s.engine.SwitchModel(modelID)
 }
 
-// GetCurrentModel returns the current model ID
-func (s *InferenceService) GetCurrentModel() string {
-	if s.engine == nil {
-		return ""
-	}
-	return s.engine.GetCurrentModel()
-}
-
 // GetEngine returns the underlying inference engine.
 func (s *InferenceService) GetEngine() InferenceEngineInterface {
 	return s.engine

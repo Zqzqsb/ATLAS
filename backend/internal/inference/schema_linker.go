@@ -6,12 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/tools"
 
 	"lucid/internal/adapter"
 	"lucid/internal/react"
+	"lucid/internal/react/scenarios"
 )
 
 // SchemaLinker defines the interface for identifying relevant tables.
@@ -23,7 +22,7 @@ type SchemaLinker interface {
 type TableInfo struct {
 	Name        string
 	Columns     []string
-	ForeignKeys []ForeignKeyRef // Uses inference-local type
+	ForeignKeys []ForeignKeyRef
 	Description string
 }
 
@@ -43,7 +42,7 @@ func NewLLMSchemaLinker(llm llms.Model, dbAdapter adapter.DBAdapter, useReact bo
 	}
 }
 
-// Link 执行 Schema Linking
+// Link performs Schema Linking.
 func (l *LLMSchemaLinker) Link(ctx context.Context, query string, allTables map[string]*TableInfo) ([]string, []ReActStep, error) {
 	if l.useReact {
 		return l.linkWithReact(ctx, query, allTables)
@@ -51,9 +50,8 @@ func (l *LLMSchemaLinker) Link(ctx context.Context, query string, allTables map[
 	return l.linkOneShot(ctx, query, allTables)
 }
 
-// linkOneShot One-shot Schema Linking
+// linkOneShot performs one-shot Schema Linking.
 func (l *LLMSchemaLinker) linkOneShot(ctx context.Context, query string, allTables map[string]*TableInfo) ([]string, []ReActStep, error) {
-	// 构建表信息描述（格式化为易读的列表）
 	var schemaDesc strings.Builder
 	for _, table := range allTables {
 		schemaDesc.WriteString(fmt.Sprintf("- %s\n", table.Name))
@@ -64,7 +62,6 @@ func (l *LLMSchemaLinker) linkOneShot(ctx context.Context, query string, allTabl
 		schemaDesc.WriteString("\n")
 	}
 
-	// 构建 Prompt
 	prompt := fmt.Sprintf(`You are a database expert. Identify which tables are relevant to answer the question.
 
 Available Tables:
@@ -79,56 +76,42 @@ If no tables are needed, output: none
 
 Output:`, schemaDesc.String(), query)
 
-
 	response, err := llmCallWithRetry(ctx, l.llm, prompt, 2)
 	if err != nil {
 		return nil, []ReActStep{}, fmt.Errorf("schema linking failed: %w", err)
 	}
 	response = strings.TrimSpace(response)
 
-	// 解析响应
 	if response == "all" {
 		result := make([]string, 0, len(allTables))
 		for name := range allTables {
 			result = append(result, name)
 		}
-		// 创建一个简单的步骤来表示 Schema Linking 过程
 		tablesStr := strings.Join(result, ", ")
-		steps := []ReActStep{
-			{
-				Thought: fmt.Sprintf("The question '%s' requires all tables to answer.", query),
-				Action:  "final_answer",
-				ActionInput: map[string]interface{}{
-					"tables": tablesStr,
-				},
-				Observation: fmt.Sprintf("Selected tables: %s", tablesStr),
-				Phase:       "schema_linking",
-			},
-		}
+		steps := []ReActStep{{
+			Thought:     fmt.Sprintf("The question '%s' requires all tables to answer.", query),
+			Action:      "final_answer",
+			ActionInput: map[string]interface{}{"tables": tablesStr},
+			Observation: fmt.Sprintf("Selected tables: %s", tablesStr),
+			Phase:       "schema_linking",
+		}}
 		return result, steps, nil
 	}
 
 	if response == "none" {
-		// 创建一个简单的步骤来表示 Schema Linking 过程
-		steps := []ReActStep{
-			{
-				Thought: fmt.Sprintf("The question '%s' does not require any tables to answer.", query),
-				Action:  "final_answer",
-				ActionInput: map[string]interface{}{
-					"tables": "none",
-				},
-				Observation: "No tables needed",
-				Phase:       "schema_linking",
-			},
-		}
+		steps := []ReActStep{{
+			Thought:     fmt.Sprintf("The question '%s' does not require any tables to answer.", query),
+			Action:      "final_answer",
+			ActionInput: map[string]interface{}{"tables": "none"},
+			Observation: "No tables needed",
+			Phase:       "schema_linking",
+		}}
 		return []string{}, steps, nil
 	}
 
-	// 只取第一行（LLM 可能会返回额外的 Explanation）
 	lines := strings.Split(response, "\n")
 	firstLine := strings.TrimSpace(lines[0])
 
-	// 解析表名列表
 	tables := strings.Split(firstLine, ",")
 	result := make([]string, 0, len(tables))
 	for _, table := range tables {
@@ -138,52 +121,21 @@ Output:`, schemaDesc.String(), query)
 		}
 	}
 
-	// 创建一个简单的步骤来表示 Schema Linking 过程
 	tablesStr := strings.Join(result, ", ")
-	steps := []ReActStep{
-		{
-			Thought: fmt.Sprintf("Analyzed the question '%s' and identified relevant tables based on their columns and descriptions.", query),
-			Action:  "final_answer",
-			ActionInput: map[string]interface{}{
-				"tables": tablesStr,
-			},
-			Observation: fmt.Sprintf("Selected tables: %s", tablesStr),
-			Phase:       "schema_linking",
-		},
-	}
+	steps := []ReActStep{{
+		Thought:     fmt.Sprintf("Analyzed the question '%s' and identified relevant tables based on their columns and descriptions.", query),
+		Action:      "final_answer",
+		ActionInput: map[string]interface{}{"tables": tablesStr},
+		Observation: fmt.Sprintf("Selected tables: %s", tablesStr),
+		Phase:       "schema_linking",
+	}}
 
 	return result, steps, nil
 }
 
-// linkWithReact ReAct 模式 Schema Linking
+// linkWithReact performs ReAct-mode Schema Linking using the unified react.Engine.
 func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTables map[string]*TableInfo) ([]string, []ReActStep, error) {
-
-	// 创建 SQL 工具
-	sqlTool := &SQLTool{
-		adapter:   l.adapter,
-		useDryRun: false,
-	}
-
-	// Create handler to collect ReAct steps
-	reactHandler := react.NewHandler(nil)
-
-	// 创建 ReAct Agent
-	// 策略：告诉模型最大 5 次迭代（制造紧迫感），实际设置 15 次（保证足够空间）
-	actualMaxIterations := 15
-	claimedMaxIterations := 5
-
-	executor, err := agents.Initialize(
-		l.llm,
-		[]tools.Tool{sqlTool},
-		agents.ZeroShotReactDescription,
-		agents.WithMaxIterations(actualMaxIterations),
-		agents.WithCallbacksHandler(reactHandler),
-	)
-	if err != nil {
-		return nil, []ReActStep{}, err
-	}
-
-	// 构建表信息
+	// Build schema description
 	var schemaDesc strings.Builder
 	for _, table := range allTables {
 		schemaDesc.WriteString(fmt.Sprintf("- %s\n", table.Name))
@@ -202,63 +154,24 @@ func (l *LLMSchemaLinker) linkWithReact(ctx context.Context, query string, allTa
 		schemaDesc.WriteString("\n")
 	}
 
-	// 构建 Prompt
-	prompt := fmt.Sprintf(`You are a database expert. Identify which tables are relevant to answer the question.
+	// Build engine config via scenario
+	engineCfg := scenarios.BuildSchemaLinkingEngine(scenarios.SchemaLinkingConfig{
+		DBAdapter:  l.adapter,
+		SchemaDesc: schemaDesc.String(),
+		Query:      query,
+	})
 
-⚠️  ITERATION LIMIT: You have maximum %d iterations to complete this task. Be efficient!
+	engine := react.New(l.llm, engineCfg)
 
-Available Tables:
-%s
-
-Question: %s
-
-Foreign key relationships are shown above. Use them to:
-1. Identify direct relationships between tables
-2. Find intermediate junction tables for many-to-many relationships
-3. Trace the join path from source to target tables
-
-You can use execute_sql to:
-- Verify data existence: SELECT COUNT(*) FROM table
-- Check join validity: SELECT COUNT(*) FROM t1 JOIN t2 ON ...
-- Explore sample data: SELECT * FROM table LIMIT 3
-- Check column values: SELECT DISTINCT column FROM table LIMIT 5
-
-Workflow:
-1. Identify tables with columns that seem relevant to the question.
-2. Use the foreign key relationships to find all necessary tables for joins.
-3. If you are unsure about a table's relevance, use 'execute_sql' to sample its data.
-4. Provide the final list of tables.
-
-Output Format:
-A) Use tool to explore:
-   Thought: [reasoning]
-   Action: execute_sql
-   Action Input: [SQL query]
-
-B) Give final answer:
-   Thought: [reasoning]
-   Final Answer: table1, table2, table3
-
-IMPORTANT:
-- Output comma-separated table names only in Final Answer
-- Include ALL tables needed for joins (don't miss intermediate tables)
-- For NOT queries, include base table
-- For foreign key columns, include referenced tables
-- If all tables needed, output: all
-- If no tables needed, output: none
-
-Output:`, claimedMaxIterations, schemaDesc.String(), query)
-
-	// 执行 ReAct
-	agentResult, err := executor.Call(ctx, map[string]any{"input": prompt})
+	// Execute
+	engineResult, err := engine.Execute(ctx, "")
 	if err != nil {
 		return nil, []ReActStep{}, err
 	}
 
-	// Collect ReAct steps from handler
-	collected := reactHandler.GetSteps()
-	schemaLinkingSteps := make([]ReActStep, 0, len(collected))
-	for _, step := range collected {
+	// Convert react.Steps → inference.ReActSteps
+	schemaLinkingSteps := make([]ReActStep, 0, len(engineResult.Steps))
+	for _, step := range engineResult.Steps {
 		schemaLinkingSteps = append(schemaLinkingSteps, ReActStep{
 			Thought:     step.Thought,
 			Action:      step.Action,
@@ -268,36 +181,36 @@ Output:`, claimedMaxIterations, schemaDesc.String(), query)
 		})
 	}
 
-	// 提取最终结果
-	if output, ok := agentResult["output"].(string); ok {
-		// 只取第一行（LLM 可能会返回额外的 Explanation）
-		lines := strings.Split(output, "\n")
-		firstLine := strings.TrimSpace(lines[0])
+	// Parse final answer
+	output := engineResult.Output
+	lines := strings.Split(output, "\n")
+	firstLine := strings.TrimSpace(lines[0])
 
-		if firstLine == "all" {
-			result := make([]string, 0, len(allTables))
-			for name := range allTables {
-				result = append(result, name)
-			}
-			return result, schemaLinkingSteps, nil
-		}
-
-		if firstLine == "none" {
-			return []string{}, schemaLinkingSteps, nil
-		}
-
-		tables := strings.Split(firstLine, ",")
-		result := make([]string, 0, len(tables))
-		for _, table := range tables {
-			table = strings.TrimSpace(table)
-			if table != "" {
-				result = append(result, table)
-			}
+	if firstLine == "all" {
+		result := make([]string, 0, len(allTables))
+		for name := range allTables {
+			result = append(result, name)
 		}
 		return result, schemaLinkingSteps, nil
 	}
 
-	return nil, []ReActStep{}, fmt.Errorf("schema linking failed to produce a valid table list")
+	if firstLine == "none" {
+		return []string{}, schemaLinkingSteps, nil
+	}
+
+	tables := strings.Split(firstLine, ",")
+	result := make([]string, 0, len(tables))
+	for _, table := range tables {
+		table = strings.TrimSpace(table)
+		if table != "" {
+			result = append(result, table)
+		}
+	}
+
+	if len(result) == 0 {
+		return nil, schemaLinkingSteps, fmt.Errorf("schema linking failed to produce a valid table list")
+	}
+	return result, schemaLinkingSteps, nil
 }
 
 // llmCallWithRetry calls the LLM with exponential backoff retry.

@@ -1,4 +1,4 @@
-package inference
+package tools
 
 import (
 	"context"
@@ -10,24 +10,28 @@ import (
 	"lucid/internal/adapter"
 )
 
-// ToolObservationCallback is called when a tool produces output, so the caller
-// can push the observation to the frontend immediately (bypasses langchaingo's
-// broken HandleToolEnd callback).
-type ToolObservationCallback func(toolName, output string)
-
-// VerifySQLTool SQL validation tool using EXPLAIN (no actual execution)
+// VerifySQLTool validates SQL via EXPLAIN (no actual execution).
+// Performs static checks + EXPLAIN plan analysis.
 type VerifySQLTool struct {
 	adapter  adapter.DBAdapter
 	dbType   string
-	OnResult ToolObservationCallback
+	injector ObservationInjector
 }
 
-// Name returns tool name
-func (t *VerifySQLTool) Name() string {
-	return "verify_sql"
+func NewVerifySQLTool(dbAdapter adapter.DBAdapter, dbType string) *VerifySQLTool {
+	return &VerifySQLTool{
+		adapter: dbAdapter,
+		dbType:  dbType,
+	}
 }
 
-// Description returns tool description
+// SetObservationInjector implements ObservationInjectable.
+func (t *VerifySQLTool) SetObservationInjector(injector ObservationInjector) {
+	t.injector = injector
+}
+
+func (t *VerifySQLTool) Name() string { return "verify_sql" }
+
 func (t *VerifySQLTool) Description() string {
 	return `Validate SQL syntax and inspect execution plan via EXPLAIN (does NOT execute the actual query).
 
@@ -41,23 +45,22 @@ IMPORTANT workflow:
 - NEVER give Final Answer with SQL that has not passed verify_sql.`
 }
 
-// Call executes the verification
 func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) {
 	sql := stripCodeFence(strings.TrimSpace(input))
 
-	// Step 1: Static checks (fast, no DB call)
+	// Step 1: Static checks
 	if err := t.quickCheck(sql); err != nil {
 		slog.Warn("[VerifySQL] Static check failed",
 			"component", "verify_sql",
 			"error", err.Error(),
-			"sql_preview", truncate(sql, 200),
+			"sql_preview", truncateStr(sql, 200),
 		)
 		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (static check):\n%v\n\nYou MUST fix the error and call verify_sql again with the corrected SQL. Do NOT give Final Answer until verify_sql passes.", err)
 		t.emitResult(out)
 		return out, nil
 	}
 
-	// Step 2: EXPLAIN validation (safe, doesn't execute the actual query)
+	// Step 2: EXPLAIN validation
 	explainResult, err := t.adapter.DryRunSQL(ctx, sql)
 	if err != nil {
 		out := fmt.Sprintf("❌ VERIFY_FAILED\nSQL validation failed (EXPLAIN check):\n%v\n\nYou MUST fix the error and call verify_sql again with the corrected SQL. Do NOT give Final Answer until verify_sql passes.", err)
@@ -65,7 +68,7 @@ func (t *VerifySQLTool) Call(ctx context.Context, input string) (string, error) 
 		return out, nil
 	}
 
-	// Step 3: Format EXPLAIN plan for agent review
+	// Step 3: Format EXPLAIN plan
 	planSummary := t.formatExplainPlan(explainResult)
 	warnings := t.analyzeExplainPlan(explainResult)
 
@@ -95,25 +98,18 @@ Decision guide:
 	return out, nil
 }
 
-// emitResult fires the OnResult callback if set.
 func (t *VerifySQLTool) emitResult(output string) {
-	if t.OnResult != nil {
-		t.OnResult("verify_sql", output)
+	if t.injector != nil {
+		t.injector.InjectObservation(output)
 	}
 }
 
-// formatExplainPlan formats EXPLAIN QueryResult into a readable summary.
-// Each row is presented as a structured block so both LLM and human can parse easily.
 func (t *VerifySQLTool) formatExplainPlan(result *adapter.QueryResult) string {
 	if result == nil || len(result.Rows) == 0 {
 		return "  (empty execution plan)\n"
 	}
 
 	var sb strings.Builder
-
-	// Key columns to display in the compact summary (MariaDB EXPLAIN)
-	keyCols := []string{"table", "type", "possible_keys", "key", "rows", "Extra"}
-
 	for i, row := range result.Rows {
 		if i >= 10 {
 			sb.WriteString(fmt.Sprintf("  ... (%d more steps)\n", len(result.Rows)-10))
@@ -136,8 +132,6 @@ func (t *VerifySQLTool) formatExplainPlan(result *adapter.QueryResult) string {
 			sb.WriteString(fmt.Sprintf("    extra: %s\n", extra))
 		}
 	}
-
-	_ = keyCols // used conceptually above
 	return sb.String()
 }
 
@@ -152,22 +146,19 @@ func valOrDash(row map[string]interface{}, key string) string {
 	return "-"
 }
 
-// analyzeExplainPlan checks the EXPLAIN plan for potential performance issues
 func (t *VerifySQLTool) analyzeExplainPlan(result *adapter.QueryResult) []string {
 	if result == nil || len(result.Rows) == 0 {
 		return nil
 	}
 
 	var warnings []string
-
 	for _, row := range result.Rows {
-		// MySQL/MariaDB EXPLAIN fields
 		if scanType, ok := row["type"]; ok {
 			typeStr := fmt.Sprintf("%v", scanType)
 			if typeStr == "ALL" {
 				tableName := ""
-				if t, ok := row["table"]; ok {
-					tableName = fmt.Sprintf("%v", t)
+				if tn, ok := row["table"]; ok {
+					tableName = fmt.Sprintf("%v", tn)
 				}
 				rowsEst := ""
 				if r, ok := row["rows"]; ok {
@@ -177,7 +168,6 @@ func (t *VerifySQLTool) analyzeExplainPlan(result *adapter.QueryResult) []string
 			}
 		}
 
-		// Check for "Using filesort" or "Using temporary" in Extra
 		if extra, ok := row["Extra"]; ok {
 			extraStr := fmt.Sprintf("%v", extra)
 			if strings.Contains(extraStr, "Using filesort") {
@@ -188,37 +178,26 @@ func (t *VerifySQLTool) analyzeExplainPlan(result *adapter.QueryResult) []string
 			}
 		}
 	}
-
 	return warnings
 }
 
-// quickCheck performs fast static checks
 func (t *VerifySQLTool) quickCheck(sql string) error {
-	if err := t.checkIllegalAliases(sql); err != nil {
+	if err := checkIllegalAliases(sql); err != nil {
 		return err
 	}
-	if err := t.checkParentheses(sql); err != nil {
+	if err := checkParentheses(sql); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Patterns used by checkIllegalAliases.
 var (
-	// Matches CAST(... AS type(...)) — legitimate SQL type casting, not an alias.
-	castPattern = regexp.MustCompile(`(?i)CAST\s*\([^)]*\s+AS\s+[A-Z_]+\s*\([^)]*\)\s*\)`)
-	// Matches CONVERT(expr, type(...)) — also legitimate.
-	convertPattern = regexp.MustCompile(`(?i)CONVERT\s*\([^,]+,\s*[A-Z_]+\s*\([^)]*\)\s*\)`)
-	// Detects "AS func(...)" which is an illegal alias (e.g. SELECT x AS count(*)).
+	castPattern         = regexp.MustCompile(`(?i)CAST\s*\([^)]*\s+AS\s+[A-Z_]+\s*\([^)]*\)\s*\)`)
+	convertPattern      = regexp.MustCompile(`(?i)CONVERT\s*\([^,]+,\s*[A-Z_]+\s*\([^)]*\)\s*\)`)
 	illegalAliasPattern = regexp.MustCompile(`(?i)\s+AS\s+([a-z_]+\s*\([^)]*\))`)
 )
 
-// checkIllegalAliases checks for illegal alias patterns like "AS count(*)".
-// It first strips CAST/CONVERT expressions to avoid false positives on
-// legitimate syntax like "CAST(x AS DECIMAL(10,2))".
-func (t *VerifySQLTool) checkIllegalAliases(sql string) error {
-	// Remove CAST(... AS TYPE(...)) and CONVERT(x, TYPE(...)) so they
-	// don't get mistaken for column aliases.
+func checkIllegalAliases(sql string) error {
 	cleaned := castPattern.ReplaceAllString(sql, "/*CAST*/")
 	cleaned = convertPattern.ReplaceAllString(cleaned, "/*CONVERT*/")
 
@@ -235,8 +214,7 @@ func (t *VerifySQLTool) checkIllegalAliases(sql string) error {
 	return nil
 }
 
-// checkParentheses checks for matching parentheses
-func (t *VerifySQLTool) checkParentheses(sql string) error {
+func checkParentheses(sql string) error {
 	stack := 0
 	for i, char := range sql {
 		if char == '(' {
@@ -254,91 +232,4 @@ func (t *VerifySQLTool) checkParentheses(sql string) error {
 	return nil
 }
 
-// stripCodeFence removes markdown code fences (```sql ... ``` or ``` ... ```)
-// that LLMs frequently wrap around SQL output.
-func stripCodeFence(s string) string {
-	trimmed := strings.TrimSpace(s)
-	// Handle ```sql\n...\n``` or ```\n...\n```
-	if strings.HasPrefix(trimmed, "```") {
-		// Remove opening fence line
-		idx := strings.Index(trimmed, "\n")
-		if idx >= 0 {
-			trimmed = trimmed[idx+1:]
-		} else {
-			// Single line like ```SELECT 1```
-			trimmed = strings.TrimPrefix(trimmed, "```sql")
-			trimmed = strings.TrimPrefix(trimmed, "```")
-		}
-		// Remove closing fence
-		trimmed = strings.TrimSuffix(strings.TrimSpace(trimmed), "```")
-		trimmed = strings.TrimSpace(trimmed)
-	}
-	return trimmed
-}
 
-// NewVerifySQLTool creates a verification tool
-func NewVerifySQLTool(dbAdapter adapter.DBAdapter, dbType string) *VerifySQLTool {
-	return &VerifySQLTool{
-		adapter: dbAdapter,
-		dbType:  dbType,
-	}
-}
-
-// checkDuplicateRows 检查结果中是否有重复行
-func (t *VerifySQLTool) checkDuplicateRows(rows [][]string) string {
-	if len(rows) <= 2 { // 没有数据行或只有一行数据
-		return ""
-	}
-
-	seen := make(map[string]bool)
-	dataRows := rows[1:] // 排除标题行
-
-	for _, row := range dataRows {
-		// 为行创建一个唯一的键
-		rowKey := strings.Join(row, "||<SEP>||")
-		if seen[rowKey] {
-			// 发现重复
-			return fmt.Sprintf("Warning: The query returned duplicate rows (e.g., %v). Review the question to determine if duplicates should be removed using DISTINCT.", row)
-		}
-		seen[rowKey] = true
-	}
-
-	return ""
-}
-
-// convertQueryResultFormat 将查询结果从 map 转换为二维字符串数组
-func convertQueryResultFormat(data []map[string]interface{}) [][]string {
-	if len(data) == 0 {
-		return nil
-	}
-
-	var headers []string
-	for key := range data[0] {
-		headers = append(headers, key)
-	}
-
-	result := make([][]string, len(data)+1)
-	result[0] = headers
-
-	for i, row := range data {
-		rowValues := make([]string, len(headers))
-		for j, header := range headers {
-			if val, ok := row[header]; ok {
-				rowValues[j] = fmt.Sprintf("%v", val)
-			} else {
-				rowValues[j] = ""
-			}
-		}
-		result[i+1] = rowValues
-	}
-
-	return result
-}
-
-// truncate shortens a string to maxLen, appending "..." if truncated.
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}

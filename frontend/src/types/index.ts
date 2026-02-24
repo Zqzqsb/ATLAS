@@ -166,6 +166,7 @@ export interface GroundingTable {
   confidence: number
   matchedTerms: string[]
   contextUsed?: string[]
+  hint?: string  // Query-specific usage hint from generative linking
 }
 
 export interface GroundingColumn {
@@ -176,6 +177,7 @@ export interface GroundingColumn {
   confidence: number
   matchedTerms: string[]
   contextUsed?: string[]
+  hint?: string  // Query-specific usage hint from generative linking
 }
 
 export interface JoinPath {

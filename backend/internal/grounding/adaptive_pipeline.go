@@ -155,13 +155,13 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 	linkReq := &LinkingRequest{
 		Query:   req.Query,
 		Schemas: req.AllSchemas,
-		Compact: true, // SmallScale: name+type+PK/FK only, skip RC to reduce prompt size
+		Compact: false, // Generative linking: LLM needs full RC (descriptions, sample_values, synonyms) to produce quality hints
 	}
 
 	log.Info("[SmallScale] Calling linking agent",
 		"query", req.Query,
 		"schema_count", len(req.AllSchemas),
-		"compact", true,
+		"compact", false,
 	)
 
 	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
@@ -430,6 +430,7 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 			Name:      selected.Name,
 			Reason:    selected.Reason,
 			Relevance: selected.Confidence,
+			Hint:      selected.Hint,
 		}
 
 		if schema, ok := schemaMap[selected.Name]; ok {
@@ -439,9 +440,9 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 			// otherwise fall back to all columns from schema
 			if len(selected.RelevantColumns) > 0 {
 				// Use only the columns the linking agent deemed relevant
-				relevantSet := make(map[string]string) // name -> reason
+				relevantSet := make(map[string]RelevantColumn) // name -> RelevantColumn
 				for _, rc := range selected.RelevantColumns {
-					relevantSet[rc.Name] = rc.Reason
+					relevantSet[rc.Name] = rc
 				}
 				colNames := make([]string, 0, len(selected.RelevantColumns))
 				for _, rc := range selected.RelevantColumns {
@@ -449,9 +450,9 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 				}
 				tc.Columns = colNames
 
-				// Add column contexts with reasons from linking agent
+				// Add column contexts with reasons and hints from linking agent
 				for _, col := range schema.Columns {
-					if reason, isRelevant := relevantSet[col.Name]; isRelevant {
+					if rc, isRelevant := relevantSet[col.Name]; isRelevant {
 						ctx.Columns = append(ctx.Columns, ColumnContext{
 							TableName:    selected.Name,
 							ColumnName:   col.Name,
@@ -460,7 +461,8 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 							SampleValues: col.SampleValues,
 							Synonyms:     col.Synonyms,
 							Relevance:    selected.Confidence,
-							Reason:       reason,
+							Reason:       rc.Reason,
+							Hint:         rc.Hint,
 						})
 					}
 				}

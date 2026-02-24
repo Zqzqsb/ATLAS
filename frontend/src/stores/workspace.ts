@@ -100,7 +100,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         description: t.description || '',
         confidence: t.confidence || 0,
         matchedTerms: t.reason ? [t.reason] : [],
-        contextUsed: []
+        contextUsed: [],
+        hint: t.hint || ''
       })),
       columns: (data.columns || []).map((c: any) => ({
         table: c.table_name || c.table,
@@ -109,7 +110,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         description: c.description || '',
         confidence: c.confidence || 0,
         matchedTerms: c.reason ? [c.reason] : [],
-        contextUsed: []
+        contextUsed: [],
+        hint: c.hint || ''
       })),
       joinPaths: (data.join_paths || []).map((jp: any) => ({
         from: { table: jp.from_table, column: jp.from_column },
@@ -502,7 +504,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 description: t.description || '',
                 confidence: t.confidence || 0,
                 matchedTerms: t.reason ? [t.reason] : [],
-                contextUsed: []
+                contextUsed: [],
+                hint: t.hint || ''
               }))
             }
             if (event.data.columns) {
@@ -513,7 +516,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 description: c.description || '',
                 confidence: c.confidence || 0,
                 matchedTerms: c.reason ? [c.reason] : [],
-                contextUsed: []
+                contextUsed: [],
+                hint: c.hint || ''
               }))
             }
             if (event.data.join_paths) {

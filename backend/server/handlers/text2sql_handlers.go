@@ -92,6 +92,7 @@ type GroundedTableInfo struct {
 	Description string  `json:"description,omitempty"`
 	Reason      string  `json:"reason,omitempty"`
 	Confidence  float64 `json:"confidence,omitempty"`
+	Hint        string  `json:"hint,omitempty"`
 }
 
 // GroundedColumnInfo represents a grounded column in response.
@@ -102,6 +103,7 @@ type GroundedColumnInfo struct {
 	Description string  `json:"description,omitempty"`
 	Reason      string  `json:"reason,omitempty"`
 	Confidence  float64 `json:"confidence,omitempty"`
+	Hint        string  `json:"hint,omitempty"`
 }
 
 // JoinPathInfo represents a join path in response.
@@ -825,6 +827,7 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 			Description: t.Description,
 			Reason:      t.Reason,
 			Confidence:  float64(t.Relevance),
+			Hint:        t.Hint,
 		})
 	}
 	for _, col := range result.Context.Columns {
@@ -835,6 +838,7 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 			Description: col.Description,
 			Reason:      col.Reason,
 			Confidence:  float64(col.Relevance),
+			Hint:        col.Hint,
 		})
 		// Columns with a Reason from the linking agent are "suggested fields"
 		if col.Reason != "" {

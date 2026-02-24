@@ -65,6 +65,7 @@ type TableContext struct {
 	Columns     []string `json:"columns"`
 	Relevance   float32  `json:"relevance"`
 	Reason      string   `json:"reason"`
+	Hint        string   `json:"hint,omitempty"` // Query-specific usage hint from generative linking
 }
 
 // ColumnContext represents grounded column information
@@ -77,6 +78,7 @@ type ColumnContext struct {
 	Synonyms     string  `json:"synonyms,omitempty"`
 	Relevance    float32 `json:"relevance"`
 	Reason       string  `json:"reason"`
+	Hint         string  `json:"hint,omitempty"` // Query-specific usage hint from generative linking
 }
 
 // RelationshipContext represents grounded table relationships

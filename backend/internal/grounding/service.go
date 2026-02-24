@@ -156,6 +156,9 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		sb.WriteString("## Relevant Tables:\n")
 		for _, t := range ctx.Tables {
 			sb.WriteString(fmt.Sprintf("- **%s** (relevance: %.2f)\n", t.Name, t.Relevance))
+			if t.Hint != "" {
+				sb.WriteString(fmt.Sprintf("  Query hint: %s\n", t.Hint))
+			}
 			if t.Description != "" {
 				sb.WriteString(fmt.Sprintf("  Description: %s\n", t.Description))
 			}
@@ -174,6 +177,9 @@ func (s *Service) FormatContextPrompt(ctx *GroundedContext) string {
 		for _, c := range ctx.Columns {
 			sb.WriteString(fmt.Sprintf("- **%s.%s** (%s, relevance: %.2f)\n",
 				c.TableName, c.ColumnName, c.DataType, c.Relevance))
+			if c.Hint != "" {
+				sb.WriteString(fmt.Sprintf("  Query hint: %s\n", c.Hint))
+			}
 			if c.Description != "" {
 				sb.WriteString(fmt.Sprintf("  Description: %s\n", c.Description))
 			}

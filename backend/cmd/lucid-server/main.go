@@ -258,17 +258,18 @@ func main() {
 		// Evolution Demo routes
 		api.GET("/evolution/status", h.GetEvolutionStatus)
 		api.GET("/evolution/stages/:stage_id", h.GetEvolutionStagePreview)
-		api.POST("/evolution/execute-stage", h.ExecuteEvolutionStage)
 		api.POST("/evolution/execute-stage/stream", h.ExecuteEvolutionStageStream)
-		api.POST("/evolution/reset", h.ResetEvolution)
 		api.POST("/evolution/reset/stream", h.ResetEvolutionStream)
 
 		// Agent routes
 		api.GET("/agent/status", h.GetAgentStatus)
 		api.GET("/agent/logs/:id", h.GetAgentChangeLogs)
 		api.GET("/agent/logs/:id/summary", h.GetAgentChangeLogSummary)
-		api.POST("/agent/maintenance/:id", h.RunAgentMaintenance)
+		api.POST("/agent/start", h.StartAgent)
+		api.POST("/agent/stop", h.StopAgent)
+		api.POST("/agent/maintenance/:id", h.RunMaintenance)
 		api.POST("/agent/refresh/:id", h.TriggerContextRefresh)
+		api.POST("/agent/simulate-ddl/:id", h.SimulateDDL)
 
 		// Grounding is integrated into text2sql pipeline — no standalone routes needed
 	}

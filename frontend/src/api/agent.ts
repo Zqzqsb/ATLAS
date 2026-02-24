@@ -70,18 +70,6 @@ export const agentApi = {
     request<AgentStatus>({ url: '/agent/status', method: 'GET' }),
 
   /**
-   * Start agent service
-   */
-  start: () =>
-    request<{ message: string; running: boolean }>({ url: '/agent/start', method: 'POST' }),
-
-  /**
-   * Stop agent service
-   */
-  stop: () =>
-    request<{ message: string; running: boolean }>({ url: '/agent/stop', method: 'POST' }),
-
-  /**
    * Run maintenance for a datasource
    */
   runMaintenance: (datasourceId: number) =>
@@ -97,16 +85,6 @@ export const agentApi = {
     request<{ message: string; total: number; success_count: number; results: any[] }>({
       url: `/agent/refresh/${datasourceId}`,
       method: 'POST'
-    }),
-
-  /**
-   * Simulate a DDL change for demo
-   */
-  simulateDDL: (datasourceId: number, sql: string) =>
-    request<{ message: string; sql: string; parsed_change: SchemaChange; result: MaintenanceResult }>({
-      url: `/agent/simulate-ddl/${datasourceId}`,
-      method: 'POST',
-      data: { sql }
     }),
 
   /**
@@ -126,5 +104,27 @@ export const agentApi = {
     request<ChangeLogSummary>({
       url: `/agent/logs/${datasourceId}/summary`,
       method: 'GET'
+    }),
+
+  /**
+   * Start the agent service (placeholder — agent is always active when LLM is available)
+   */
+  start: () =>
+    request<{ message: string }>({ url: '/agent/start', method: 'POST' }),
+
+  /**
+   * Stop the agent service (placeholder)
+   */
+  stop: () =>
+    request<{ message: string }>({ url: '/agent/stop', method: 'POST' }),
+
+  /**
+   * Simulate a DDL change for the self-maintenance demo
+   */
+  simulateDDL: (datasourceId: number, ddl: string) =>
+    request<{ message: string; parsed_change: any; result: MaintenanceResult }>({
+      url: `/agent/simulate-ddl/${datasourceId}`,
+      method: 'POST',
+      data: { ddl }
     })
 }

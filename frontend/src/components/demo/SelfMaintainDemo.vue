@@ -114,6 +114,12 @@ function getEventIcon(type: string): string {
     case 'data_complete': return 'i-lucide-check'
     case 'detecting': return 'i-lucide-search'
     case 'changes_detected': return 'i-lucide-alert-triangle-alt'
+    case 'syncing_schema': return 'i-lucide-database'
+    case 'schema_synced': return 'i-lucide-check'
+    case 'agent_start': return 'i-lucide-bot'
+    case 'agent_step': return 'i-lucide-cpu'
+    case 'agent_complete': return 'i-lucide-check-filled'
+    case 'agent_error': return 'i-lucide-x-circle'
     case 'marking_expired': return 'i-lucide-clock'
     case 'context_expired': return 'i-lucide-alert-triangle-alt-filled'
     case 'creating_context': return 'i-lucide-cpu'
@@ -123,10 +129,13 @@ function getEventIcon(type: string): string {
     case 'refreshing_context': return 'i-lucide-cpu'
     case 'context_refreshed_complete': return 'i-lucide-check-filled'
     case 'updating_embeddings': return 'i-lucide-circle-dot'
+    case 'embedding_update': return 'i-lucide-circle-dot'
+    case 'embedding_complete': return 'i-lucide-check-filled'
     case 'stage_complete': return 'i-lucide-check-filled'
     case 'error': return 'i-lucide-x-circle'
     case 'execution_complete': return 'i-lucide-trophy'
     case 'reset_step': return 'i-lucide-rotate-ccw'
+    case 'reset_start': return 'i-lucide-rotate-ccw'
     case 'reset_complete': return 'i-lucide-check-filled'
     default: return 'i-lucide-info'
   }
@@ -134,11 +143,83 @@ function getEventIcon(type: string): string {
 
 function getEventColor(type: string): string {
   if (type.includes('error')) return 'text-red-500'
-  if (type.includes('complete') || type.includes('created') || type === 'ddl_complete' || type === 'data_complete') return 'text-green-500'
+  if (type.includes('complete') || type.includes('created') || type === 'ddl_complete' || type === 'data_complete' || type === 'schema_synced') return 'text-green-500'
   if (type.includes('expired') || type.includes('warning') || type.includes('detecting')) return 'text-amber-500'
-  if (type.includes('executing') || type.includes('refreshing') || type.includes('creating') || type.includes('updating')) return 'text-blue-500'
+  if (type.includes('executing') || type.includes('refreshing') || type.includes('creating') || type.includes('updating') || type.includes('syncing')) return 'text-blue-500'
   if (type === 'stage_start') return 'text-indigo-500'
+  if (type === 'agent_start') return 'text-violet-500'
+  if (type === 'agent_step') return 'text-cyan-500'
   return 'text-gray-500'
+}
+
+// Phase labels for separator bars
+function getPhaseLabel(phase: string): string {
+  const map: Record<string, string> = {
+    'announce': '🚀 Stage Start',
+    'reset': '🔄 Auto Reset',
+    'ddl': '⚡ DDL Execution',
+    'data': '📦 Sample Data',
+    'detect': '🔍 Change Detection',
+    'sync': '🔄 Schema Sync',
+    'maintain': '🤖 Agent Maintenance',
+    'embed': '📐 Embedding Update',
+    'done': '✅ Complete',
+  }
+  return map[phase] || phase
+}
+
+// Step type specific styling for agent steps
+function getStepTypeIcon(stepType: string): string {
+  switch (stepType) {
+    case 'thought': return 'i-lucide-brain'
+    case 'action': return 'i-lucide-wrench'
+    case 'observation': return 'i-lucide-eye'
+    case 'finish': return 'i-lucide-check-circle-2'
+    default: return 'i-lucide-info'
+  }
+}
+
+function getStepTypeColor(stepType: string): string {
+  switch (stepType) {
+    case 'thought': return 'text-purple-400'
+    case 'action': return 'text-cyan-400'
+    case 'observation': return 'text-gray-500'
+    case 'finish': return 'text-emerald-400'
+    default: return 'text-gray-400'
+  }
+}
+
+function getAgentRoleLabel(role: string): string {
+  switch (role) {
+    case 'coordinator': return 'COORD'
+    case 'executor': return 'EXEC'
+    default: return role.toUpperCase()
+  }
+}
+
+function getAgentRoleBgClass(role: string): string {
+  switch (role) {
+    case 'coordinator': return 'bg-violet-500/20 text-violet-300 border-violet-500/30'
+    case 'executor': return 'bg-teal-500/20 text-teal-300 border-teal-500/30'
+    default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+  }
+}
+
+// Track expanded thoughts
+const expandedThoughts = ref<Set<number>>(new Set())
+function toggleThought(id: number) {
+  if (expandedThoughts.value.has(id)) {
+    expandedThoughts.value.delete(id)
+  } else {
+    expandedThoughts.value.add(id)
+  }
+}
+
+// Check if an event is a phase boundary
+function isNewPhase(event: EventLogEntry, index: number): boolean {
+  if (index === 0) return true
+  const prev = eventLog.value[index - 1]
+  return prev ? prev.phase !== event.phase : true
 }
 
 // ========================================
@@ -232,20 +313,34 @@ async function resetToInitial() {
 
   addEvent('reset_step', 'reset', 'Resetting to initial state...')
 
-  try {
-    const result = await evolutionApi.reset(datasourceId.value)
-    if (result.success) {
-      addEvent('reset_complete', 'done', 'Reset complete — back to initial state')
-      message.success('Reset to initial state')
-      await fetchStatus()
-      await fetchChangeLogs()
+  evolutionApi.resetStream(
+    datasourceId.value,
+    (event) => {
+      const data = event.data as any
+      if (data && data.message) {
+        addEvent(event.type, data.phase || 'reset', data.message, data.data)
+      }
+
+      if (event.type === 'reset_complete') {
+        resetting.value = false
+        message.success('Reset to initial state')
+        fetchStatus()
+        fetchChangeLogs()
+      }
+      if (event.type === 'error') {
+        resetting.value = false
+        message.error(data?.error || data?.message || 'Reset failed')
+      }
+    },
+    (err) => {
+      resetting.value = false
+      addEvent('error', 'reset', `Connection error: ${err.message}`)
+      message.error('Reset failed: ' + err.message)
+    },
+    () => {
+      resetting.value = false
     }
-  } catch (e: any) {
-    addEvent('error', 'reset', `Reset failed: ${e.message}`)
-    message.error('Reset failed: ' + e.message)
-  } finally {
-    resetting.value = false
-  }
+  )
 }
 
 // ========================================
@@ -532,7 +627,7 @@ onMounted(async () => {
 
           <div 
             ref="logScrollRef"
-            class="flex-1 overflow-y-auto min-h-[400px] max-h-[600px] bg-gray-950 rounded-xl p-4 font-mono text-sm"
+            class="flex-1 overflow-y-auto min-h-[400px] max-h-[600px] bg-gray-950 rounded-xl p-4 font-mono text-xs"
           >
             <div v-if="eventLog.length === 0" class="flex items-center justify-center h-full text-gray-500">
               <div class="text-center">
@@ -541,40 +636,136 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div v-else class="space-y-1">
-              <div 
-                v-for="event in eventLog" 
-                :key="event.id"
-                class="flex items-start gap-2 py-1 transition-all"
-                :class="event.type === 'stage_complete' || event.type === 'execution_complete' || event.type === 'reset_complete' ? 'border-t border-gray-700/50 pt-2 mt-1' : ''"
-              >
-                <!-- Timestamp -->
-                <span class="text-gray-600 text-xs shrink-0 w-16 mt-0.5">
-                  {{ event.timestamp.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-                </span>
-
-                <!-- Icon -->
-                <span 
-                  :class="[getEventIcon(event.type), getEventColor(event.type)]" 
-                  class="shrink-0 mt-0.5 text-sm"
-                />
-
-                <!-- Message -->
-                <span 
-                  class="leading-relaxed"
-                  :class="{
-                    'text-green-400 font-bold': event.type === 'stage_complete' || event.type === 'execution_complete' || event.type === 'reset_complete',
-                    'text-red-400 font-bold': event.type === 'error',
-                    'text-amber-300': event.type.includes('expired') || event.type.includes('detecting'),
-                    'text-blue-300': event.type.includes('executing') || event.type.includes('refreshing') || event.type.includes('creating') || event.type.includes('updating'),
-                    'text-indigo-300 font-semibold': event.type === 'stage_start',
-                    'text-green-300': event.type.includes('created') || event.type === 'ddl_complete' || event.type === 'data_complete',
-                    'text-gray-300': !['stage_complete', 'execution_complete', 'reset_complete', 'error', 'stage_start'].includes(event.type) && !event.type.includes('expired') && !event.type.includes('executing') && !event.type.includes('created'),
-                  }"
+            <div v-else class="space-y-0.5">
+              <template v-for="(event, idx) in eventLog" :key="event.id">
+                <!-- Phase separator bar -->
+                <div 
+                  v-if="isNewPhase(event, idx)"
+                  class="flex items-center gap-2 pt-2 pb-1"
+                  :class="idx > 0 ? 'mt-2 border-t border-gray-700/40' : ''"
                 >
-                  {{ event.message }}
-                </span>
-              </div>
+                  <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    :class="{
+                      'bg-indigo-500/15 text-indigo-400': event.phase === 'announce',
+                      'bg-amber-500/15 text-amber-400': event.phase === 'reset',
+                      'bg-blue-500/15 text-blue-400': event.phase === 'ddl',
+                      'bg-cyan-500/15 text-cyan-400': event.phase === 'data',
+                      'bg-yellow-500/15 text-yellow-400': event.phase === 'detect',
+                      'bg-orange-500/15 text-orange-400': event.phase === 'sync',
+                      'bg-violet-500/15 text-violet-400': event.phase === 'maintain',
+                      'bg-teal-500/15 text-teal-400': event.phase === 'embed',
+                      'bg-emerald-500/15 text-emerald-400': event.phase === 'done',
+                    }"
+                  >{{ getPhaseLabel(event.phase) }}</span>
+                  <div class="flex-1 h-px bg-gray-700/30" />
+                </div>
+
+                <!-- Agent step: special rendering -->
+                <div 
+                  v-if="event.type === 'agent_step' && event.data"
+                  class="flex items-start gap-2 py-0.5 pl-2"
+                >
+                  <!-- Timestamp -->
+                  <span class="text-gray-600 shrink-0 w-14 mt-0.5">
+                    {{ event.timestamp.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+                  </span>
+
+                  <!-- Agent role badge -->
+                  <span 
+                    class="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border mt-px"
+                    :class="getAgentRoleBgClass(event.data?.agent_role)"
+                  >{{ getAgentRoleLabel(event.data?.agent_role) }}</span>
+
+                  <!-- Step type icon -->
+                  <span 
+                    :class="[getStepTypeIcon(event.data?.step_type), getStepTypeColor(event.data?.step_type)]"
+                    class="shrink-0 mt-0.5"
+                  />
+
+                  <!-- Content based on step type -->
+                  <div class="flex-1 min-w-0">
+                    <!-- Thought: italic, collapsible if long -->
+                    <template v-if="event.data?.step_type === 'thought'">
+                      <div 
+                        class="text-purple-300/80 italic leading-relaxed cursor-pointer"
+                        @click="event.message.length > 150 ? toggleThought(event.id) : null"
+                      >
+                        <span v-if="event.message.length > 150 && !expandedThoughts.has(event.id)">
+                          {{ event.message.slice(0, 150) }}...
+                          <span class="text-purple-500 text-[10px] ml-1 not-italic">[expand]</span>
+                        </span>
+                        <span v-else>{{ event.message }}</span>
+                      </div>
+                    </template>
+
+                    <!-- Tool call: code-style badge -->
+                    <template v-else-if="event.data?.step_type === 'action'">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="bg-cyan-500/15 text-cyan-300 px-1.5 py-0.5 rounded font-bold text-[10px] border border-cyan-500/20">
+                          {{ event.data?.tool_name || 'tool' }}
+                        </span>
+                        <span class="text-gray-400 break-all">{{ event.message.replace(/^\[.*?\]\s*/, '') }}</span>
+                      </div>
+                    </template>
+
+                    <!-- Observation: dimmed -->
+                    <template v-else-if="event.data?.step_type === 'observation'">
+                      <div class="text-gray-500 leading-relaxed">
+                        <span v-if="event.message.length > 200">
+                          {{ event.message.slice(0, 200) }}...
+                        </span>
+                        <span v-else>{{ event.message }}</span>
+                      </div>
+                    </template>
+
+                    <!-- Final Answer: green bold -->
+                    <template v-else-if="event.data?.step_type === 'finish'">
+                      <div class="text-emerald-400 font-semibold leading-relaxed">
+                        {{ event.message }}
+                      </div>
+                    </template>
+
+                    <!-- Fallback -->
+                    <template v-else>
+                      <span class="text-gray-300 leading-relaxed">{{ event.message }}</span>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Normal event (non-agent) -->
+                <div 
+                  v-else
+                  class="flex items-start gap-2 py-0.5"
+                >
+                  <!-- Timestamp -->
+                  <span class="text-gray-600 shrink-0 w-14 mt-0.5">
+                    {{ event.timestamp.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+                  </span>
+
+                  <!-- Icon -->
+                  <span 
+                    :class="[getEventIcon(event.type), getEventColor(event.type)]" 
+                    class="shrink-0 mt-0.5"
+                  />
+
+                  <!-- Message -->
+                  <span 
+                    class="leading-relaxed"
+                    :class="{
+                      'text-green-400 font-bold': event.type === 'stage_complete' || event.type === 'execution_complete' || event.type === 'reset_complete',
+                      'text-red-400 font-bold': event.type === 'error',
+                      'text-amber-300': event.type.includes('expired') || event.type.includes('detecting') || event.type.includes('changes_detected'),
+                      'text-blue-300': event.type.includes('executing') || event.type.includes('refreshing') || event.type.includes('creating') || event.type.includes('updating') || event.type.includes('syncing'),
+                      'text-indigo-300 font-semibold': event.type === 'stage_start',
+                      'text-violet-300 font-semibold': event.type === 'agent_start' || event.type === 'agent_complete',
+                      'text-green-300': event.type.includes('created') || event.type === 'ddl_complete' || event.type === 'data_complete' || event.type === 'schema_synced' || event.type === 'embedding_complete',
+                      'text-gray-300': !['stage_complete', 'execution_complete', 'reset_complete', 'error', 'stage_start', 'agent_start', 'agent_complete'].includes(event.type) && !event.type.includes('expired') && !event.type.includes('executing') && !event.type.includes('created') && !event.type.includes('syncing') && !event.type.includes('detecting'),
+                    }"
+                  >
+                    {{ event.message }}
+                  </span>
+                </div>
+              </template>
             </div>
           </div>
         </div>

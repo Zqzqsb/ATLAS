@@ -211,6 +211,20 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 		}
 	}
 
+	// Auto-reset: when executing Stage 1, always reset to initial state first
+	// This handles the case where the server restarted (status.CurrentStage=0) but
+	// the database still has DDL changes from a previous session.
+	if stageID == 1 {
+		emit("reset_start", "reset", "Auto-resetting database to initial state before Stage 1...", nil)
+		if err := s.resetToInitialLocked(ctx, dsID); err != nil {
+			execution.Error = fmt.Sprintf("auto-reset failed: %v", err)
+			execution.Success = false
+			emit("error", "reset", execution.Error, nil)
+			return execution, err
+		}
+		emit("reset_complete", "reset", "Database reset to initial state", nil)
+	}
+
 	// Phase 1: Announce stage
 	emit("stage_start", "announce", fmt.Sprintf("Stage %d: %s — %s", stageID, stage.Name, stage.Description), map[string]interface{}{
 		"stage_id":   stageID,
@@ -302,19 +316,50 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 			emit("agent_error", "maintain", fmt.Sprintf("Agent skipped: %v", err), nil)
 		} else {
 			// Wrap evolution events channel as a react.StepCallback for agent SSE
+			// eventType comes in as "coordinator_thought", "executor_action", etc.
 			stepCB := func(step react.Step, eventType string) {
+				// Parse agent role and step type from eventType
+				agentRole := "coordinator"
+				stepType := eventType
+				if strings.HasPrefix(eventType, "coordinator_") {
+					stepType = strings.TrimPrefix(eventType, "coordinator_")
+				} else if strings.HasPrefix(eventType, "executor_") {
+					agentRole = "executor"
+					stepType = strings.TrimPrefix(eventType, "executor_")
+				}
+
 				msg := ""
-				if step.Thought != "" {
+				switch stepType {
+				case "thought":
 					msg = step.Thought
-				}
-				if step.Action != "" {
+				case "action":
 					msg = fmt.Sprintf("[%s] %v", step.Action, step.ActionInput)
+				case "observation":
+					msg = step.Observation
+				case "finish":
+					msg = step.Thought
+					if msg == "" {
+						msg = "Agent finished"
+					}
+				default:
+					if step.Thought != "" {
+						msg = step.Thought
+					}
+					if step.Action != "" {
+						msg = fmt.Sprintf("[%s] %v", step.Action, step.ActionInput)
+					}
 				}
-				if len(msg) > 300 {
-					msg = msg[:300] + "..."
+
+				if len(msg) > 500 {
+					msg = msg[:500] + "..."
 				}
+
 				emit("agent_step", "maintain", msg, map[string]interface{}{
 					"event_type": eventType,
+					"agent_role": agentRole,
+					"step_type":  stepType,
+					"tool_name":  step.Action,
+					"iteration":  step.Iteration,
 				})
 			}
 
@@ -373,7 +418,11 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 func (s *EvolutionService) ResetToInitial(ctx context.Context, dsID int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.resetToInitialLocked(ctx, dsID)
+}
 
+// resetToInitialLocked performs the actual reset. Caller must hold s.mu.
+func (s *EvolutionService) resetToInitialLocked(ctx context.Context, dsID int64) error {
 	businessDB, err := s.getBusinessDB(dsID)
 	if err != nil {
 		return fmt.Errorf("failed to get business DB: %w", err)

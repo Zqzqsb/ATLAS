@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"lucid/internal/adapter"
 	"lucid/internal/lakebase"
 	"lucid/internal/logger"
+	"lucid/internal/react"
 )
 
 // EvolutionStage represents a single schema evolution step
@@ -273,168 +275,82 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 
 	emit("changes_detected", "detect", fmt.Sprintf("Detected %d schema changes", len(detectedChanges)), detectedChanges)
 
-	// Phase 4: Mark affected context as expired
-	emit("marking_expired", "maintain", "Marking affected Rich Context as expired...", nil)
-
-	expiredCount := 0
-	if s.agentService != nil && len(detectedChanges) > 0 {
-		count, err := s.agentService.maintainer.MarkContextExpiredByChanges(ctx, dsID, detectedChanges)
-		if err != nil {
-			logger.L().Warn("Failed to mark context expired", "error", err)
-		} else {
-			expiredCount = count
-		}
-	}
-
-	if expiredCount > 0 {
-		execution.ContextActions = append(execution.ContextActions, ContextAction{
-			ActionType:  "expired",
-			Description: fmt.Sprintf("Marked %d context entries as expired", expiredCount),
-		})
-		emit("context_expired", "maintain", fmt.Sprintf("Marked %d context entries as expired", expiredCount), map[string]interface{}{
-			"expired_count": expiredCount,
-		})
-	}
-
-	// Phase 4.5: Sync schema to lake-base (captures new tables/columns)
+	// Phase 4: Sync schema to lake-base (captures new tables/columns before agents run)
+	emit("syncing_schema", "sync", "Syncing schema to lake-base...", nil)
 	if err := s.SyncSchemaToLakebase(ctx, dsID); err != nil {
 		logger.L().Warn("Schema sync failed", "error", err)
 	}
+	emit("schema_synced", "sync", "Schema synced to lake-base", nil)
 
-	// Phase 5: Create/refresh/delete context based on detected changes
-	emit("creating_context", "maintain", "Creating Rich Context for new schema elements...", nil)
+	// Phase 5: Build signal and run maintenance agents (Coordinator → Executor)
+	if s.agentService != nil && s.agentService.llmModel != nil && len(detectedChanges) > 0 {
+		emit("agent_start", "maintain", "Running maintenance agents (Coordinator → Executor)...", nil)
 
-	var contextActions []ContextAction
-	for _, change := range detectedChanges {
-		switch change.ChangeType {
-		case ChangeTypeColumnAdded:
-			action := ContextAction{
-				ActionType:  "created",
-				TableName:   change.TableName,
-				ColumnName:  change.ColumnName,
-				ContextType: "semantic",
-			}
-
-			if s.agentService != nil && s.agentService.llmModel != nil {
-				// Get data type from INFORMATION_SCHEMA for better LLM prompt
-				dataType := s.getColumnDataType(ctx, dsID, change.TableName, change.ColumnName)
-				bc, err := s.agentService.maintainer.CreateContextForNewColumn(ctx, dsID, change.TableName, change.ColumnName, dataType)
-				if err != nil {
-					action.Description = fmt.Sprintf("Failed to create context for %s.%s: %v", change.TableName, change.ColumnName, err)
-				} else if bc != nil {
-					action.NewContent = string(bc.Content)
-					action.Description = fmt.Sprintf("Generated semantic context for new column %s.%s", change.TableName, change.ColumnName)
-				}
-			} else {
-				action.Description = fmt.Sprintf("Column %s.%s added — LLM unavailable, context pending", change.TableName, change.ColumnName)
-			}
-
-			contextActions = append(contextActions, action)
-			emit("context_created", "maintain", action.Description, action)
-
-		case ChangeTypeTableAdded:
-			// Actively generate context for all columns of the new table
-			action := ContextAction{
-				ActionType:  "created",
-				TableName:   change.TableName,
-				ContextType: "table",
-			}
-
-			if s.agentService != nil && s.agentService.llmModel != nil {
-				cols, _ := s.repo.GetColumnsByTable(ctx, dsID, change.TableName)
-				created := 0
-				for _, col := range cols {
-					bc, err := s.agentService.maintainer.CreateContextForNewColumn(ctx, dsID, change.TableName, col.ColumnName, col.DataType.String)
-					if err != nil {
-						logger.L().Warn("Context creation failed", "table", change.TableName, "column", col.ColumnName, "error", err)
-						continue
-					}
-					if bc != nil {
-						created++
-					}
-				}
-				action.Description = fmt.Sprintf("New table %s — generated context for %d/%d columns", change.TableName, created, len(cols))
-			} else {
-				action.Description = fmt.Sprintf("New table %s detected — LLM unavailable, context pending", change.TableName)
-			}
-
-			contextActions = append(contextActions, action)
-			emit("context_created", "maintain", action.Description, action)
-
-		case ChangeTypeColumnModified:
-			// The context was marked expired in Phase 4; now refresh it
-			action := ContextAction{
-				ActionType: "refreshed",
-				TableName:  change.TableName,
-				ColumnName: change.ColumnName,
-			}
-
-			if s.agentService != nil && s.agentService.llmModel != nil && expiredCount > 0 {
-				results, err := s.agentService.TriggerContextRefresh(ctx, dsID)
-				if err != nil {
-					action.Description = fmt.Sprintf("Column %s.%s modified — context refresh failed: %v", change.TableName, change.ColumnName, err)
-				} else {
-					refreshed := 0
-					for _, r := range results {
-						if r.Success {
-							refreshed++
-							action.NewContent = string(r.NewContent)
-							action.OldContent = string(r.OldContent)
-						}
-					}
-					action.Description = fmt.Sprintf("Column %s.%s modified — refreshed %d context entries", change.TableName, change.ColumnName, refreshed)
-				}
-			} else {
-				action.Description = fmt.Sprintf("Column %s.%s modified — context marked for refresh", change.TableName, change.ColumnName)
-			}
-
-			contextActions = append(contextActions, action)
-			emit("context_refreshed", "maintain", action.Description, action)
-
-		case ChangeTypeColumnDropped:
-			// Delete expired context for the dropped column
-			action := ContextAction{
-				ActionType: "deleted",
-				TableName:  change.TableName,
-				ColumnName: change.ColumnName,
-			}
-
-			if s.repo != nil {
-				if err := s.repo.DeleteExpiredContext(ctx, dsID); err != nil {
-					logger.L().Warn("Failed to delete expired context", "error", err)
-				}
-			}
-			action.Description = fmt.Sprintf("Column %s.%s dropped — expired context cleaned up", change.TableName, change.ColumnName)
-
-			contextActions = append(contextActions, action)
-			emit("context_deleted", "maintain", action.Description, action)
-
-		case ChangeTypeForeignKeyAdded:
-			action := ContextAction{
-				ActionType:  "created",
-				TableName:   change.TableName,
-				ContextType: "join_hint",
-				Description: fmt.Sprintf("Foreign key added on %s — join relationship recorded", change.TableName),
-			}
-			contextActions = append(contextActions, action)
-			emit("context_created", "maintain", action.Description, action)
+		signal := &MaintenanceSignal{
+			Type:          SignalDDL,
+			DatasourceID:  dsID,
+			DDLStatements: stage.DDLs,
+			Changes:       detectedChanges,
+			TriggeredBy:   "evolution_stage",
+			TriggeredAt:   time.Now(),
 		}
+
+		// Create a DBAdapter for the business database
+		businessDBAdapter, err := s.getBusinessDBAdapter(dsID)
+		if err != nil {
+			logger.L().Warn("Failed to create business DB adapter for agent", "error", err)
+			emit("agent_error", "maintain", fmt.Sprintf("Agent skipped: %v", err), nil)
+		} else {
+			// Wrap evolution events channel as a react.StepCallback for agent SSE
+			stepCB := func(step react.Step, eventType string) {
+				msg := ""
+				if step.Thought != "" {
+					msg = step.Thought
+				}
+				if step.Action != "" {
+					msg = fmt.Sprintf("[%s] %v", step.Action, step.ActionInput)
+				}
+				if len(msg) > 300 {
+					msg = msg[:300] + "..."
+				}
+				emit("agent_step", "maintain", msg, map[string]interface{}{
+					"event_type": eventType,
+				})
+			}
+
+			agentResult, err := s.agentService.ProcessSignal(ctx, signal, businessDBAdapter, stepCB)
+			if err != nil {
+				logger.L().Warn("Maintenance agent failed", "error", err)
+				emit("agent_error", "maintain", fmt.Sprintf("Agent error: %v", err), nil)
+			} else {
+				// Record context actions from agent tasks
+				for _, task := range agentResult.Tasks {
+					action := ContextAction{
+						ActionType:  string(task.Action),
+						TableName:   task.TableName,
+						ColumnName:  task.ColumnName,
+						Description: fmt.Sprintf("[%s] %s.%s — %s", task.Action, task.TableName, task.ColumnName, task.Context),
+					}
+					execution.ContextActions = append(execution.ContextActions, action)
+				}
+				emit("agent_complete", "maintain", fmt.Sprintf("Maintenance agents completed: %d tasks processed", len(agentResult.Tasks)), map[string]interface{}{
+					"tasks": len(agentResult.Tasks),
+				})
+			}
+		}
+	} else if len(detectedChanges) > 0 {
+		emit("agent_skipped", "maintain", "LLM not available — maintenance agents skipped", nil)
 	}
 
-	execution.ContextActions = append(execution.ContextActions, contextActions...)
-
-	// Phase 6: (Context refresh already handled inline in Phase 5 for column_modified)
-
-	// Phase 7: Log changes
+	// Phase 6: Log changes
 	if s.agentService != nil {
 		for _, change := range detectedChanges {
-			_ = s.agentService.logger.LogSchemaChange(ctx, dsID, change)
+			_ = s.agentService.changeLog.LogSchemaChange(ctx, dsID, change)
 		}
 	}
 
-	// Phase 8: Update embeddings
-	emit("updating_embeddings", "embed", "Updating vector embeddings...", nil)
-	// Embedding update is handled by the handler layer after stage execution
+	// Phase 7: Embedding update is handled by the handler layer after stage execution
+	emit("updating_embeddings", "embed", "Embedding update pending (handled after stage completion)...", nil)
 
 	// Complete
 	execution.DurationMs = time.Since(startTime).Milliseconds()
@@ -447,28 +363,10 @@ func (s *EvolutionService) ExecuteStage(ctx context.Context, dsID int64, stageID
 		"stage_id":        stageID,
 		"duration_ms":     execution.DurationMs,
 		"changes":         len(detectedChanges),
-		"expired":         expiredCount,
 		"context_actions": len(execution.ContextActions),
 	})
 
 	return execution, nil
-}
-
-// getColumnDataType queries the data type for a column from lake-base metadata
-func (s *EvolutionService) getColumnDataType(ctx context.Context, dsID int64, tableName, columnName string) string {
-	if s.repo == nil {
-		return ""
-	}
-	cols, err := s.repo.GetColumnsByTable(ctx, dsID, tableName)
-	if err != nil {
-		return ""
-	}
-	for _, col := range cols {
-		if col.ColumnName == columnName {
-			return col.DataType.String
-		}
-	}
-	return ""
 }
 
 // ResetToInitial resets the evolution database to its initial state
@@ -651,6 +549,61 @@ func (s *EvolutionService) closeBusinessDB() {
 		s.businessDB.Close()
 		s.businessDB = nil
 	}
+}
+
+// getBusinessDBAdapter creates a fresh DBAdapter for the business database.
+// Used by maintenance agents which require the adapter.DBAdapter interface.
+func (s *EvolutionService) getBusinessDBAdapter(dsID int64) (adapter.DBAdapter, error) {
+	if s.pool == nil {
+		return nil, fmt.Errorf("connection pool not available")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ds, err := s.repo.GetDatasource(ctx, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("datasource not found: %w", err)
+	}
+
+	poolCfg := s.pool.GetConfig()
+	if poolCfg == nil {
+		return nil, fmt.Errorf("pool config not available")
+	}
+
+	host := poolCfg.Host
+	port := poolCfg.Port
+	user := poolCfg.User
+	password := poolCfg.Password
+	dbName := "lucid_evolution"
+
+	if ds.Host.Valid {
+		host = ds.Host.String
+	}
+	if ds.Port.Valid {
+		port = int(ds.Port.Int32)
+	}
+	if ds.DatabaseName.Valid {
+		dbName = ds.DatabaseName.String
+	}
+
+	dbAdapter, err := adapter.NewAdapter(&adapter.DBConfig{
+		Type:     "mysql",
+		Host:     host,
+		Port:     port,
+		Database: dbName,
+		User:     user,
+		Password: password,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create adapter: %w", err)
+	}
+
+	if err := dbAdapter.Connect(ctx); err != nil {
+		return nil, fmt.Errorf("failed to connect adapter: %w", err)
+	}
+
+	return dbAdapter, nil
 }
 
 // GetStagePreview returns what a stage will do without executing

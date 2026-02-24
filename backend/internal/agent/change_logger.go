@@ -156,16 +156,6 @@ func (l *ChangeLogger) GetRecentChanges(ctx context.Context, dsID int64, limit i
 	return l.repo.GetChangeLogsByDatasource(ctx, dsID, limit)
 }
 
-// GetChangesByType retrieves changes of a specific type
-func (l *ChangeLogger) GetChangesByType(ctx context.Context, dsID int64, changeType lakebase.ChangeType, limit int) ([]*lakebase.ChangeLog, error) {
-	return l.repo.GetChangeLogsByType(ctx, dsID, changeType, limit)
-}
-
-// GetChangesByTable retrieves changes for a specific table
-func (l *ChangeLogger) GetChangesByTable(ctx context.Context, dsID int64, tableName string, limit int) ([]*lakebase.ChangeLog, error) {
-	return l.repo.GetChangeLogsByTable(ctx, dsID, tableName, limit)
-}
-
 // MaintenanceResult holds the result of a maintenance run
 type MaintenanceResult struct {
 	DatasourceID        int64     `json:"datasource_id"`

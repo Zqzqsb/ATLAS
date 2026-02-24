@@ -14,9 +14,7 @@ import (
 // Repository errors
 var (
 	ErrDatasourceNotFound = errors.New("lakebase: datasource not found")
-	ErrSchemaNotFound     = errors.New("lakebase: schema not found")
 	ErrContextNotFound    = errors.New("lakebase: context not found")
-	ErrContextExpired     = errors.New("lakebase: context expired")
 	ErrInvalidInput       = errors.New("lakebase: invalid input")
 )
 
@@ -44,8 +42,6 @@ type Repository interface {
 	GetContextByID(ctx context.Context, id int64) (*BusinessContext, error)
 	GetContextByDatasource(ctx context.Context, dsID int64) ([]*BusinessContext, error)
 	GetContextByTable(ctx context.Context, dsID int64, tableName string) ([]*BusinessContext, error)
-	GetContextByColumn(ctx context.Context, dsID int64, tableName, columnName string) ([]*BusinessContext, error)
-	GetContextByType(ctx context.Context, dsID int64, contextType ContextType) ([]*BusinessContext, error)
 	MarkContextExpired(ctx context.Context, ids []int64, reason string) error
 	UpdateContextVersion(ctx context.Context, id int64, content json.RawMessage, updatedBy string, reason string) error
 	DeleteExpiredContext(ctx context.Context, dsID int64) error
@@ -54,20 +50,6 @@ type Repository interface {
 	// Change log operations
 	CreateChangeLog(ctx context.Context, log *ChangeLog) (int64, error)
 	GetChangeLogsByDatasource(ctx context.Context, dsID int64, limit int) ([]*ChangeLog, error)
-	GetChangeLogsByTable(ctx context.Context, dsID int64, tableName string, limit int) ([]*ChangeLog, error)
-	GetChangeLogsByType(ctx context.Context, dsID int64, changeType ChangeType, limit int) ([]*ChangeLog, error)
-
-	// Statistics operations
-	SaveStatistics(ctx context.Context, stat *Statistics) (int64, error)
-	GetStatisticsByTable(ctx context.Context, dsID int64, tableName string) ([]*Statistics, error)
-	DeleteStatisticsByDatasource(ctx context.Context, dsID int64) error
-
-	// JOIN path operations
-	SaveJoinPath(ctx context.Context, path *JoinPath) (int64, error)
-	SaveJoinPathBatch(ctx context.Context, paths []*JoinPath) error
-	GetJoinPath(ctx context.Context, dsID int64, fromTable, toTable string) (*JoinPath, error)
-	GetJoinPathsFromTable(ctx context.Context, dsID int64, fromTable string) ([]*JoinPath, error)
-	DeleteJoinPathsByDatasource(ctx context.Context, dsID int64) error
 }
 
 // MySQLRepository implements Repository for MySQL/MariaDB
@@ -543,27 +525,6 @@ func (r *MySQLRepository) GetContextByTable(ctx context.Context, dsID int64, tab
 	return r.queryBusinessContext(ctx, query, dsID, tableName)
 }
 
-func (r *MySQLRepository) GetContextByColumn(ctx context.Context, dsID int64, tableName, columnName string) ([]*BusinessContext, error) {
-	query := `
-		SELECT id, datasource_id, table_name, column_name, context_type, content, source, confidence,
-		       is_expired, expires_at, version, created_at, updated_at, created_by, updated_by, update_reason
-		FROM rc_business_context
-		WHERE datasource_id = ? AND table_name = ? AND column_name = ? AND is_expired = 0
-		ORDER BY context_type
-	`
-	return r.queryBusinessContext(ctx, query, dsID, tableName, columnName)
-}
-
-func (r *MySQLRepository) GetContextByType(ctx context.Context, dsID int64, contextType ContextType) ([]*BusinessContext, error) {
-	query := `
-		SELECT id, datasource_id, table_name, column_name, context_type, content, source, confidence,
-		       is_expired, expires_at, version, created_at, updated_at, created_by, updated_by, update_reason
-		FROM rc_business_context WHERE datasource_id = ? AND context_type = ? AND is_expired = 0
-		ORDER BY table_name, column_name
-	`
-	return r.queryBusinessContext(ctx, query, dsID, contextType)
-}
-
 func (r *MySQLRepository) MarkContextExpired(ctx context.Context, ids []int64, reason string) error {
 	if len(ids) == 0 {
 		return nil
@@ -705,26 +666,6 @@ func (r *MySQLRepository) GetChangeLogsByDatasource(ctx context.Context, dsID in
 	return r.queryChangeLogs(ctx, query, dsID, limit)
 }
 
-func (r *MySQLRepository) GetChangeLogsByTable(ctx context.Context, dsID int64, tableName string, limit int) ([]*ChangeLog, error) {
-	query := `
-		SELECT id, datasource_id, table_name, change_type, change_detail, old_value, new_value,
-		       trigger_source, change_reason, created_at
-		FROM rc_change_log WHERE datasource_id = ? AND table_name = ?
-		ORDER BY created_at DESC LIMIT ?
-	`
-	return r.queryChangeLogs(ctx, query, dsID, tableName, limit)
-}
-
-func (r *MySQLRepository) GetChangeLogsByType(ctx context.Context, dsID int64, changeType ChangeType, limit int) ([]*ChangeLog, error) {
-	query := `
-		SELECT id, datasource_id, table_name, change_type, change_detail, old_value, new_value,
-		       trigger_source, change_reason, created_at
-		FROM rc_change_log WHERE datasource_id = ? AND change_type = ?
-		ORDER BY created_at DESC LIMIT ?
-	`
-	return r.queryChangeLogs(ctx, query, dsID, changeType, limit)
-}
-
 func (r *MySQLRepository) queryChangeLogs(ctx context.Context, query string, args ...interface{}) ([]*ChangeLog, error) {
 	rows, err := r.pool.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -743,217 +684,6 @@ func (r *MySQLRepository) queryChangeLogs(ctx context.Context, query string, arg
 		logs = append(logs, log)
 	}
 	return logs, rows.Err()
-}
-
-// ===========================================
-// Statistics operations
-// ===========================================
-
-func (r *MySQLRepository) SaveStatistics(ctx context.Context, stat *Statistics) (int64, error) {
-	query := `
-		INSERT INTO rc_statistics (datasource_id, table_name, column_name, stat_type, stat_value)
-		VALUES (?, ?, ?, ?, ?)
-	`
-	result, err := r.pool.ExecContext(ctx, query,
-		stat.DatasourceID, stat.TableName, stat.ColumnName, stat.StatType, stat.StatValue)
-	if err != nil {
-		return 0, fmt.Errorf("lakebase: failed to save statistics: %w", err)
-	}
-	return result.LastInsertId()
-}
-
-func (r *MySQLRepository) GetStatisticsByTable(ctx context.Context, dsID int64, tableName string) ([]*Statistics, error) {
-	query := `
-		SELECT id, datasource_id, table_name, column_name, stat_type, stat_value, collected_at
-		FROM rc_statistics WHERE datasource_id = ? AND table_name = ?
-		ORDER BY column_name, stat_type
-	`
-	rows, err := r.pool.QueryContext(ctx, query, dsID, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to query statistics: %w", err)
-	}
-	defer rows.Close()
-
-	var stats []*Statistics
-	for rows.Next() {
-		s := &Statistics{}
-		if err := rows.Scan(
-			&s.ID, &s.DatasourceID, &s.TableName, &s.ColumnName,
-			&s.StatType, &s.StatValue, &s.CollectedAt); err != nil {
-			return nil, fmt.Errorf("lakebase: failed to scan statistics: %w", err)
-		}
-		stats = append(stats, s)
-	}
-	return stats, rows.Err()
-}
-
-func (r *MySQLRepository) DeleteStatisticsByDatasource(ctx context.Context, dsID int64) error {
-	query := `DELETE FROM rc_statistics WHERE datasource_id = ?`
-	_, err := r.pool.ExecContext(ctx, query, dsID)
-	return err
-}
-
-// ===========================================
-// JOIN path operations
-// ===========================================
-
-func (r *MySQLRepository) SaveJoinPath(ctx context.Context, path *JoinPath) (int64, error) {
-	query := `
-		INSERT INTO rc_join_paths
-		(datasource_id, from_table, to_table, path_tables, join_conditions, path_length, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`
-	result, err := r.pool.ExecContext(ctx, query,
-		path.DatasourceID, path.FromTable, path.ToTable, path.PathTables,
-		path.JoinConditions, path.PathLength, path.Confidence)
-	if err != nil {
-		return 0, fmt.Errorf("lakebase: failed to save join path: %w", err)
-	}
-	return result.LastInsertId()
-}
-
-func (r *MySQLRepository) SaveJoinPathBatch(ctx context.Context, paths []*JoinPath) error {
-	if len(paths) == 0 {
-		return nil
-	}
-
-	query := `
-		INSERT INTO rc_join_paths
-		(datasource_id, from_table, to_table, path_tables, join_conditions, path_length, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`
-
-	return r.pool.WithTransaction(ctx, func(tx *sql.Tx) error {
-		stmt, err := tx.PrepareContext(ctx, query)
-		if err != nil {
-			return fmt.Errorf("lakebase: failed to prepare statement: %w", err)
-		}
-		defer stmt.Close()
-
-		for _, path := range paths {
-			_, err := stmt.ExecContext(ctx,
-				path.DatasourceID, path.FromTable, path.ToTable, path.PathTables,
-				path.JoinConditions, path.PathLength, path.Confidence)
-			if err != nil {
-				return fmt.Errorf("lakebase: failed to insert join path: %w", err)
-			}
-		}
-		return nil
-	})
-}
-
-func (r *MySQLRepository) GetJoinPath(ctx context.Context, dsID int64, fromTable, toTable string) (*JoinPath, error) {
-	query := `
-		SELECT id, datasource_id, from_table, to_table, path_tables, join_conditions, path_length, confidence, created_at
-		FROM rc_join_paths WHERE datasource_id = ? AND from_table = ? AND to_table = ?
-		ORDER BY path_length ASC LIMIT 1
-	`
-	path := &JoinPath{}
-	err := r.pool.QueryRowContext(ctx, query, dsID, fromTable, toTable).Scan(
-		&path.ID, &path.DatasourceID, &path.FromTable, &path.ToTable,
-		&path.PathTables, &path.JoinConditions, &path.PathLength, &path.Confidence, &path.CreatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil // No path found is not an error
-	}
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to get join path: %w", err)
-	}
-	return path, nil
-}
-
-func (r *MySQLRepository) GetJoinPathsFromTable(ctx context.Context, dsID int64, fromTable string) ([]*JoinPath, error) {
-	query := `
-		SELECT id, datasource_id, from_table, to_table, path_tables, join_conditions, path_length, confidence, created_at
-		FROM rc_join_paths WHERE datasource_id = ? AND from_table = ?
-		ORDER BY to_table, path_length
-	`
-	rows, err := r.pool.QueryContext(ctx, query, dsID, fromTable)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to query join paths: %w", err)
-	}
-	defer rows.Close()
-
-	var paths []*JoinPath
-	for rows.Next() {
-		path := &JoinPath{}
-		if err := rows.Scan(
-			&path.ID, &path.DatasourceID, &path.FromTable, &path.ToTable,
-			&path.PathTables, &path.JoinConditions, &path.PathLength, &path.Confidence, &path.CreatedAt); err != nil {
-			return nil, fmt.Errorf("lakebase: failed to scan join path: %w", err)
-		}
-		paths = append(paths, path)
-	}
-	return paths, rows.Err()
-}
-
-func (r *MySQLRepository) DeleteJoinPathsByDatasource(ctx context.Context, dsID int64) error {
-	query := `DELETE FROM rc_join_paths WHERE datasource_id = ?`
-	_, err := r.pool.ExecContext(ctx, query, dsID)
-	return err
-}
-
-// ===========================================
-// Helper methods for content parsing
-// ===========================================
-
-// ParseEnumMeaningContent parses content for enum_meaning context type
-func ParseEnumMeaningContent(content json.RawMessage) (*EnumMeaningContent, error) {
-	var result EnumMeaningContent
-	if err := json.Unmarshal(content, &result); err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse enum meaning content: %w", err)
-	}
-	return &result, nil
-}
-
-// ParseBusinessRuleContent parses content for business_rule context type
-func ParseBusinessRuleContent(content json.RawMessage) (*BusinessRuleContent, error) {
-	var result BusinessRuleContent
-	if err := json.Unmarshal(content, &result); err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse business rule content: %w", err)
-	}
-	return &result, nil
-}
-
-// ParseJoinHintContent parses content for join_hint context type
-func ParseJoinHintContent(content json.RawMessage) (*JoinHintContent, error) {
-	var result JoinHintContent
-	if err := json.Unmarshal(content, &result); err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse join hint content: %w", err)
-	}
-	return &result, nil
-}
-
-// ParseSemanticContent parses content for semantic context type
-func ParseSemanticContent(content json.RawMessage) (*SemanticContent, error) {
-	var result SemanticContent
-	if err := json.Unmarshal(content, &result); err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse semantic content: %w", err)
-	}
-	return &result, nil
-}
-
-// NewEnumMeaningContent creates JSON content for enum meanings
-func NewEnumMeaningContent(values map[string]string) (json.RawMessage, error) {
-	content := EnumMeaningContent{Values: values}
-	return json.Marshal(content)
-}
-
-// NewBusinessRuleContent creates JSON content for business rules
-func NewBusinessRuleContent(rules []string, constraints []string) (json.RawMessage, error) {
-	content := BusinessRuleContent{Rules: rules, Constraints: constraints}
-	return json.Marshal(content)
-}
-
-// NewJoinHintContent creates JSON content for join hints
-func NewJoinHintContent(relatedTables, joinKeys []string, description string) (json.RawMessage, error) {
-	content := JoinHintContent{RelatedTables: relatedTables, JoinKeys: joinKeys, Description: description}
-	return json.Marshal(content)
-}
-
-// NewSemanticContent creates JSON content for semantic descriptions
-func NewSemanticContent(description string, synonyms, businessTerms []string) (json.RawMessage, error) {
-	content := SemanticContent{Description: description, Synonyms: synonyms, BusinessTerms: businessTerms}
-	return json.Marshal(content)
 }
 
 // GetRelationsByDatasource retrieves all relations for a datasource
@@ -983,6 +713,198 @@ func (r *MySQLRepository) GetRelationsByDatasource(ctx context.Context, dsID int
 		relations = append(relations, &rel)
 	}
 	return relations, nil
+}
+
+// ===========================================
+// Expire flag operations (for self-maintaining agent)
+// ===========================================
+
+// MarkTablesExpired marks tables as expired by name
+func (r *MySQLRepository) MarkTablesExpired(ctx context.Context, dsID int64, tableNames []string) (int64, error) {
+	if len(tableNames) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(tableNames))
+	args := make([]interface{}, 0, len(tableNames)+1)
+	args = append(args, dsID)
+	for i, name := range tableNames {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	query := fmt.Sprintf(`UPDATE rc_tables SET is_expired = 1, updated_at = NOW() WHERE datasource_id = ? AND table_name IN (%s)`,
+		strings.Join(placeholders, ","))
+	result, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("lakebase: failed to mark tables expired: %w", err)
+	}
+	return result.RowsAffected()
+}
+
+// MarkColumnsExpired marks columns as expired by table+column name pairs
+func (r *MySQLRepository) MarkColumnsExpired(ctx context.Context, dsID int64, columns []TableColumn) (int64, error) {
+	if len(columns) == 0 {
+		return 0, nil
+	}
+	// Build OR conditions: (table_name = ? AND column_name = ?) OR ...
+	conditions := make([]string, len(columns))
+	args := make([]interface{}, 0, len(columns)*2+1)
+	args = append(args, dsID)
+	for i, col := range columns {
+		conditions[i] = "(table_name = ? AND column_name = ?)"
+		args = append(args, col.TableName, col.ColumnName)
+	}
+	query := fmt.Sprintf(`UPDATE rc_columns SET is_expired = 1, updated_at = NOW() WHERE datasource_id = ? AND (%s)`,
+		strings.Join(conditions, " OR "))
+	result, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("lakebase: failed to mark columns expired: %w", err)
+	}
+	return result.RowsAffected()
+}
+
+// MarkAllColumnsExpiredByTable marks all columns of specified tables as expired
+func (r *MySQLRepository) MarkAllColumnsExpiredByTable(ctx context.Context, dsID int64, tableNames []string) (int64, error) {
+	if len(tableNames) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, len(tableNames))
+	args := make([]interface{}, 0, len(tableNames)+1)
+	args = append(args, dsID)
+	for i, name := range tableNames {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	query := fmt.Sprintf(`UPDATE rc_columns SET is_expired = 1, updated_at = NOW() WHERE datasource_id = ? AND table_name IN (%s)`,
+		strings.Join(placeholders, ","))
+	result, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("lakebase: failed to mark columns expired by table: %w", err)
+	}
+	return result.RowsAffected()
+}
+
+// ClearTableExpired clears the expired flag on tables
+func (r *MySQLRepository) ClearTableExpired(ctx context.Context, dsID int64, tableNames []string) error {
+	if len(tableNames) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(tableNames))
+	args := make([]interface{}, 0, len(tableNames)+1)
+	args = append(args, dsID)
+	for i, name := range tableNames {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	query := fmt.Sprintf(`UPDATE rc_tables SET is_expired = 0, updated_at = NOW() WHERE datasource_id = ? AND table_name IN (%s)`,
+		strings.Join(placeholders, ","))
+	_, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to clear table expired: %w", err)
+	}
+	return nil
+}
+
+// ClearColumnExpired clears the expired flag on columns
+func (r *MySQLRepository) ClearColumnExpired(ctx context.Context, dsID int64, columns []TableColumn) error {
+	if len(columns) == 0 {
+		return nil
+	}
+	conditions := make([]string, len(columns))
+	args := make([]interface{}, 0, len(columns)*2+1)
+	args = append(args, dsID)
+	for i, col := range columns {
+		conditions[i] = "(table_name = ? AND column_name = ?)"
+		args = append(args, col.TableName, col.ColumnName)
+	}
+	query := fmt.Sprintf(`UPDATE rc_columns SET is_expired = 0, updated_at = NOW() WHERE datasource_id = ? AND (%s)`,
+		strings.Join(conditions, " OR "))
+	_, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to clear column expired: %w", err)
+	}
+	return nil
+}
+
+// GetExpiredTables returns tables with is_expired = 1
+func (r *MySQLRepository) GetExpiredTables(ctx context.Context, dsID int64) ([]*TableInfo, error) {
+	query := `
+		SELECT id, datasource_id, table_name, description, row_count, is_expired,
+		       source, confidence, created_at, updated_at
+		FROM rc_tables WHERE datasource_id = ? AND is_expired = 1
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get expired tables: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []*TableInfo
+	for rows.Next() {
+		t := &TableInfo{}
+		if err := rows.Scan(&t.ID, &t.DatasourceID, &t.TableName, &t.Description, &t.RowCount,
+			&t.IsExpired, &t.Source, &t.Confidence, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan expired table: %w", err)
+		}
+		tables = append(tables, t)
+	}
+	return tables, rows.Err()
+}
+
+// GetExpiredColumns returns columns with is_expired = 1
+func (r *MySQLRepository) GetExpiredColumns(ctx context.Context, dsID int64) ([]*ColumnInfo, error) {
+	query := `
+		SELECT id, datasource_id, table_name, column_name, data_type, description,
+		       sample_values, synonyms, is_nullable, is_primary_key, is_foreign_key,
+		       is_expired, source, confidence, created_at, updated_at
+		FROM rc_columns WHERE datasource_id = ? AND is_expired = 1
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get expired columns: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []*ColumnInfo
+	for rows.Next() {
+		c := &ColumnInfo{}
+		if err := rows.Scan(&c.ID, &c.DatasourceID, &c.TableName, &c.ColumnName, &c.DataType,
+			&c.Description, &c.SampleValues, &c.Synonyms, &c.IsNullable,
+			&c.IsPrimaryKey, &c.IsForeignKey, &c.IsExpired, &c.Source,
+			&c.Confidence, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan expired column: %w", err)
+		}
+		columns = append(columns, c)
+	}
+	return columns, rows.Err()
+}
+
+// DeleteTableByName deletes a table record and its columns from rc_tables/rc_columns
+func (r *MySQLRepository) DeleteTableByName(ctx context.Context, dsID int64, tableName string) error {
+	return r.pool.WithTransaction(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM rc_columns WHERE datasource_id = ? AND table_name = ?", dsID, tableName); err != nil {
+			return fmt.Errorf("lakebase: failed to delete columns for table %s: %w", tableName, err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM rc_terms WHERE datasource_id = ? AND category = ?", dsID, tableName); err != nil {
+			// terms are optional, don't fail
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM rc_relations WHERE datasource_id = ? AND (from_table = ? OR to_table = ?)", dsID, tableName, tableName); err != nil {
+			// relations are optional
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM rc_tables WHERE datasource_id = ? AND table_name = ?", dsID, tableName); err != nil {
+			return fmt.Errorf("lakebase: failed to delete table %s: %w", tableName, err)
+		}
+		return nil
+	})
+}
+
+// DeleteColumnByName deletes a column record from rc_columns
+func (r *MySQLRepository) DeleteColumnByName(ctx context.Context, dsID int64, tableName, columnName string) error {
+	query := `DELETE FROM rc_columns WHERE datasource_id = ? AND table_name = ? AND column_name = ?`
+	_, err := r.pool.ExecContext(ctx, query, dsID, tableName, columnName)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to delete column %s.%s: %w", tableName, columnName, err)
+	}
+	return nil
 }
 
 // Ensure MySQLRepository implements Repository interface

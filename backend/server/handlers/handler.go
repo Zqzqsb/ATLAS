@@ -68,12 +68,12 @@ func (h *Handler) InitEvolution() {
 	if pool == nil || repo == nil {
 		return
 	}
-	h.agentService = agent.NewAgentService(pool, nil)
+	h.agentService = agent.NewAgentService(pool)
 	if h.agentService == nil {
 		return
 	}
 
-	// Wire LLM model into the agent service so ContextMaintainer can work
+	// Wire LLM model into the agent service for ReAct maintenance agents
 	if llmRaw := h.inferenceService.GetLLMModel(); llmRaw != nil {
 		if llmModel, ok := llmRaw.(llms.Model); ok {
 			h.agentService.SetLLMModel(llmModel)
@@ -86,9 +86,6 @@ func (h *Handler) InitEvolution() {
 
 // Close cleans up resources.
 func (h *Handler) Close() {
-	if h.agentService != nil {
-		h.agentService.Stop()
-	}
 	if h.dbService != nil {
 		h.dbService.Close()
 	}

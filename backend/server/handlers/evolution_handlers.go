@@ -88,54 +88,6 @@ func (h *Handler) GetEvolutionStagePreview(c *gin.Context) {
 	c.JSON(http.StatusOK, stage)
 }
 
-// ExecuteEvolutionStage executes the next evolution stage (non-streaming)
-// POST /api/v1/evolution/execute-stage
-func (h *Handler) ExecuteEvolutionStage(c *gin.Context) {
-	if h.evolutionService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Evolution service not initialized",
-		})
-		return
-	}
-
-	var req struct {
-		DatasourceID int64 `json:"datasource_id" binding:"required"`
-		Stage        int   `json:"stage" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request: " + err.Error(),
-		})
-		return
-	}
-
-	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
-	defer cancel()
-
-	execution, err := h.evolutionService.ExecuteStage(reqCtx, req.DatasourceID, req.Stage, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":     err.Error(),
-			"execution": execution,
-		})
-		return
-	}
-
-	// Auto-regenerate embeddings
-	if h.lakebaseService != nil {
-		embResult, embErr := h.lakebaseService.GenerateAndSaveEmbeddings(reqCtx, req.DatasourceID)
-		if embErr == nil && embResult != nil {
-			// Report embeddings in response
-			_ = embResult
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":   true,
-		"execution": execution,
-	})
-}
-
 // ExecuteEvolutionStageStream executes a stage with SSE event streaming
 // POST /api/v1/evolution/execute-stage/stream
 func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
@@ -236,49 +188,6 @@ func (h *Handler) ExecuteEvolutionStageStream(c *gin.Context) {
 			flusher.Flush()
 		}
 	}
-}
-
-// ResetEvolution resets the demo to initial state
-// POST /api/v1/evolution/reset
-func (h *Handler) ResetEvolution(c *gin.Context) {
-	if h.evolutionService == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Evolution service not initialized",
-		})
-		return
-	}
-
-	var req struct {
-		DatasourceID int64 `json:"datasource_id" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request: " + err.Error(),
-		})
-		return
-	}
-
-	reqCtx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
-	defer cancel()
-
-	if err := h.evolutionService.ResetToInitial(reqCtx, req.DatasourceID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Reset failed: " + err.Error(),
-		})
-		return
-	}
-
-	// Run real onboarding pipeline
-	onboardErr := h.runOnboardingForDatasource(reqCtx, req.DatasourceID, "lucid_evolution", func(_, _ string) {})
-	if onboardErr != nil {
-		logger.L().Warn("Onboarding during reset failed", "error", onboardErr)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":       true,
-		"message":       "Reset to initial state with onboarding",
-		"current_stage": 0,
-	})
 }
 
 // ResetEvolutionStream resets with SSE streaming for frontend feedback

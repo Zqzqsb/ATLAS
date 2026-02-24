@@ -38,16 +38,6 @@ func NewLakebaseService(configPath string) (*LakebaseService, error) {
 	}, nil
 }
 
-// NewLakebaseServiceWithConfig creates a new lake-base service with explicit config
-func NewLakebaseServiceWithConfig(cfg *lakebase.LakebaseConfig) *LakebaseService {
-	if cfg == nil {
-		cfg = lakebase.DefaultLakebaseConfig()
-	}
-	return &LakebaseService{
-		config: cfg,
-	}
-}
-
 // Connect establishes connection to the lake-base database
 func (s *LakebaseService) Connect(ctx context.Context) error {
 	s.mu.Lock()
@@ -498,30 +488,6 @@ func (s *LakebaseService) GetTableNames(ctx context.Context, dsID int64) ([]stri
 // Business Context Operations
 // ===========================================
 
-// SaveBusinessContext saves a single business context entry
-func (s *LakebaseService) SaveBusinessContext(ctx context.Context, bc *lakebase.BusinessContext) (int64, error) {
-	if !s.connected {
-		return 0, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.repo.SaveBusinessContext(ctx, bc)
-}
-
-// SaveBusinessContextBatch saves multiple business context entries
-func (s *LakebaseService) SaveBusinessContextBatch(ctx context.Context, contexts []*lakebase.BusinessContext) error {
-	if !s.connected {
-		return fmt.Errorf("lakebase service: not connected")
-	}
-	return s.repo.SaveBusinessContextBatch(ctx, contexts)
-}
-
-// GetContextByDatasource retrieves all context for a datasource
-func (s *LakebaseService) GetContextByDatasource(ctx context.Context, dsID int64) ([]*lakebase.BusinessContext, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.repo.GetContextByDatasource(ctx, dsID)
-}
-
 // GetContextByTable retrieves context for a specific table
 func (s *LakebaseService) GetContextByTable(ctx context.Context, dsID int64, tableName string) ([]*lakebase.BusinessContext, error) {
 	if !s.connected {
@@ -553,38 +519,6 @@ func (s *LakebaseService) GetRelationsByDatasource(ctx context.Context, dsID int
 // ===========================================
 // Vector/Embedding Operations
 // ===========================================
-
-// SaveEmbedding saves a single embedding
-func (s *LakebaseService) SaveEmbedding(ctx context.Context, emb *lakebase.Embedding) (int64, error) {
-	if !s.connected {
-		return 0, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.vectorRepo.SaveEmbedding(ctx, emb)
-}
-
-// SaveEmbeddingBatch saves multiple embeddings
-func (s *LakebaseService) SaveEmbeddingBatch(ctx context.Context, embeddings []*lakebase.Embedding) error {
-	if !s.connected {
-		return fmt.Errorf("lakebase service: not connected")
-	}
-	return s.vectorRepo.SaveEmbeddingBatch(ctx, embeddings)
-}
-
-// SearchSimilar performs vector similarity search
-func (s *LakebaseService) SearchSimilar(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*lakebase.EmbeddingWithDistance, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.vectorRepo.SearchSimilar(ctx, dsID, queryVector, topK)
-}
-
-// SearchSimilarByType performs vector search filtered by entity type
-func (s *LakebaseService) SearchSimilarByType(ctx context.Context, dsID int64, entityType lakebase.EntityType, queryVector []float32, topK int) ([]*lakebase.EmbeddingWithDistance, error) {
-	if !s.connected {
-		return nil, fmt.Errorf("lakebase service: not connected")
-	}
-	return s.vectorRepo.SearchSimilarByType(ctx, dsID, entityType, queryVector, topK)
-}
 
 // GenerateAndSaveEmbeddings generates embeddings for schema and context, then saves to database
 func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID int64) (*EmbeddingGenerationResult, error) {

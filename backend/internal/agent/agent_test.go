@@ -155,89 +155,6 @@ func TestSchemaChangeTypes(t *testing.T) {
 	}
 }
 
-func TestNormalizeDataType(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"VARCHAR(255)", "VARCHAR"},
-		{"varchar(100)", "VARCHAR"},
-		{"INT", "INT"},
-		{"DECIMAL(10,2)", "DECIMAL"},
-		{"  text  ", "TEXT"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := normalizeDataType(tt.input)
-			if result != tt.expected {
-				t.Errorf("normalizeDataType(%q) = %q, want %q", tt.input, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestIsColumnModified(t *testing.T) {
-	tests := []struct {
-		name     string
-		stored   *ColumnSnapshot
-		current  *ColumnSnapshot
-		expected bool
-	}{
-		{
-			name: "same column",
-			stored: &ColumnSnapshot{
-				Name:     "id",
-				DataType: "INT",
-				Nullable: false,
-			},
-			current: &ColumnSnapshot{
-				Name:     "id",
-				DataType: "INT",
-				Nullable: false,
-			},
-			expected: false,
-		},
-		{
-			name: "type changed",
-			stored: &ColumnSnapshot{
-				Name:     "id",
-				DataType: "INT",
-				Nullable: false,
-			},
-			current: &ColumnSnapshot{
-				Name:     "id",
-				DataType: "BIGINT",
-				Nullable: false,
-			},
-			expected: true,
-		},
-		{
-			name: "nullable changed",
-			stored: &ColumnSnapshot{
-				Name:     "name",
-				DataType: "VARCHAR(100)",
-				Nullable: false,
-			},
-			current: &ColumnSnapshot{
-				Name:     "name",
-				DataType: "VARCHAR(100)",
-				Nullable: true,
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isColumnModified(tt.stored, tt.current)
-			if result != tt.expected {
-				t.Errorf("isColumnModified() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestMaintenanceResult(t *testing.T) {
 	result := NewMaintenanceResult(1)
 
@@ -275,47 +192,34 @@ func TestMaintenanceResult(t *testing.T) {
 	}
 }
 
-func TestDefaultAgentConfig(t *testing.T) {
-	config := DefaultAgentConfig()
-
-	if !config.EnableDDLDetection {
-		t.Error("EnableDDLDetection should be true by default")
+func TestSignalToJSON(t *testing.T) {
+	signal := &MaintenanceSignal{
+		Type:         SignalDDL,
+		DatasourceID: 1,
+		Changes: []SchemaChange{
+			{ChangeType: ChangeTypeColumnAdded, TableName: "users", ColumnName: "phone"},
+		},
+		TriggeredBy: "test",
 	}
-
-	if config.CheckInterval != 60*time.Second {
-		t.Errorf("CheckInterval = %v, want 60s", config.CheckInterval)
+	json := SignalToJSON(signal)
+	if json == "" {
+		t.Error("Expected non-empty JSON")
 	}
-
-	if !config.AutoRefreshContext {
-		t.Error("AutoRefreshContext should be true by default")
-	}
-
-	if config.MaxConcurrentTasks != 2 {
-		t.Errorf("MaxConcurrentTasks = %d, want 2", config.MaxConcurrentTasks)
+	if !contains(json, "users") {
+		t.Error("JSON should contain table name")
 	}
 }
 
-func TestBuildExpiryReason(t *testing.T) {
-	changes := []SchemaChange{
-		{ChangeType: ChangeTypeColumnDropped, TableName: "users", ColumnName: "temp"},
-		{ChangeType: ChangeTypeColumnAdded, TableName: "users", ColumnName: "email"},
+func TestTasksToJSON(t *testing.T) {
+	tasks := []MaintenanceTask{
+		{ID: "t1", Action: TaskActionCreate, Target: TaskTargetColumn, TableName: "users", ColumnName: "phone"},
 	}
-
-	reason := buildExpiryReason(changes)
-
-	if reason == "" {
-		t.Error("Expected non-empty reason")
+	json := TasksToJSON(tasks)
+	if json == "" {
+		t.Error("Expected non-empty JSON")
 	}
-
-	if !contains(reason, "users") {
-		t.Error("Reason should contain table name")
-	}
-}
-
-func TestBuildExpiryReason_Empty(t *testing.T) {
-	reason := buildExpiryReason(nil)
-	if reason != "Unknown reason" {
-		t.Errorf("Expected 'Unknown reason', got %q", reason)
+	if !contains(json, "phone") {
+		t.Error("JSON should contain column name")
 	}
 }
 

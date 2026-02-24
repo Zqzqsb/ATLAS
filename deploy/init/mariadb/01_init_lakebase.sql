@@ -129,10 +129,14 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
     entity_text TEXT NOT NULL COMMENT 'Text that was embedded',
     embedding VECTOR(2048) NOT NULL COMMENT 'Vector embedding',
     embedding_model VARCHAR(100) DEFAULT 'doubao-embedding-large-text-250515',
+    is_stale TINYINT(1) DEFAULT 0 COMMENT 'Needs re-embedding after RC update',
+    is_deleted TINYINT(1) DEFAULT 0 COMMENT 'Soft-deleted, pending purge',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
     INDEX idx_entity (entity_type, entity_id),
+    INDEX idx_stale (is_stale),
+    INDEX idx_deleted (is_deleted),
     VECTOR INDEX idx_embedding_hnsw (embedding) DISTANCE=COSINE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 COMMENT='Vector embeddings for semantic search';
@@ -166,42 +170,7 @@ CREATE TABLE IF NOT EXISTS rc_business_context (
 COMMENT='Unified business context for tables and columns';
 
 -- ============================================================
--- 8. Statistics (column statistics for query optimization)
--- ============================================================
-CREATE TABLE IF NOT EXISTS rc_statistics (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    datasource_id INT NOT NULL,
-    table_name VARCHAR(255) NOT NULL,
-    column_name VARCHAR(255),
-    stat_type VARCHAR(50) NOT NULL,
-    stat_value TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_table (datasource_id, table_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT='Column statistics for intelligent query optimization';
-
--- ============================================================
--- 10. Join Paths (pre-computed join paths between tables)
--- ============================================================
-CREATE TABLE IF NOT EXISTS rc_join_paths (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    datasource_id INT NOT NULL,
-    from_table VARCHAR(255) NOT NULL,
-    to_table VARCHAR(255) NOT NULL,
-    join_columns TEXT NOT NULL,
-    join_type VARCHAR(50) DEFAULT 'INNER',
-    path_cost DECIMAL(5,2) DEFAULT 1.00,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
-    INDEX idx_from (datasource_id, from_table),
-    INDEX idx_to (datasource_id, to_table)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT='Pre-computed join paths for multi-table queries';
-
--- ============================================================
--- 11. Change Log (audit trail for self-maintaining agent)
+-- 8. Change Log (audit trail for self-maintaining agent)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_change_log (
     id INT AUTO_INCREMENT PRIMARY KEY,

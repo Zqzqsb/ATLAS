@@ -15,25 +15,17 @@ import (
 // Vector operation errors
 var (
 	ErrVectorDimMismatch = errors.New("lakebase: vector dimension mismatch")
-	ErrEmbeddingNotFound = errors.New("lakebase: embedding not found")
 	ErrInvalidVector     = errors.New("lakebase: invalid vector format")
 )
 
 // VectorRepository defines the interface for vector operations
 type VectorRepository interface {
-	// Embedding CRUD operations
-	SaveEmbedding(ctx context.Context, emb *Embedding) (int64, error)
 	SaveEmbeddingBatch(ctx context.Context, embeddings []*Embedding) error
-	GetEmbedding(ctx context.Context, id int64) (*Embedding, error)
-	GetEmbeddingByEntity(ctx context.Context, dsID int64, entityType EntityType, entityID int64) (*Embedding, error)
-	DeleteEmbedding(ctx context.Context, id int64) error
+	UpsertEmbedding(ctx context.Context, emb *Embedding) error
 	DeleteEmbeddingsByDatasource(ctx context.Context, dsID int64) error
-	DeleteEmbeddingsByEntity(ctx context.Context, dsID int64, entityType EntityType, entityID int64) error
-
-	// Vector search operations
 	SearchSimilar(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error)
 	SearchSimilarByType(ctx context.Context, dsID int64, entityType EntityType, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error)
-	SearchSimilarWithThreshold(ctx context.Context, dsID int64, queryVector []float32, topK int, maxDistance float64) ([]*EmbeddingWithDistance, error)
+	CountEmbeddingsByDatasource(ctx context.Context, dsID int64) (int64, error)
 }
 
 // MySQLVectorRepository implements VectorRepository for MariaDB with HNSW
@@ -120,27 +112,6 @@ func parseVectorFromText(s string) ([]float32, error) {
 	return result, nil
 }
 
-// SaveEmbedding saves a single embedding
-func (r *MySQLVectorRepository) SaveEmbedding(ctx context.Context, emb *Embedding) (int64, error) {
-	if len(emb.Embedding) != DefaultEmbeddingDimension {
-		return 0, fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(emb.Embedding))
-	}
-
-	vectorStr := vectorToString(emb.Embedding)
-	// Use REPLACE INTO for upsert behavior
-	query := `
-		REPLACE INTO rc_embeddings
-		(datasource_id, entity_type, entity_id, entity_text, embedding, embedding_model)
-		VALUES (?, ?, ?, ?, VEC_FromText(?), ?)
-	`
-	result, err := r.pool.ExecContext(ctx, query,
-		emb.DatasourceID, emb.EntityType, emb.EntityID, emb.EntityText, vectorStr, emb.EmbeddingModel)
-	if err != nil {
-		return 0, fmt.Errorf("lakebase: failed to save embedding: %w", err)
-	}
-	return result.LastInsertId()
-}
-
 // SaveEmbeddingBatch saves multiple embeddings in a transaction
 func (r *MySQLVectorRepository) SaveEmbeddingBatch(ctx context.Context, embeddings []*Embedding) error {
 	if len(embeddings) == 0 {
@@ -181,89 +152,10 @@ func (r *MySQLVectorRepository) SaveEmbeddingBatch(ctx context.Context, embeddin
 	})
 }
 
-// GetEmbedding retrieves an embedding by ID
-func (r *MySQLVectorRepository) GetEmbedding(ctx context.Context, id int64) (*Embedding, error) {
-	query := `
-		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       VEC_ToText(embedding) as embedding, embedding_model, created_at, updated_at
-		FROM rc_embeddings WHERE id = ?
-	`
-	emb := &Embedding{}
-	var embeddingStr string
-	err := r.pool.QueryRowContext(ctx, query, id).Scan(
-		&emb.ID, &emb.DatasourceID, &emb.EntityType, &emb.EntityID, &emb.EntityText,
-		&embeddingStr, &emb.EmbeddingModel, &emb.CreatedAt, &emb.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, ErrEmbeddingNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to get embedding: %w", err)
-	}
-
-	// Parse the vector from text format
-	vec, err := parseVectorFromText(embeddingStr)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse embedding: %w", err)
-	}
-	emb.Embedding = vec
-
-	return emb, nil
-}
-
-// GetEmbeddingByEntity retrieves an embedding by entity
-func (r *MySQLVectorRepository) GetEmbeddingByEntity(ctx context.Context, dsID int64, entityType EntityType, entityID int64) (*Embedding, error) {
-	query := `
-		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       VEC_ToText(embedding) as embedding, embedding_model, created_at, updated_at
-		FROM rc_embeddings
-		WHERE datasource_id = ? AND entity_type = ? AND entity_id = ?
-	`
-	emb := &Embedding{}
-	var embeddingStr string
-	err := r.pool.QueryRowContext(ctx, query, dsID, entityType, entityID).Scan(
-		&emb.ID, &emb.DatasourceID, &emb.EntityType, &emb.EntityID, &emb.EntityText,
-		&embeddingStr, &emb.EmbeddingModel, &emb.CreatedAt, &emb.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, ErrEmbeddingNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to get embedding by entity: %w", err)
-	}
-
-	vec, err := parseVectorFromText(embeddingStr)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to parse embedding: %w", err)
-	}
-	emb.Embedding = vec
-
-	return emb, nil
-}
-
-// DeleteEmbedding deletes an embedding by ID
-func (r *MySQLVectorRepository) DeleteEmbedding(ctx context.Context, id int64) error {
-	query := `DELETE FROM rc_embeddings WHERE id = ?`
-	result, err := r.pool.ExecContext(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("lakebase: failed to delete embedding: %w", err)
-	}
-	affected, _ := result.RowsAffected()
-	if affected == 0 {
-		return ErrEmbeddingNotFound
-	}
-	return nil
-}
-
 // DeleteEmbeddingsByDatasource deletes all embeddings for a datasource
 func (r *MySQLVectorRepository) DeleteEmbeddingsByDatasource(ctx context.Context, dsID int64) error {
 	query := `DELETE FROM rc_embeddings WHERE datasource_id = ?`
 	_, err := r.pool.ExecContext(ctx, query, dsID)
-	return err
-}
-
-// DeleteEmbeddingsByEntity deletes embeddings for a specific entity
-func (r *MySQLVectorRepository) DeleteEmbeddingsByEntity(ctx context.Context, dsID int64, entityType EntityType, entityID int64) error {
-	query := `DELETE FROM rc_embeddings WHERE datasource_id = ? AND entity_type = ? AND entity_id = ?`
-	_, err := r.pool.ExecContext(ctx, query, dsID, entityType, entityID)
 	return err
 }
 
@@ -279,7 +171,7 @@ func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, q
 		       embedding_model, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
 		FROM rc_embeddings
-		WHERE datasource_id = ?
+		WHERE datasource_id = ? AND is_deleted = 0
 		ORDER BY distance ASC
 		LIMIT ?
 	`
@@ -299,33 +191,12 @@ func (r *MySQLVectorRepository) SearchSimilarByType(ctx context.Context, dsID in
 		       embedding_model, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
 		FROM rc_embeddings
-		WHERE datasource_id = ? AND entity_type = ?
+		WHERE datasource_id = ? AND entity_type = ? AND is_deleted = 0
 		ORDER BY distance ASC
 		LIMIT ?
 	`
 
 	return r.searchEmbeddings(ctx, query, vectorStr, dsID, entityType, topK)
-}
-
-// SearchSimilarWithThreshold performs search with a distance threshold
-func (r *MySQLVectorRepository) SearchSimilarWithThreshold(ctx context.Context, dsID int64, queryVector []float32, topK int, maxDistance float64) ([]*EmbeddingWithDistance, error) {
-	if len(queryVector) != DefaultEmbeddingDimension {
-		return nil, fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(queryVector))
-	}
-
-	vectorStr := vectorToString(queryVector)
-	query := `
-		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       embedding_model, created_at, updated_at,
-		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
-		FROM rc_embeddings
-		WHERE datasource_id = ?
-		HAVING distance <= ?
-		ORDER BY distance ASC
-		LIMIT ?
-	`
-
-	return r.searchEmbeddings(ctx, query, vectorStr, dsID, maxDistance, topK)
 }
 
 func (r *MySQLVectorRepository) searchEmbeddings(ctx context.Context, query string, args ...interface{}) ([]*EmbeddingWithDistance, error) {
@@ -347,29 +218,6 @@ func (r *MySQLVectorRepository) searchEmbeddings(ctx context.Context, query stri
 		results = append(results, ewd)
 	}
 	return results, rows.Err()
-}
-
-// UpdateEmbedding updates an existing embedding
-func (r *MySQLVectorRepository) UpdateEmbedding(ctx context.Context, id int64, embedding []float32, entityText string) error {
-	if len(embedding) != DefaultEmbeddingDimension {
-		return fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(embedding))
-	}
-
-	vectorStr := vectorToString(embedding)
-	query := `
-		UPDATE rc_embeddings
-		SET embedding = VEC_FromText(?), entity_text = ?, updated_at = NOW()
-		WHERE id = ?
-	`
-	result, err := r.pool.ExecContext(ctx, query, vectorStr, entityText, id)
-	if err != nil {
-		return fmt.Errorf("lakebase: failed to update embedding: %w", err)
-	}
-	affected, _ := result.RowsAffected()
-	if affected == 0 {
-		return ErrEmbeddingNotFound
-	}
-	return nil
 }
 
 // UpsertEmbedding inserts or updates an embedding by entity
@@ -397,39 +245,9 @@ func (r *MySQLVectorRepository) UpsertEmbedding(ctx context.Context, emb *Embedd
 	return nil
 }
 
-// GetEmbeddingsByDatasource retrieves all embeddings for a datasource
-func (r *MySQLVectorRepository) GetEmbeddingsByDatasource(ctx context.Context, dsID int64) ([]*Embedding, error) {
-	query := `
-		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       embedding_model, created_at, updated_at
-		FROM rc_embeddings
-		WHERE datasource_id = ?
-		ORDER BY entity_type, entity_id
-	`
-	rows, err := r.pool.QueryContext(ctx, query, dsID)
-	if err != nil {
-		return nil, fmt.Errorf("lakebase: failed to get embeddings by datasource: %w", err)
-	}
-	defer rows.Close()
-
-	var results []*Embedding
-	for rows.Next() {
-		emb := &Embedding{}
-		err := rows.Scan(
-			&emb.ID, &emb.DatasourceID, &emb.EntityType, &emb.EntityID, &emb.EntityText,
-			&emb.EmbeddingModel, &emb.CreatedAt, &emb.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("lakebase: failed to scan embedding: %w", err)
-		}
-		// Note: We don't load the embedding vector here for efficiency
-		results = append(results, emb)
-	}
-	return results, rows.Err()
-}
-
 // CountEmbeddingsByDatasource returns the count of embeddings for a datasource
 func (r *MySQLVectorRepository) CountEmbeddingsByDatasource(ctx context.Context, dsID int64) (int64, error) {
-	query := `SELECT COUNT(*) FROM rc_embeddings WHERE datasource_id = ?`
+	query := `SELECT COUNT(*) FROM rc_embeddings WHERE datasource_id = ? AND is_deleted = 0`
 	var count int64
 	err := r.pool.QueryRowContext(ctx, query, dsID).Scan(&count)
 	if err != nil {
@@ -438,15 +256,94 @@ func (r *MySQLVectorRepository) CountEmbeddingsByDatasource(ctx context.Context,
 	return count, nil
 }
 
-// CountEmbeddingsByType returns the count of embeddings by type for a datasource
-func (r *MySQLVectorRepository) CountEmbeddingsByType(ctx context.Context, dsID int64, entityType EntityType) (int64, error) {
-	query := `SELECT COUNT(*) FROM rc_embeddings WHERE datasource_id = ? AND entity_type = ?`
-	var count int64
-	err := r.pool.QueryRowContext(ctx, query, dsID, entityType).Scan(&count)
+// ===========================================
+// Stale / Soft-delete / Batch operations
+// ===========================================
+
+// MarkEmbeddingStale marks embeddings for a specific entity as stale (needs re-embedding)
+func (r *MySQLVectorRepository) MarkEmbeddingStale(ctx context.Context, dsID int64, entityType EntityType, entityID int64) error {
+	query := `UPDATE rc_embeddings SET is_stale = 1, updated_at = NOW() WHERE datasource_id = ? AND entity_type = ? AND entity_id = ?`
+	_, err := r.pool.ExecContext(ctx, query, dsID, entityType, entityID)
 	if err != nil {
-		return 0, fmt.Errorf("lakebase: failed to count embeddings by type: %w", err)
+		return fmt.Errorf("lakebase: failed to mark embedding stale: %w", err)
 	}
-	return count, nil
+	return nil
+}
+
+// MarkEmbeddingStaleByEntity marks embeddings stale by entity type and name (for table/column lookup)
+func (r *MySQLVectorRepository) MarkEmbeddingStaleByEntity(ctx context.Context, dsID int64, entityType EntityType, entityText string) error {
+	query := `UPDATE rc_embeddings SET is_stale = 1, updated_at = NOW() WHERE datasource_id = ? AND entity_type = ? AND entity_text LIKE ?`
+	_, err := r.pool.ExecContext(ctx, query, dsID, entityType, entityText+"%")
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to mark embedding stale by entity: %w", err)
+	}
+	return nil
+}
+
+// SoftDeleteEmbedding soft-deletes embeddings for a specific entity
+func (r *MySQLVectorRepository) SoftDeleteEmbedding(ctx context.Context, dsID int64, entityType EntityType, entityID int64) error {
+	query := `UPDATE rc_embeddings SET is_deleted = 1, updated_at = NOW() WHERE datasource_id = ? AND entity_type = ? AND entity_id = ?`
+	_, err := r.pool.ExecContext(ctx, query, dsID, entityType, entityID)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to soft delete embedding: %w", err)
+	}
+	return nil
+}
+
+// GetStaleEmbeddings returns all stale, non-deleted embeddings for a datasource
+func (r *MySQLVectorRepository) GetStaleEmbeddings(ctx context.Context, dsID int64) ([]*Embedding, error) {
+	query := `
+		SELECT id, datasource_id, entity_type, entity_id, entity_text,
+		       embedding_model, is_stale, is_deleted, created_at, updated_at
+		FROM rc_embeddings
+		WHERE datasource_id = ? AND is_stale = 1 AND is_deleted = 0
+	`
+	rows, err := r.pool.QueryContext(ctx, query, dsID)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to get stale embeddings: %w", err)
+	}
+	defer rows.Close()
+
+	var embeddings []*Embedding
+	for rows.Next() {
+		e := &Embedding{}
+		if err := rows.Scan(&e.ID, &e.DatasourceID, &e.EntityType, &e.EntityID, &e.EntityText,
+			&e.EmbeddingModel, &e.IsStale, &e.IsDeleted, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan stale embedding: %w", err)
+		}
+		embeddings = append(embeddings, e)
+	}
+	return embeddings, rows.Err()
+}
+
+// PurgeDeletedEmbeddings permanently removes soft-deleted embeddings
+func (r *MySQLVectorRepository) PurgeDeletedEmbeddings(ctx context.Context, dsID int64) (int64, error) {
+	query := `DELETE FROM rc_embeddings WHERE datasource_id = ? AND is_deleted = 1`
+	result, err := r.pool.ExecContext(ctx, query, dsID)
+	if err != nil {
+		return 0, fmt.Errorf("lakebase: failed to purge deleted embeddings: %w", err)
+	}
+	return result.RowsAffected()
+}
+
+// ClearStaleFlag clears the stale flag on embeddings after re-embedding
+func (r *MySQLVectorRepository) ClearStaleFlag(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(`UPDATE rc_embeddings SET is_stale = 0, updated_at = NOW() WHERE id IN (%s)`,
+		strings.Join(placeholders, ","))
+	_, err := r.pool.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to clear stale flag: %w", err)
+	}
+	return nil
 }
 
 // Ensure MySQLVectorRepository implements VectorRepository interface

@@ -155,6 +155,12 @@ const (
 	EntityTypeRelationship EntityType = "relationship"
 )
 
+// TableColumn is a lightweight table+column pair used for batch operations.
+type TableColumn struct {
+	TableName  string `json:"table_name"`
+	ColumnName string `json:"column_name"`
+}
+
 // Embedding represents vector embedding
 type Embedding struct {
 	ID             int64      `json:"id" db:"id"`
@@ -164,6 +170,8 @@ type Embedding struct {
 	EntityText     string     `json:"entity_text" db:"entity_text"`
 	Embedding      []float32  `json:"-" db:"embedding"` // Vector data, hidden in JSON
 	EmbeddingModel string     `json:"embedding_model" db:"embedding_model"`
+	IsStale        bool       `json:"is_stale" db:"is_stale"`
+	IsDeleted      bool       `json:"is_deleted" db:"is_deleted"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }
@@ -212,77 +220,4 @@ type ChangeLog struct {
 	CreatedAt     time.Time       `json:"created_at" db:"created_at"`
 }
 
-// StatType represents the type of statistics
-type StatType string
 
-const (
-	StatTypeRowCount      StatType = "row_count"
-	StatTypeDistinctCount StatType = "distinct_count"
-	StatTypeNullRatio     StatType = "null_ratio"
-	StatTypeHotValues     StatType = "hot_values"
-)
-
-// Statistics represents data statistics
-type Statistics struct {
-	ID           int64           `json:"id" db:"id"`
-	DatasourceID int64           `json:"datasource_id" db:"datasource_id"`
-	TableName    string          `json:"table_name" db:"table_name"`
-	ColumnName   sql.NullString  `json:"column_name" db:"column_name"`
-	StatType     StatType        `json:"stat_type" db:"stat_type"`
-	StatValue    json.RawMessage `json:"stat_value" db:"stat_value"`
-	CollectedAt  time.Time       `json:"collected_at" db:"collected_at"`
-}
-
-// JoinPath represents pre-computed JOIN paths
-type JoinPath struct {
-	ID             int64           `json:"id" db:"id"`
-	DatasourceID   int64           `json:"datasource_id" db:"datasource_id"`
-	FromTable      string          `json:"from_table" db:"from_table"`
-	ToTable        string          `json:"to_table" db:"to_table"`
-	PathTables     json.RawMessage `json:"path_tables" db:"path_tables"`
-	JoinConditions json.RawMessage `json:"join_conditions" db:"join_conditions"`
-	PathLength     int             `json:"path_length" db:"path_length"`
-	Confidence     float64         `json:"confidence" db:"confidence"`
-	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
-}
-
-// JoinCondition represents a single JOIN condition
-type JoinCondition struct {
-	LeftTable   string `json:"left_table"`
-	LeftColumn  string `json:"left_column"`
-	RightTable  string `json:"right_table"`
-	RightColumn string `json:"right_column"`
-	JoinType    string `json:"join_type"` // INNER, LEFT, RIGHT
-}
-
-// EnumMeaningContent represents content for enum_meaning context type
-type EnumMeaningContent struct {
-	Values map[string]string `json:"values"` // enum value -> meaning
-}
-
-// BusinessRuleContent represents content for business_rule context type
-type BusinessRuleContent struct {
-	Rules       []string `json:"rules"`
-	Constraints []string `json:"constraints,omitempty"`
-}
-
-// JoinHintContent represents content for join_hint context type
-type JoinHintContent struct {
-	RelatedTables []string `json:"related_tables"`
-	JoinKeys      []string `json:"join_keys"`
-	Description   string   `json:"description,omitempty"`
-}
-
-// DataQualityContent represents content for data_quality context type
-type DataQualityContent struct {
-	NullRatio     float64  `json:"null_ratio,omitempty"`
-	DistinctRatio float64  `json:"distinct_ratio,omitempty"`
-	Anomalies     []string `json:"anomalies,omitempty"`
-}
-
-// SemanticContent represents content for semantic context type
-type SemanticContent struct {
-	Description   string   `json:"description"`
-	Synonyms      []string `json:"synonyms,omitempty"`
-	BusinessTerms []string `json:"business_terms,omitempty"`
-}

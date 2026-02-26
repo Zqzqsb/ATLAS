@@ -159,7 +159,18 @@ const exampleQuestions = computed(() => {
       'Count the number of players by country'
     ]
   }
-  
+
+  // TPC-H Enterprise (38-table large-scale demo)
+  if (dbName.includes('tpch') || dbName.includes('enterprise')) {
+    return [
+      '去年利润最高的供应商是哪家？',
+      '华东地区仓库中库存不足的零件有哪些？',
+      '收到差评最多的产品类别是什么？',
+      '发货延迟超过7天的订单涉及多少金额？',
+      '哪些零件的价格在过去一年内上涨超过5%？',
+    ]
+  }
+
   // Default examples
   return [
     'List all tables',

@@ -337,14 +337,23 @@ func (h *Handler) runOnboardingForDatasource(
 	repo := h.lakebaseService.GetRepository()
 	rcWriter := reacttools.NewLakebaseRCWriter(repo)
 
+	// Compute iterations based on table count (~3 per table + overhead)
+	tableCount := len(tables)
+	target := tableCount*3 + 10
+	maxIter := max(15, int(float64(target)*1.5))
+	if maxIter > 300 {
+		maxIter = 300
+	}
+	minIter := max(3, int(float64(target)*0.6))
+
 	engineCfg := scenarios.BuildOnboardingEngine(adapter, rcWriter, scenarios.OnboardingConfig{
 		DatasourceID:  dsID,
 		DBType:        "mysql",
 		Tables:        tables,
 		Columns:       columns,
 		Relations:     relations,
-		MaxIterations: 20,
-		MinIterations: 5,
+		MaxIterations: maxIter,
+		MinIterations: minIter,
 		StepCallback: func(step react.Step, eventType string) {
 			msg := ""
 			if step.Thought != "" {

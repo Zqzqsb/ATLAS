@@ -756,11 +756,11 @@ CREATE TABLE price_history (
 ) COMMENT='产品 — 零件价格变更历史';
 
 INSERT INTO price_history (part_id, old_price, new_price, change_date, reason) VALUES
-(1,  880.00,  901.00,  '2024-01-15', 'Annual price adjustment - copper cost increase'),
+(1,  800.00,  920.00,  '2024-01-15', 'Annual price adjustment - copper cost increase'),
 (2,  890.00,  902.00,  '2024-01-15', 'Annual price adjustment'),
-(3,  885.00,  903.00,  '2024-03-01', 'Raw material cost increase'),
+(3,  750.00,  850.00,  '2024-03-01', 'Raw material cost increase'),
 (5,  900.00,  905.00,  '2024-06-01', 'Tin market price surge'),
-(10, 895.00,  910.00,  '2024-06-01', 'Steel tariff impact'),
+(10, 680.00,  780.00,  '2024-06-01', 'Steel tariff impact'),
 (15, 920.00,  915.00,  '2024-09-01', 'Promotional pricing'),
 (18, 925.00,  918.00,  '2024-09-01', 'Competitive price matching');
 

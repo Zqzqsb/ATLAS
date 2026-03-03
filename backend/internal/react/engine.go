@@ -123,6 +123,16 @@ func (e *Engine) Execute(ctx context.Context, input string) (*Result, error) {
 		agents.ZeroShotReactDescription,
 		agents.WithMaxIterations(actualMax),
 		agents.WithCallbacksHandler(handler),
+		agents.WithParserErrorHandler(agents.NewParserErrorHandler(func(err string) string {
+			return "FORMAT ERROR: Your response could not be parsed. You MUST use exactly this format:\n" +
+				"Thought: <your reasoning>\n" +
+				"Action: <tool_name>\n" +
+				"Action Input: <input>\n\n" +
+				"OR to finish:\n" +
+				"Thought: <summary>\n" +
+				"Final Answer: <your final answer>\n\n" +
+				"Please try again with the correct format. Continue where you left off."
+		})),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("react engine: failed to initialize agent: %w", err)

@@ -30,6 +30,20 @@ func (t *ExecuteSQL) Call(ctx context.Context, input string) (string, error) {
 	t.callCount++
 	sql := strings.TrimSpace(input)
 
+	// Strip markdown code block wrapper (LLMs often wrap SQL in ```sql ... ```)
+	if strings.HasPrefix(sql, "```") {
+		if idx := strings.Index(sql, "\n"); idx >= 0 {
+			sql = sql[idx+1:]
+		} else {
+			sql = strings.TrimPrefix(sql, "```sql")
+			sql = strings.TrimPrefix(sql, "```")
+		}
+		if strings.HasSuffix(sql, "```") {
+			sql = sql[:len(sql)-3]
+		}
+		sql = strings.TrimSpace(sql)
+	}
+
 	// Safety: only allow SELECT
 	upper := strings.ToUpper(sql)
 	if !strings.HasPrefix(upper, "SELECT") && !strings.HasPrefix(upper, "SHOW") && !strings.HasPrefix(upper, "DESCRIBE") {

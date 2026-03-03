@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"log/slog"
+
 	"lucid/internal/logger"
 )
 
@@ -35,7 +37,7 @@ func NewSetRichContext(writer RCWriter, dsID int64) *SetRichContext {
 func (t *SetRichContext) Name() string { return "set_rich_context" }
 func (t *SetRichContext) Description() string {
 	return `Save discovered Rich Context to the knowledge store.
-Input: a JSON object with these fields:
+Input: a JSON object OR a JSON array of objects. Each object has these fields:
   - "type": one of "table_description", "column_description", "column_sample_values", "column_synonyms", "business_term"
   - "table": table name (required for table_* and column_* types)
   - "column": column name (required for column_* types)
@@ -45,13 +47,17 @@ Input: a JSON object with these fields:
   - "examples": usage examples (optional, for business_term)
   - "category": term category (optional, for business_term)
 
-Examples:
-  {"type": "table_description", "table": "orders", "value": "Contains customer purchase orders with payment status and shipping info."}
-  {"type": "column_description", "table": "orders", "column": "status", "value": "Order status: pending, shipped, delivered, cancelled."}
-  {"type": "column_sample_values", "table": "users", "column": "country", "value": "USA, UK, France, Germany, Japan"}
-  {"type": "column_synonyms", "table": "users", "column": "email", "value": "mail, email address, e-mail"}
-  {"type": "business_term", "value": "churn rate", "definition": "Percentage of customers who stop using the service within a period.", "category": "metrics"}
-Output: confirmation message.`
+PREFER BATCH MODE: Pass a JSON array to save multiple items in one call (much more efficient).
+Example (batch — saves 4 items in ONE call):
+  [
+    {"type": "table_description", "table": "orders", "value": "Contains customer purchase orders."},
+    {"type": "column_description", "table": "orders", "column": "status", "value": "Order lifecycle status."},
+    {"type": "column_sample_values", "table": "orders", "column": "status", "value": "pending, shipped, delivered"},
+    {"type": "column_synonyms", "table": "orders", "column": "status", "value": "order state, fulfillment status"}
+  ]
+Example (single):
+  {"type": "table_description", "table": "orders", "value": "Contains customer purchase orders."}
+Output: confirmation message with count of saved items.`
 }
 
 type rcAction struct {
@@ -69,12 +75,53 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 	t.callCount++
 	log := logger.With("component", "set_rich_context", "dsID", t.dsID, "call", t.callCount)
 
-	var action rcAction
-	if err := json.Unmarshal([]byte(strings.TrimSpace(input)), &action); err != nil {
-		log.Warn("invalid JSON input", "error", err, "input", truncateStr(input, 200))
-		return fmt.Sprintf("Error: invalid JSON input. Expected a JSON object. Got: %s", truncateStr(input, 200)), nil
+	trimmed := stripMarkdownCodeBlock(strings.TrimSpace(input))
+
+	// Detect batch mode (JSON array)
+	if strings.HasPrefix(trimmed, "[") {
+		var actions []rcAction
+		if err := json.Unmarshal([]byte(trimmed), &actions); err != nil {
+			log.Warn("invalid JSON array input", "error", err, "input", truncateStr(trimmed, 200))
+			return fmt.Sprintf("Error: invalid JSON array. Got: %s", truncateStr(trimmed, 200)), nil
+		}
+		if len(actions) == 0 {
+			return "Error: empty array. Provide at least one item.", nil
+		}
+
+		var saved, failed int
+		var errors []string
+		for i, action := range actions {
+			if result, err := t.processSingle(ctx, log, action); err != nil {
+				failed++
+				errors = append(errors, fmt.Sprintf("[%d] %s", i, err.Error()))
+			} else if strings.HasPrefix(result, "Error:") {
+				failed++
+				errors = append(errors, fmt.Sprintf("[%d] %s", i, result))
+			} else {
+				saved++
+			}
+		}
+
+		msg := fmt.Sprintf("Batch complete: %d/%d saved.", saved, saved+failed)
+		if len(errors) > 0 {
+			msg += " Errors: " + strings.Join(errors, "; ")
+		}
+		return msg, nil
 	}
 
+	// Single mode
+	var action rcAction
+	if err := json.Unmarshal([]byte(trimmed), &action); err != nil {
+		log.Warn("invalid JSON input", "error", err, "input", truncateStr(trimmed, 200))
+		return fmt.Sprintf("Error: invalid JSON input. Expected a JSON object or array. Got: %s", truncateStr(trimmed, 200)), nil
+	}
+
+	result, _ := t.processSingle(ctx, log, action)
+	return result, nil
+}
+
+// processSingle handles a single rcAction write. Returns (message, error).
+func (t *SetRichContext) processSingle(ctx context.Context, log *slog.Logger, action rcAction) (string, error) {
 	log.Info("writing rich context",
 		"type", action.Type,
 		"table", action.Table,
@@ -91,7 +138,6 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			log.Error("failed to save table description", "table", action.Table, "error", err)
 			return fmt.Sprintf("Error saving table description: %v", err), nil
 		}
-		log.Info("saved table description", "table", action.Table)
 		return fmt.Sprintf("Saved table description for '%s'.", action.Table), nil
 
 	case "column_description":
@@ -102,7 +148,6 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			log.Error("failed to save column description", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving column description: %v", err), nil
 		}
-		log.Info("saved column description", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved column description for '%s.%s'.", action.Table, action.Column), nil
 
 	case "column_sample_values":
@@ -113,7 +158,6 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			log.Error("failed to save sample values", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving sample values: %v", err), nil
 		}
-		log.Info("saved column sample values", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved sample values for '%s.%s'.", action.Table, action.Column), nil
 
 	case "column_synonyms":
@@ -124,7 +168,6 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			log.Error("failed to save synonyms", "table", action.Table, "column", action.Column, "error", err)
 			return fmt.Sprintf("Error saving synonyms: %v", err), nil
 		}
-		log.Info("saved column synonyms", "table", action.Table, "column", action.Column)
 		return fmt.Sprintf("Saved synonyms for '%s.%s'.", action.Table, action.Column), nil
 
 	case "business_term":
@@ -135,7 +178,6 @@ func (t *SetRichContext) Call(ctx context.Context, input string) (string, error)
 			log.Error("failed to save business term", "term", action.Value, "error", err)
 			return fmt.Sprintf("Error saving business term: %v", err), nil
 		}
-		log.Info("saved business term", "term", action.Value, "category", action.Category)
 		return fmt.Sprintf("Saved business term '%s'.", action.Value), nil
 
 	default:
@@ -150,4 +192,25 @@ func truncateStr(s string, max int) string {
 		return s
 	}
 	return s[:max] + "..."
+}
+
+// stripMarkdownCodeBlock removes ```json ... ``` or ``` ... ``` wrappers that LLMs often add.
+func stripMarkdownCodeBlock(s string) string {
+	// Check for ```json or ``` prefix
+	if strings.HasPrefix(s, "```") {
+		// Remove opening ``` line (with optional language tag)
+		idx := strings.Index(s, "\n")
+		if idx >= 0 {
+			s = s[idx+1:]
+		} else {
+			s = strings.TrimPrefix(s, "```json")
+			s = strings.TrimPrefix(s, "```")
+		}
+		// Remove trailing ```
+		if strings.HasSuffix(s, "```") {
+			s = s[:len(s)-3]
+		}
+		s = strings.TrimSpace(s)
+	}
+	return s
 }

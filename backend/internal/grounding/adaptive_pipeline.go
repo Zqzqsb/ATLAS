@@ -57,6 +57,9 @@ type AdaptiveGroundingRequest struct {
 	TableCount int
 	// Optional progress callback for SSE streaming
 	ProgressCallback GroundingProgressCallback
+	// SkipLinking skips the LLM linking agent — uses vector retrieval results directly.
+	// Only meaningful in LargeScale mode.
+	SkipLinking bool
 }
 
 // AdaptiveGroundingResult extends GroundingResult with strategy information
@@ -291,6 +294,31 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 			"expanding_to", p.config.LinkingAgent.MaxTablesInContext,
 		)
 		candidateSchemas = p.expandCandidates(req.AllSchemas, candidateSchemas, p.config.LinkingAgent.MaxTablesInContext)
+	}
+
+	// SkipLinking: use coarse retrieval results directly, no LLM call
+	if req.SkipLinking {
+		log.Info("[LargeScale] SkipLinking=true, using retrieval results directly",
+			"candidate_tables", len(candidateSchemas),
+		)
+		if req.ProgressCallback != nil {
+			req.ProgressCallback("linking_done", map[string]interface{}{
+				"selected_tables": p.signalsToSelectedTables(coarseResult.Signals),
+				"reasoning":       "Linking agent skipped — using vector retrieval results directly.",
+				"duration_ms":     int64(0),
+				"context":         p.signalsOnlyContext(coarseResult.Signals, req.Query),
+			})
+		}
+		return &AdaptiveGroundingResult{
+			Strategy:       StrategyLargeScale,
+			SelectedTables: p.signalsToSelectedTables(coarseResult.Signals),
+			Context:        p.signalsOnlyContext(coarseResult.Signals, req.Query),
+			TotalDuration:  time.Since(start),
+			RetrievalTime:  retrievalTime,
+			CoarseSignals:  coarseResult.Signals,
+			ExecutionLogs:  coarseResult.ExecutionLogs,
+			Reasoning:      "Linking agent skipped — using vector retrieval results directly.",
+		}, nil
 	}
 
 	// Stage 2: Linking agent on narrowed candidate set

@@ -31,6 +31,7 @@ type Text2SQLOptions struct {
 	UseRichContext bool `json:"use_rich_context"`
 	UseReact       bool `json:"use_react"`
 	UseGrounding   bool `json:"use_grounding"`
+	SkipLinking    bool `json:"skip_linking"`     // When true, skip LLM linking agent (use vector retrieval only)
 	MaxIterations  int  `json:"max_iterations"`
 	Stream         bool `json:"stream"`
 	GroundingOnly  bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
@@ -292,6 +293,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					DatasourceID: datasourceID,
 					AllSchemas:   schemas,
 					TableCount:   len(schemas),
+					SkipLinking:  req.Options.SkipLinking,
 					ProgressCallback: func(stage string, data map[string]interface{}) {
 					switch stage {
 						case "schema_loaded":
@@ -692,6 +694,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		DatasourceID: datasourceID,
 		AllSchemas:   schemas,
 		TableCount:   len(schemas),
+		SkipLinking:  req.Options.SkipLinking,
 	})
 	if err != nil {
 		log.Warn("Grounding failed (continuing without)", "error", err)

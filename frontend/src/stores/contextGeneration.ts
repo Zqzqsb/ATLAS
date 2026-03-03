@@ -89,6 +89,29 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     maxIterations: 15
   })
 
+  /**
+   * Compute recommended iteration counts based on database scale.
+   * Heuristic: ~3 iterations per table (explore + batch desc/synonyms + batch sample_values)
+   * plus ~5 overhead for business terms and edge cases.
+   */
+  function computeRecommendedIterations(tableCount: number): { min: number; max: number } {
+    if (tableCount <= 0) return { min: 3, max: 15 }
+    const target = tableCount * 3 + 10
+    const min = Math.max(3, Math.ceil(target * 0.6))
+    const max = Math.max(15, Math.min(300, Math.ceil(target * 1.5)))
+    return { min, max }
+  }
+
+  /** Update config with recommended values based on table count (called when console opens) */
+  function updateRecommendedConfig(tableCount: number) {
+    // Only update if not restored from a persisted running session
+    if (!persisted?.isRunning) {
+      const rec = computeRecommendedIterations(tableCount)
+      config.value.minIterations = rec.min
+      config.value.maxIterations = rec.max
+    }
+  }
+
   // Agent states
   const agentState = ref<AgentState>(persisted?.agentState ?? {
     id: 'rc_gen', status: 'pending', phase: '', progress: 0, iteration: 0, message: ''
@@ -471,6 +494,8 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     cancelGeneration,
     reset,
     addLog,
-    handleEvent
+    handleEvent,
+    updateRecommendedConfig,
+    computeRecommendedIterations
   }
 })

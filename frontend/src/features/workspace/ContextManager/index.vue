@@ -249,6 +249,9 @@ function openGenerateConsole() {
     message.warning('Please select a database first')
     return
   }
+  // Auto-set recommended iterations based on table count
+  const tableCount = workspaceStore.currentDatabase?.tableCount ?? 0
+  ctxGenStore.updateRecommendedConfig(tableCount)
   ctxGenStore.openConsole(workspaceStore.currentDatabaseId)
 }
 
@@ -589,6 +592,7 @@ async function handlePruneAll() {
       ref="generateConsoleRef"
       v-model:show="ctxGenStore.showConsole"
       :database-id="workspaceStore.currentDatabaseId || ''"
+      :table-count="workspaceStore.currentDatabase?.tableCount ?? 0"
       @complete="handleGenerateComplete"
       @minimize="handleMinimize"
     />

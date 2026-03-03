@@ -6,6 +6,7 @@ import { useContextGenerationStore } from '@/stores/contextGeneration'
 const props = defineProps<{
   show: boolean
   databaseId: string
+  tableCount?: number
 }>()
 
 const emit = defineEmits<{
@@ -133,9 +134,12 @@ function handleClose() {
           </div>
           <div>
             <label class="text-sm text-gray-400 mb-2 block">Max Iterations</label>
-            <NInputNumber v-model:value="store.config.maxIterations" :min="store.config.minIterations + 1" :max="50" size="small" />
+            <NInputNumber v-model:value="store.config.maxIterations" :min="store.config.minIterations + 1" :max="300" size="small" />
           </div>
         </div>
+        <p v-if="props.tableCount && props.tableCount > 0" class="text-xs text-blue-400/80 mb-3">
+          💡 Recommended for {{ props.tableCount }} tables: {{ store.computeRecommendedIterations(props.tableCount).min }}–{{ store.computeRecommendedIterations(props.tableCount).max }} iterations
+        </p>
         <div class="flex items-center gap-4 mb-4">
           <div class="flex items-center gap-2">
             <NSwitch v-model:value="store.config.force" size="small" />
@@ -170,6 +174,7 @@ function handleClose() {
               </div>
               <NProgress
                 :percentage="store.agentState.progress"
+                :show-indicator="false"
                 :color="store.agentState.status === 'success' ? '#22c55e' : store.agentState.status === 'error' ? '#ef4444' : '#3b82f6'"
                 :height="6"
               />
@@ -192,14 +197,12 @@ function handleClose() {
               </div>
               <NProgress
                 :percentage="store.embeddingState.progress"
+                :show-indicator="false"
                 :color="store.embeddingState.status === 'success' ? '#22c55e' : store.embeddingState.status === 'error' ? '#ef4444' : '#a855f7'"
                 :height="6"
               />
-              <div class="text-xs text-gray-500 mt-1 truncate">
+              <div class="text-xs text-gray-500 mt-1">
                 {{ store.embeddingState.message }}
-                <span v-if="store.storageStats.embeddingsTotal > 0" class="text-gray-600 ml-1">
-                  ({{ store.storageStats.embeddingsStreamed }}/{{ store.storageStats.embeddingsTotal }} entities)
-                </span>
               </div>
             </div>
           </div>

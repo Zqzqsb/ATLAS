@@ -98,6 +98,7 @@ const selectedModel = ref('deepseek_v3')
 const useRichContext = ref(true)
 const useReact = ref(true)
 const useGrounding = ref(true)
+const skipLinking = ref(false)
 
 // Model options - loaded from backend /models API
 const modelOptions = ref<{ label: string; value: string }[]>([
@@ -163,11 +164,11 @@ const exampleQuestions = computed(() => {
   // TPC-H Enterprise (38-table large-scale demo)
   if (dbName.includes('tpch') || dbName.includes('enterprise')) {
     return [
-      '去年利润最高的供应商是哪家？',
+      '利润最高的供应商是哪家？',
       '华东地区仓库中库存不足的零件有哪些？',
-      '收到差评最多的产品类别是什么？',
-      '发货延迟超过7天的订单涉及多少金额？',
-      '哪些零件的价格在过去一年内上涨超过5%？',
+      '评分最低的产品有哪些？',
+      '发货延迟超过3天的订单有哪些？',
+      '哪些零件的价格上涨超过了10%？',
     ]
   }
 
@@ -236,11 +237,12 @@ const schemaLinkingStage = computed(() => {
   const hasSqlGenerationSteps = workspaceStore.reactSteps.some(s => s.phase === 'sql_generation')
   const completed = end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql
   
-  // Active when: grounding stage is at stage2 (linking) or done, AND no sql generation yet
-  // Also active when awaiting field confirmation (field panel is shown inside this card)
+  // Active when: vector search is visually done AND (grounding stage2/done OR has linking data)
+  // Gate on vectorSearchStage to prevent Schema Linking from activating before Vector Search completes
+  const vectorDone = vectorSearchStage.value.completed || vectorSearchStage.value.empty
   const groundingDone = workspaceStore.groundingStage === 'done' || workspaceStore.groundingStage === 'stage2'
   const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.executionLogs?.length || !!workspaceStore.groundingResult?.linkingTables?.length
-  const active = awaitingFieldConfirmation.value || hasLinkingData || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)
+  const active = awaitingFieldConfirmation.value || (vectorDone && (hasLinkingData || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)))
   
   return {
     active: active || (isExecuting.value && hasSchemaLinkingSteps),
@@ -403,9 +405,12 @@ async function doExecuteGroundingOnly() {
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
+  workspaceStore.queryOptions.skipLinking = skipLinking.value
 
   try {
     await workspaceStore.executeQuery(question.value, undefined, true) // groundingOnly=true
+
+
   } catch (e: any) {
     awaitingFieldConfirmation.value = false
     message.error(e.message || 'Grounding failed')
@@ -420,6 +425,7 @@ async function doExecuteFull(fieldDescription?: string) {
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
+  workspaceStore.queryOptions.skipLinking = skipLinking.value
 
   try {
     await workspaceStore.executeQuery(question.value, fieldDescription, false)
@@ -552,6 +558,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <div class="flex items-center gap-3 h-8">
             <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
             <span class="text-sm font-medium text-gray-700">Field Alignment</span>
+          </div>
+        </div>
+
+        <div class="param-item flex items-end">
+          <div class="flex items-center gap-3 h-8">
+            <NSwitch v-model:value="skipLinking" :disabled="isExecuting" size="small" />
+            <span class="text-sm font-medium text-gray-700">Skip Linking</span>
           </div>
         </div>
       </div>
@@ -1036,6 +1049,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div class="space-y-1">
                 <span class="font-medium block">Analyzing schema structure...</span>
                 <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
+              </div>
+            </div>
+            <div v-else-if="isExecuting && workspaceStore.groundingProgress?.stage === 'linking_start'" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
+            <div class="i-lucide-brain animate-pulse text-cyan-400 text-xl" />
+              <div class="space-y-1">
+                <span class="font-medium block text-gray-600">Linking agent analyzing...</span>
+                <span class="text-xs text-gray-400">Selecting relevant tables from {{ workspaceStore.groundingProgress?.data?.table_count || '?' }} candidates</span>
               </div>
             </div>
             <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">

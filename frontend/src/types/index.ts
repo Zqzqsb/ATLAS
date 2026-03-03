@@ -222,6 +222,7 @@ export interface Text2SQLOptions {
   useRichContext: boolean
   useReact: boolean
   useGrounding: boolean
+  skipLinking?: boolean   // When true, skip LLM linking agent (use vector retrieval only)
   maxIterations: number
   temperature?: number
   model?: string

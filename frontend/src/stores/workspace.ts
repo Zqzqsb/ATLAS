@@ -65,6 +65,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     useRichContext: true,
     useReact: true,
     useGrounding: true,
+    skipLinking: false,
     maxIterations: 5
   })
 
@@ -401,8 +402,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             // Sub-stage events from adaptive pipeline: retrieval_start, retrieval_done, linking_start, linking_done
             const stage = event.data?.stage
             groundingProgress.value = { stage, data: event.data?.data || event.data }
-            // Map sub-stages to groundingStage for UI
-            if (stage === 'linking_start' || stage === 'linking_done') {
+            // Only transition to stage2 when linking is actually done (not on linking_start).
+            // This prevents the Schema Linking card from activating before Vector Search completes.
+            if (stage === 'linking_done') {
               groundingStage.value = 'stage2'
             }
             break

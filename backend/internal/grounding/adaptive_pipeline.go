@@ -60,6 +60,9 @@ type AdaptiveGroundingRequest struct {
 	// SkipLinking skips the LLM linking agent — uses vector retrieval results directly.
 	// Only meaningful in LargeScale mode.
 	SkipLinking bool
+	// ForceSmallScale forces SmallScale strategy regardless of table count.
+	// Used for ablation study: full schema injection to LLM without vector retrieval.
+	ForceSmallScale bool
 }
 
 // AdaptiveGroundingResult extends GroundingResult with strategy information
@@ -108,7 +111,12 @@ func (p *AdaptivePipeline) Ground(ctx context.Context, req *AdaptiveGroundingReq
 
 // detectStrategy determines the grounding strategy based on schema scale
 func (p *AdaptivePipeline) detectStrategy(req *AdaptiveGroundingRequest) GroundingStrategy {
-	// Explicit override
+	// Per-request override (for ablation study)
+	if req.ForceSmallScale {
+		return StrategySmallScale
+	}
+
+	// Config-level override
 	if p.config.LinkingAgent.Strategy != "" && p.config.LinkingAgent.Strategy != StrategyAuto {
 		return p.config.LinkingAgent.Strategy
 	}

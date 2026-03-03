@@ -28,14 +28,15 @@ type Text2SQLRequest struct {
 
 // Text2SQLOptions holds optional parameters.
 type Text2SQLOptions struct {
-	UseRichContext bool `json:"use_rich_context"`
-	UseReact       bool `json:"use_react"`
-	UseGrounding   bool `json:"use_grounding"`
-	SkipLinking    bool `json:"skip_linking"`     // When true, skip LLM linking agent (use vector retrieval only)
-	MaxIterations  int  `json:"max_iterations"`
-	Stream         bool `json:"stream"`
-	GroundingOnly  bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
-	SkipGrounding  bool `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
+	UseRichContext  bool `json:"use_rich_context"`
+	UseReact        bool `json:"use_react"`
+	UseGrounding    bool `json:"use_grounding"`
+	SkipLinking     bool `json:"skip_linking"`      // When true, skip LLM linking agent (use vector retrieval only)
+	ForceSmallScale bool `json:"force_small_scale"` // When true, force SmallScale strategy (full schema to LLM)
+	MaxIterations   int  `json:"max_iterations"`
+	Stream          bool `json:"stream"`
+	GroundingOnly   bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
+	SkipGrounding   bool `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
 }
 
 // Text2SQLRequest represents the input for text2sql conversion.
@@ -289,11 +290,12 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
 			if err == nil && len(schemas) > 0 {
 				adaptiveReq := &grounding.AdaptiveGroundingRequest{
-					Query:        req.Question,
-					DatasourceID: datasourceID,
-					AllSchemas:   schemas,
-					TableCount:   len(schemas),
-					SkipLinking:  req.Options.SkipLinking,
+					Query:           req.Question,
+					DatasourceID:    datasourceID,
+					AllSchemas:      schemas,
+					TableCount:      len(schemas),
+					SkipLinking:     req.Options.SkipLinking,
+					ForceSmallScale: req.Options.ForceSmallScale,
 					ProgressCallback: func(stage string, data map[string]interface{}) {
 					switch stage {
 						case "schema_loaded":
@@ -690,11 +692,12 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 	}
 
 	result, err := h.groundingService.Ground(ctx, &grounding.AdaptiveGroundingRequest{
-		Query:        req.Question,
-		DatasourceID: datasourceID,
-		AllSchemas:   schemas,
-		TableCount:   len(schemas),
-		SkipLinking:  req.Options.SkipLinking,
+		Query:           req.Question,
+		DatasourceID:    datasourceID,
+		AllSchemas:      schemas,
+		TableCount:      len(schemas),
+		SkipLinking:     req.Options.SkipLinking,
+		ForceSmallScale: req.Options.ForceSmallScale,
 	})
 	if err != nil {
 		log.Warn("Grounding failed (continuing without)", "error", err)

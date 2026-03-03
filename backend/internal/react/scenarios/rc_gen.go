@@ -66,60 +66,72 @@ func buildRCGenPrompt(cfg RCGenConfig) string {
 	sb.WriteString(`You are a database analyst agent. Your mission is to explore a database and generate Rich Context metadata that will help a Text-to-SQL system understand the database better.
 
 ## Your Goal
-Explore the database tables, understand their business purpose, discover data patterns, and save ALL types of Rich Context using the set_rich_context tool.
+Explore each table, understand its business purpose, and save ALL types of Rich Context using the set_rich_context tool.
 
 ## Available Tools
 - execute_sql: Run SELECT/SHOW/DESCRIBE queries to explore the database
-- set_rich_context: Save discovered context (table descriptions, column descriptions, sample values, synonyms, business terms)
+- set_rich_context: Save discovered context. **SUPPORTS BATCH MODE** — pass a JSON array to save multiple items in ONE call.
 
-## What Rich Context to Generate
+## What Rich Context to Generate (ALL FIVE types required)
+1. **table_description** — 2-3 sentence summary of the table's business purpose
+2. **column_description** — Semantic meaning of each non-trivial column
+3. **column_sample_values** — CRITICAL: actual distinct values for text/varchar/enum/categorical columns
+4. **column_synonyms** — Natural language alternatives a business user might use
+5. **business_term** — Domain-specific terms implied by the data
 
-You MUST generate ALL FIVE types of context. Descriptions alone are NOT sufficient.
+## Efficient Strategy (IMPORTANT — follow this to maximize coverage)
 
-1. **Table Description** — A 2-3 sentence summary of the table's business purpose, key columns, and any important data characteristics.
-   Use: {"type": "table_description", "table": "...", "value": "..."}
+### For EACH table, use exactly 3 iterations:
 
-2. **Column Description** — For each non-trivial column, a concise description of its semantic meaning.
-   Use: {"type": "column_description", "table": "...", "column": "...", "value": "..."}
+**Iteration A — Explore:**
+` + "```" + `
+SELECT * FROM <table> LIMIT 5
+` + "```" + `
+This gives you column names, types, and sample data in one query.
 
-3. **Sample Values** (CRITICAL) — For text, varchar, enum, and categorical columns, query the actual distinct values and save them. This is essential for Text-to-SQL to match user queries to real data values.
-   Use: {"type": "column_sample_values", "table": "...", "column": "...", "value": "val1, val2, val3"}
-   Query: SELECT DISTINCT col FROM table ORDER BY col LIMIT 20
+**Iteration B — Batch save descriptions + synonyms:**
+Call set_rich_context with a JSON ARRAY containing ALL of:
+- 1 table_description
+- column_descriptions for EVERY column in the table (including PK columns)
+- column_synonyms for all non-PK columns
+Example:
+` + "```" + `json
+[
+  {"type": "table_description", "table": "T", "value": "..."},
+  {"type": "column_description", "table": "T", "column": "C1", "value": "..."},
+  {"type": "column_description", "table": "T", "column": "C2", "value": "..."},
+  {"type": "column_synonyms", "table": "T", "column": "C1", "value": "..."},
+  {"type": "column_synonyms", "table": "T", "column": "C2", "value": "..."}
+]
+` + "```" + `
 
-4. **Column Synonyms** (CRITICAL) — Natural language alternatives someone might use when asking questions about this column. Think about how a business user would refer to each column.
-   Use: {"type": "column_synonyms", "table": "...", "column": "...", "value": "synonym1, synonym2"}
+**Iteration C — Sample values:**
+For text/varchar/enum columns, query sample values and batch save:
+` + "```" + `sql
+SELECT 'col1' AS col, GROUP_CONCAT(DISTINCT col1 ORDER BY col1 SEPARATOR ', ') AS vals FROM (SELECT col1 FROM T LIMIT 100) t
+UNION ALL
+SELECT 'col2', GROUP_CONCAT(DISTINCT col2 ORDER BY col2 SEPARATOR ', ') FROM (SELECT col2 FROM T LIMIT 100) t
+` + "```" + `
+Then batch save all sample_values in one set_rich_context call.
 
-5. **Business Terms** — Domain-specific terms that appear in the data or are implied by the schema (e.g., "churn rate", "GMV", "high definition").
-   Use: {"type": "business_term", "value": "term name", "definition": "...", "category": "...", "synonyms": "...", "examples": "..."}
+### After all tables: save business_terms in one batch call.
 
-## Three-Phase Strategy (MUST follow this order)
+## CRITICAL Rules
+- **ALWAYS use batch mode** for set_rich_context — pass arrays, not single objects
+- **Do NOT waste iterations** on COUNT(*) queries — SELECT * LIMIT 5 already shows if data exists
+- **3 iterations per table** is the target. With ` + fmt.Sprintf("%d", len(cfg.Tables)) + ` tables, aim for ~` + fmt.Sprintf("%d", len(cfg.Tables)*3+10) + ` total iterations
+- Skip primary key / auto-increment columns for sample_values and synonyms
+- Explore with execute_sql BEFORE writing context — never guess values
+- Write context incrementally as you go — don't wait until the end
+- If a column has only numeric IDs, skip sample_values for it
+- **ALL ` + fmt.Sprintf("%d", len(cfg.Columns)) + ` columns MUST have a column_description** — do NOT skip any column
+- When batch-saving descriptions for a table, count them to make sure EVERY column in the table is covered (including PK columns — they need descriptions too)
 
-### Phase 1: Explore & Describe
-For each table:
-1. SELECT COUNT(*) FROM table
-2. SELECT * FROM table LIMIT 5
-3. Save table_description and column_description for all columns
-
-### Phase 2: Sample Values (DO NOT SKIP)
-After Phase 1, revisit EVERY table and for EACH text/varchar/enum column:
-1. Run: SELECT col, COUNT(*) AS cnt FROM table GROUP BY col ORDER BY cnt DESC LIMIT 20
-2. Save column_sample_values with the discovered values
-3. Also save for columns that look categorical even if numeric (e.g., status codes, ratings, boolean-like)
-
-### Phase 3: Synonyms & Business Terms (DO NOT SKIP)
-After Phase 2:
-1. For each column, think about what a business user would call it and save column_synonyms
-2. Identify domain-specific terms from the data and schema, save as business_term
-3. Look for cross-table patterns and domain concepts
-
-## Important Rules
-- ALWAYS explore with execute_sql BEFORE writing context — never guess
-- Write context incrementally: save as you discover, don't wait until the end
-- You MUST complete all three phases — descriptions alone are worthless without sample values and synonyms
-- Be thorough but efficient: don't run redundant queries
-- Primary key columns usually don't need sample_values or synonyms (just "Primary key, auto-increment" is fine)
-- Focus sample_values on columns that have meaningful categorical or textual data
-- Every non-PK text column should get synonyms
+## Sweep Check Phase (MANDATORY before finishing)
+After processing all tables, you MUST do a sweep check:
+1. Look at the column list above and compare with what you have saved
+2. If any column_description is missing, batch-save the missing ones immediately
+3. Only output Final Answer AFTER confirming all ` + fmt.Sprintf("%d", len(cfg.Columns)) + ` columns have descriptions
 `)
 
 	// Add schema overview
@@ -197,17 +209,19 @@ After Phase 2:
 	}
 
 	// Iteration guidance
+	targetIter := len(cfg.Tables)*3 + 10
 	sb.WriteString(fmt.Sprintf(`
 
 ## Iteration Budget
-- Minimum iterations: %d (ensure thorough exploration)
+- Target: ~%d iterations for %d tables (3 per table + sweep check + business terms)
 - Maximum iterations: %d
-- You have enough budget to complete ALL THREE PHASES. Do not stop after descriptions.
-- Checkpoint: After finishing Phase 1 (descriptions), you should be roughly 1/3 done.
-- If you find yourself running low on iterations, prioritize: sample_values > synonyms > business_terms.
+- ALWAYS use batch set_rich_context to stay within budget
+- Do NOT stop early — process ALL %d tables
+- Do NOT ask "would you like me to continue?" — just continue processing all tables
+- After all tables, do the **Sweep Check** (see above), then save business terms, THEN output Final Answer
 
-Now begin. Phase 1: explore each table and save descriptions. Then Phase 2: sample values. Then Phase 3: synonyms and business terms. Mark each column's ✗ missing items as you go.
-`, cfg.MinIterations, cfg.MaxIterations))
+Now begin. Process each table: explore → batch save descriptions+synonyms → batch save sample values. After all tables, sweep check → business terms → Final Answer.
+`, targetIter, len(cfg.Tables), cfg.MaxIterations, len(cfg.Tables)))
 
 	return sb.String()
 }

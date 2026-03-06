@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
+	lctools "github.com/tmc/langchaingo/tools"
 
+	"lucid/internal/adapter"
 	"lucid/internal/logger"
+	"lucid/internal/react"
+	reacttools "lucid/internal/react/tools"
 )
 
 // SchemaInfo represents full table schema for linking agent input
@@ -99,20 +104,22 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 		"has_vector_signals", len(req.VectorSignals) > 0,
 	)
 
-	prompt := a.buildLinkingPrompt(req)
+	indexed := a.buildIndexedLinkingPrompt(req)
 	log.Debug("[Link] Built prompt",
-		"prompt_length", len(prompt),
-		"prompt_preview", truncateLinking(prompt, 500),
+		"prompt_length", len(indexed.Prompt),
+		"prompt_preview", truncateLinking(indexed.Prompt, 500),
+		"table_labels", len(indexed.TableIndex),
+		"column_labels", len(indexed.ColumnIndex),
 	)
 
 	messages := []llms.MessageContent{
 		{Role: llms.ChatMessageTypeSystem, Parts: []llms.ContentPart{llms.TextContent{Text: linkingAgentSystemPrompt}}},
-		{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: prompt}}},
+		{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: indexed.Prompt}}},
 	}
 
 	resp, err := a.llm.GenerateContent(ctx, messages,
 		llms.WithTemperature(0.1),
-		llms.WithMaxTokens(3000),
+		llms.WithMaxTokens(1500),
 	)
 	if err != nil {
 		log.Error("[Link] LLM call failed", "error", err, "duration", time.Since(start))
@@ -131,7 +138,7 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 		"response", truncateLinking(rawResponse, 1000),
 	)
 
-	selected, reasoning, err := a.parseLinkingResponse(rawResponse)
+	selected, reasoning, err := a.parseLinkingResponse(rawResponse, &indexed)
 	if err != nil {
 		log.Error("[Link] Failed to parse response", "error", err, "raw", truncateLinking(rawResponse, 300))
 		return nil, fmt.Errorf("failed to parse linking response: %w", err)
@@ -175,48 +182,348 @@ func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingR
 	}, nil
 }
 
-const linkingAgentSystemPrompt = `You are an expert database schema analyst performing Schema Linking with Generative Context Recommendation.
+// ReactLink performs multi-step ReAct schema linking using execute_sql tool.
+// This allows the linking agent to explore the database (sample data, verify joins, check distributions)
+// before making its final selection, producing higher quality linking for complex queries.
+func (a *LinkingAgent) ReactLink(ctx context.Context, req *LinkingRequest, dbAdapter adapter.DBAdapter, stepCB func(step interface{}, eventType string)) (*LinkingResult, error) {
+	start := time.Now()
+	log := logger.With("component", "linking_agent_react")
 
-Your task: Given a natural language query and a database schema (with Rich Context — descriptions, sample values, synonyms):
-1. Identify which tables are needed to answer the query
-2. For each selected table, identify which columns are relevant
-3. **Generate query-specific hints** that tell the SQL generator exactly how to use each table/column for THIS query
+	log.Info("[ReactLink] Starting ReAct schema linking",
+		"query", req.Query,
+		"table_count", len(req.Schemas),
+		"has_vector_signals", len(req.VectorSignals) > 0,
+	)
 
-You will receive the schema of all available tables, including:
-- Table names and descriptions (Rich Context)
-- Column names, types, descriptions, sample values, and synonyms (Rich Context)
-- Foreign key relationships
+	// Build schema description text (reuse existing prompt builder)
+	indexed := a.buildIndexedLinkingPrompt(req)
+	schemaDesc := indexed.Prompt
 
-Analyze the query carefully. Consider:
-1. Which tables contain the data being queried?
-2. Which tables are needed for JOINs to connect the data?
-3. Business context from Rich Context: descriptions, synonyms, sample values
-4. How each selected table/column should be used for THIS specific query
+	// Build the ReAct step callback that wraps react.Step into the generic step callback
+	var reactStepCallback react.StepCallback
+	if stepCB != nil {
+		reactStepCallback = func(step react.Step, eventType string) {
+			stepCB(step, eventType)
+		}
+	}
 
-For the "hint" fields — these are the KEY differentiator:
-- Table hint: explain the table's role for this query (e.g. "JOIN this table to get channel names; filter by rating > 5")
-- Column hint: explain SQL usage (e.g. "SELECT this for output", "WHERE this = '...' based on sample values", "ORDER BY this DESC for '最高'", "JOIN key connecting to table X")
-- Be specific to the query, not generic. Reference actual values from sample_values when relevant.
-- Keep hints concise but actionable for SQL generation.
+	// Create execute_sql tool
+	sqlTool := reacttools.NewExecuteSQL(dbAdapter)
 
-Respond in JSON format:
+	// Build ReAct engine config with custom linking prompt
+	engineConfig := &react.EngineConfig{
+		MaxIterations:     5,
+		ActualMaxOverride: 15,
+		SystemPrompt:      reactLinkingSystemPrompt,
+		Tools:             []lctools.Tool{sqlTool},
+		StepCallback:      reactStepCallback,
+		LogMode:           "simple",
+	}
+
+	engine := react.New(a.llm, engineConfig)
+
+	// Execute with the schema as input
+	input := fmt.Sprintf("## User Query\n%s\n\n## Database Schema\n%s\n\nAnalyze the schema and select relevant tables. Use execute_sql to explore data when uncertain. Respond with your Final Answer in the required JSON format.", req.Query, schemaDesc)
+
+	result, err := engine.Execute(ctx, input)
+	if err != nil {
+		log.Error("[ReactLink] ReAct execution failed", "error", err, "duration", time.Since(start))
+		// Fallback to one-shot linking
+		log.Warn("[ReactLink] Falling back to one-shot linking")
+		return a.Link(ctx, req)
+	}
+
+	log.Info("[ReactLink] ReAct execution completed",
+		"iterations", result.Iterations,
+		"duration", result.Duration.Round(time.Millisecond),
+		"output_length", len(result.Output),
+	)
+
+	// Parse the Final Answer as JSON (same format as one-shot)
+	selected, reasoning, err := a.parseLinkingResponse(result.Output, &indexed)
+	if err != nil {
+		log.Error("[ReactLink] Failed to parse ReAct output, falling back to one-shot",
+			"error", err,
+			"output", truncateLinking(result.Output, 300),
+		)
+		return a.Link(ctx, req)
+	}
+
+	// Filter by confidence threshold
+	var filtered []SelectedTable
+	for _, t := range selected {
+		if t.Confidence >= a.config.ConfidenceThreshold {
+			filtered = append(filtered, t)
+		} else {
+			log.Debug("[ReactLink] Table filtered (low confidence)",
+				"table", t.Name,
+				"confidence", fmt.Sprintf("%.2f", t.Confidence),
+			)
+		}
+	}
+
+	selectedNames := make([]string, len(filtered))
+	for i, t := range filtered {
+		selectedNames[i] = t.Name
+	}
+	log.Info("[ReactLink] Schema linking completed",
+		"selected_tables", strings.Join(selectedNames, ", "),
+		"reasoning", truncateLinking(reasoning, 200),
+		"iterations", result.Iterations,
+		"duration", time.Since(start).Round(time.Millisecond),
+	)
+
+	return &LinkingResult{
+		SelectedTables: filtered,
+		Reasoning:      reasoning,
+		Duration:       time.Since(start),
+	}, nil
+}
+
+// ReactLinkAsync performs ReAct schema linking concurrently with vector retrieval.
+// Instead of waiting for schemas upfront, the LLM starts immediately and uses
+// the get_candidate_schema tool to poll for schema data from a shared memory slot.
+//
+// Cold-start acceleration: LLM prefills KV cache with system prompt + query while
+// vector retrieval runs in parallel. When retrieval completes, the caller writes
+// schema data into schemaSlot, and the next tool call picks it up.
+func (a *LinkingAgent) ReactLinkAsync(
+	ctx context.Context,
+	query string,
+	schemaSlot *atomic.Pointer[string],
+	dbAdapter adapter.DBAdapter,
+	stepCB func(step interface{}, eventType string),
+) (*LinkingResult, error) {
+	start := time.Now()
+	log := logger.With("component", "linking_agent_react_async")
+
+	log.Info("[ReactLinkAsync] Starting async ReAct schema linking (cold-start acceleration)",
+		"query", query,
+	)
+
+	// Build step callback
+	var reactStepCallback react.StepCallback
+	if stepCB != nil {
+		reactStepCallback = func(step react.Step, eventType string) {
+			stepCB(step, eventType)
+		}
+	}
+
+	// Tools: get_candidate_schema (reads shared slot) + execute_sql
+	schemaTool := reacttools.NewGetCandidateSchema(schemaSlot)
+	sqlTool := reacttools.NewExecuteSQL(dbAdapter)
+
+	engineConfig := &react.EngineConfig{
+		MaxIterations:     7,  // extra room for polling iterations
+		ActualMaxOverride: 20,
+		SystemPrompt:      reactLinkingAsyncSystemPrompt,
+		Tools:             []lctools.Tool{schemaTool, sqlTool},
+		StepCallback:      reactStepCallback,
+		LogMode:           "simple",
+	}
+
+	engine := react.New(a.llm, engineConfig)
+
+	input := fmt.Sprintf("## User Query\n%s\n\nStart by calling get_candidate_schema to retrieve the database schema. If it returns empty, the data is still loading — call it again. Once you have the schema, analyze it and select relevant tables. Use execute_sql to explore data when uncertain. Respond with your Final Answer in the required JSON format.", query)
+
+	result, err := engine.Execute(ctx, input)
+	if err != nil {
+		log.Error("[ReactLinkAsync] ReAct execution failed", "error", err, "duration", time.Since(start))
+		return nil, fmt.Errorf("async react linking failed: %w", err)
+	}
+
+	log.Info("[ReactLinkAsync] ReAct execution completed",
+		"iterations", result.Iterations,
+		"schema_polls", schemaTool.CallCount(),
+		"sql_calls", sqlTool.CallCount(),
+		"duration", result.Duration.Round(time.Millisecond),
+	)
+
+	// Parse final answer
+	selected, reasoning, err := a.parseLinkingResponse(result.Output, nil)
+	if err != nil {
+		log.Error("[ReactLinkAsync] Failed to parse output", "error", err,
+			"output", truncateLinking(result.Output, 300))
+		return nil, fmt.Errorf("failed to parse async linking response: %w", err)
+	}
+
+	// Filter by confidence
+	var filtered []SelectedTable
+	for _, t := range selected {
+		if t.Confidence >= a.config.ConfidenceThreshold {
+			filtered = append(filtered, t)
+		}
+	}
+
+	selectedNames := make([]string, len(filtered))
+	for i, t := range filtered {
+		selectedNames[i] = t.Name
+	}
+	log.Info("[ReactLinkAsync] Schema linking completed",
+		"selected_tables", strings.Join(selectedNames, ", "),
+		"schema_polls", schemaTool.CallCount(),
+		"duration", time.Since(start).Round(time.Millisecond),
+	)
+
+	return &LinkingResult{
+		SelectedTables: filtered,
+		Reasoning:      reasoning,
+		Duration:       time.Since(start),
+	}, nil
+}
+
+const linkingAgentSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
+
+The schema below uses index labels: tables are tagged [T1], [T2], ...; columns are tagged [C1], [C2], ... These labels are stable references — use them in your response for efficient selection.
+
+Your task:
+1. SELECT tables and columns by their index labels — no need to repeat names or descriptions already visible in the schema.
+2. For **key columns only** (WHERE/JOIN/ORDER BY/GROUP BY targets), generate a short query-specific hint telling the SQL generator how to use that column for THIS query.
+3. Skip hints for columns whose role is obvious from the query (e.g. SELECT output columns, PK join keys).
+
+Decision criteria:
+- Which tables contain the queried data?
+- Which tables are needed for JOINs?
+- Rich Context clues: descriptions, synonyms, sample values
+
+Respond in JSON:
 {
-  "tables": [
-    {
-      "name": "table_name",
-      "reason": "why this table is needed",
-      "confidence": 0.9,
-      "hint": "query-specific usage: JOIN via id to get X, filter WHERE status='active'",
-      "relevant_columns": [
-        {"name": "col", "reason": "SELECT: answers the question", "hint": "SELECT this; values are like 'example1','example2'"}
-      ]
-    }
-  ],
-  "reasoning": "Overall explanation of your selection logic"
-}`
+  "tables": ["T1", "T3"],
+  "columns": ["C2", "C5", "C8"],
+  "hints": {
+    "C5": "COUNT + GROUP BY for most-played",
+    "C8": "WHERE this = 'value' based on sample data"
+  },
+  "reasoning": "Brief overall explanation"
+}
+
+Rules:
+- "tables": list of table index labels (e.g. ["T1","T2"]). Include ALL tables needed for JOINs.
+- "columns": list of column index labels. Include relevant columns only, not every column.
+- "hints": object mapping column index → short actionable hint. Only for key columns; omit obvious ones.
+- "reasoning": one or two sentences.
+- Be thorough: missing a table is worse than including an extra one.`
+
+const reactLinkingSystemPrompt = `You are an expert database schema analyst performing ReAct Schema Linking.
+
+The schema uses index labels: [T1], [T2] for tables; [C1], [C2] for columns. Use these labels in your Final Answer for efficient selection.
+
+Your task: Given a natural language query and a database schema, identify which tables and columns are needed to answer the query. You can use the execute_sql tool to explore the database before making your decision.
+
+## Strategy
+1. Review the schema and identify candidate tables
+2. When uncertain about data content, column meanings, or join validity, use execute_sql to explore:
+   - Sample data: SELECT * FROM table LIMIT 3
+   - Value distributions: SELECT DISTINCT column FROM table LIMIT 10
+   - Join verification: SELECT COUNT(*) FROM t1 JOIN t2 ON t1.col = t2.col
+3. Based on your exploration, select the final set of relevant tables and columns
+
+⚠️ ITERATION LIMIT: Maximum 5 iterations. Be efficient — only explore when truly uncertain.
+
+## Output Format
+
+When exploring, use:
+Thought: [your reasoning]
+Action: execute_sql
+Action Input: [SQL query]
+
+When ready to give your final answer:
+Thought: [summary of findings]
+Final Answer: [JSON object]
+
+The Final Answer MUST be a valid JSON object:
+{
+  "tables": ["T1", "T3"],
+  "columns": ["C2", "C5", "C8"],
+  "hints": {
+    "C5": "COUNT + GROUP BY for most-played",
+    "C8": "WHERE this = 'value' based on sample data"
+  },
+  "reasoning": "Brief explanation"
+}
+
+IMPORTANT:
+- Use index labels ([T1], [C3]) from the schema, not raw table/column names
+- Include ALL tables needed for JOINs
+- Only include relevant columns, not every column
+- Generate hints only for key columns (WHERE/JOIN/ORDER BY/GROUP BY targets)
+- Reference actual data values from your exploration in hints when possible
+- Be thorough: missing a table is worse than including an extra one`
+
+const reactLinkingAsyncSystemPrompt = `You are an expert database schema analyst performing ReAct Schema Linking.
+
+Your task: Given a natural language query, retrieve the database schema and identify which tables and columns are needed to answer the query.
+
+The schema uses index labels: [T1], [T2] for tables; [C1], [C2] for columns. Use these labels in your Final Answer.
+
+## Strategy
+1. **First**: Call get_candidate_schema to retrieve the database schema. If it returns empty, the schema data is still loading — call it again.
+2. Once you have the schema, review it and identify candidate tables
+3. When uncertain, use execute_sql to explore the database (sample data, distributions, joins)
+4. Select the final set of relevant tables and columns
+
+⚠️ ITERATION LIMIT: Maximum 7 iterations. Be efficient.
+
+## Output Format
+
+When retrieving or exploring, use:
+Thought: [your reasoning]
+Action: get_candidate_schema OR execute_sql
+Action Input: [input]
+
+When ready to give your final answer:
+Thought: [summary of findings]
+Final Answer: [JSON object]
+
+The Final Answer MUST be a valid JSON object:
+{
+  "tables": ["T1", "T3"],
+  "columns": ["C2", "C5", "C8"],
+  "hints": {
+    "C5": "COUNT + GROUP BY for most-played",
+    "C8": "WHERE this = 'value' based on sample data"
+  },
+  "reasoning": "Brief explanation"
+}
+
+Note: If the schema does not contain index labels, use real table/column names in the same format:
+{
+  "tables": ["table_name1", "table_name2"],
+  "columns": ["col1", "col2"],
+  "hints": {"col1": "hint"},
+  "reasoning": "..."
+}
+
+IMPORTANT:
+- Include ALL tables needed for JOINs
+- Only include relevant columns, not every column
+- Generate hints only for key columns
+- Reference actual data values from your exploration in hints when possible
+- Be thorough: missing a table is worse than including an extra one`
+
+// indexedColumn stores the mapping from column index label back to table+column name.
+type indexedColumn struct {
+	TableName  string
+	ColumnName string
+}
+
+// IndexedPromptResult holds the prompt text plus the index→entity reverse lookup maps,
+// so parseLinkingResponse can resolve [T1]/[C3] labels back to real names.
+type IndexedPromptResult struct {
+	Prompt       string
+	TableIndex   map[string]string        // "T1" → "TV_Channel"
+	ColumnIndex  map[string]indexedColumn  // "C3" → {TableName, ColumnName}
+}
 
 func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
+	r := a.buildIndexedLinkingPrompt(req)
+	return r.Prompt
+}
+
+func (a *LinkingAgent) buildIndexedLinkingPrompt(req *LinkingRequest) IndexedPromptResult {
 	var sb strings.Builder
+	tableIdx := make(map[string]string)        // "T1" → table name
+	colIdx := make(map[string]indexedColumn)    // "C3" → {table, column}
 
 	sb.WriteString(fmt.Sprintf("## User Query\n%s\n\n", req.Query))
 	sb.WriteString("## Database Schema\n\n")
@@ -231,9 +538,15 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 		}
 	}
 
+	tNum := 1  // table counter
+	cNum := 1  // global column counter
+
 	for _, schema := range req.Schemas {
-		// Table header with optional retrieval score annotation
-		sb.WriteString(fmt.Sprintf("### Table: `%s`", schema.TableName))
+		tLabel := fmt.Sprintf("T%d", tNum)
+		tableIdx[tLabel] = schema.TableName
+
+		// Table header with index label + optional retrieval score
+		sb.WriteString(fmt.Sprintf("### [%s] `%s`", tLabel, schema.TableName))
 		if score, ok := signalScores[schema.TableName]; ok {
 			sb.WriteString(fmt.Sprintf(" (vector relevance: %.2f)", score))
 		}
@@ -251,7 +564,10 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 		if len(schema.Columns) > 0 && a.config.IncludeColumnDetails {
 			sb.WriteString("Columns:\n")
 			for _, col := range schema.Columns {
-				sb.WriteString(fmt.Sprintf("  - `%s` (%s)", col.Name, col.Type))
+				cLabel := fmt.Sprintf("C%d", cNum)
+				colIdx[cLabel] = indexedColumn{TableName: schema.TableName, ColumnName: col.Name}
+
+				sb.WriteString(fmt.Sprintf("  - [%s] `%s` (%s)", cLabel, col.Name, col.Type))
 				if col.IsPrimaryKey {
 					sb.WriteString(" [PK]")
 				}
@@ -271,6 +587,7 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 						sb.WriteString(fmt.Sprintf("    Synonyms: %s\n", col.Synonyms))
 					}
 				}
+				cNum++
 			}
 		}
 
@@ -282,6 +599,7 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 			}
 		}
 		sb.WriteString("\n")
+		tNum++
 	}
 
 	// If large scale mode with vector signals, add a hint
@@ -291,9 +609,13 @@ func (a *LinkingAgent) buildLinkingPrompt(req *LinkingRequest) string {
 		sb.WriteString("Use these scores as hints, but make your own judgment based on the full schema.\n")
 	}
 
-	sb.WriteString("\nSelect the tables needed to answer the query. Be thorough - missing a table is worse than including an extra one.")
+	sb.WriteString("\nSelect the tables and columns needed to answer the query using their index labels ([T1], [C3], etc.). Be thorough — missing a table is worse than including an extra one.")
 
-	return sb.String()
+	return IndexedPromptResult{
+		Prompt:      sb.String(),
+		TableIndex:  tableIdx,
+		ColumnIndex: colIdx,
+	}
 }
 
 func truncateLinking(s string, maxLen int) string {
@@ -305,8 +627,8 @@ func truncateLinking(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-// linkingResponse represents the LLM's linking response
-type linkingResponse struct {
+// linkingResponse represents the LLM's linking response — old verbose format (backward compat)
+type linkingResponseVerbose struct {
 	Tables []struct {
 		Name            string  `json:"name"`
 		Reason          string  `json:"reason"`
@@ -321,7 +643,15 @@ type linkingResponse struct {
 	Reasoning string `json:"reasoning"`
 }
 
-func (a *LinkingAgent) parseLinkingResponse(content string) ([]SelectedTable, string, error) {
+// linkingResponseIndexed represents the new compact index-based format
+type linkingResponseIndexed struct {
+	Tables    []string          `json:"tables"`    // ["T1", "T3"]
+	Columns   []string          `json:"columns"`   // ["C2", "C5"]
+	Hints     map[string]string `json:"hints"`     // {"C5": "COUNT + GROUP BY ..."}
+	Reasoning string            `json:"reasoning"`
+}
+
+func (a *LinkingAgent) parseLinkingResponse(content string, indexed *IndexedPromptResult) ([]SelectedTable, string, error) {
 	// Extract JSON from response
 	jsonStr := content
 	if idx := strings.Index(content, "```json"); idx != -1 {
@@ -337,13 +667,41 @@ func (a *LinkingAgent) parseLinkingResponse(content string) ([]SelectedTable, st
 		}
 	}
 
-	var resp linkingResponse
-	if err := json.Unmarshal([]byte(jsonStr), &resp); err != nil {
+	// Try indexed format first (tables is array of strings)
+	var indexedResp linkingResponseIndexed
+	if err := json.Unmarshal([]byte(jsonStr), &indexedResp); err == nil && len(indexedResp.Tables) > 0 {
+		// Check if first element looks like an index label (starts with "T")
+		if strings.HasPrefix(indexedResp.Tables[0], "T") && indexed != nil {
+			return a.resolveIndexedResponse(&indexedResp, indexed)
+		}
+		// Could be table names directly (e.g. ["TV_Channel", "Cartoon"])
+		// Check if they exist in the index values
+		if indexed != nil {
+			// Check if these are real table names rather than index labels
+			isRealName := false
+			for _, tLabel := range indexedResp.Tables {
+				if _, ok := indexed.TableIndex[tLabel]; !ok {
+					isRealName = true
+					break
+				}
+			}
+			if isRealName {
+				return a.resolveNameBasedResponse(&indexedResp, indexed)
+			}
+			return a.resolveIndexedResponse(&indexedResp, indexed)
+		}
+		// No index available (ReactLinkAsync) — treat as table names
+		return a.resolveNameBasedResponse(&indexedResp, nil)
+	}
+
+	// Fall back to verbose format (backward compat for ReAct modes)
+	var verboseResp linkingResponseVerbose
+	if err := json.Unmarshal([]byte(jsonStr), &verboseResp); err != nil {
 		return nil, "", fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	var tables []SelectedTable
-	for _, t := range resp.Tables {
+	for _, t := range verboseResp.Tables {
 		st := SelectedTable{
 			Name:       t.Name,
 			Reason:     t.Reason,
@@ -356,6 +714,108 @@ func (a *LinkingAgent) parseLinkingResponse(content string) ([]SelectedTable, st
 				Reason: col.Reason,
 				Hint:   col.Hint,
 			})
+		}
+		tables = append(tables, st)
+	}
+
+	return tables, verboseResp.Reasoning, nil
+}
+
+// resolveIndexedResponse converts index-label responses (["T1","T3"], ["C2","C5"]) to SelectedTable structs
+func (a *LinkingAgent) resolveIndexedResponse(resp *linkingResponseIndexed, indexed *IndexedPromptResult) ([]SelectedTable, string, error) {
+	// Group columns by table
+	tableColumns := make(map[string][]RelevantColumn) // tableName → columns
+	for _, cLabel := range resp.Columns {
+		ic, ok := indexed.ColumnIndex[cLabel]
+		if !ok {
+			continue
+		}
+		rc := RelevantColumn{
+			Name: ic.ColumnName,
+		}
+		if hint, hasHint := resp.Hints[cLabel]; hasHint {
+			rc.Hint = hint
+			rc.Reason = hint // Use hint as reason for backward compat
+		}
+		tableColumns[ic.TableName] = append(tableColumns[ic.TableName], rc)
+	}
+
+	var tables []SelectedTable
+	for _, tLabel := range resp.Tables {
+		tableName, ok := indexed.TableIndex[tLabel]
+		if !ok {
+			continue
+		}
+		st := SelectedTable{
+			Name:            tableName,
+			Reason:          "Selected via index " + tLabel,
+			Confidence:      0.9, // Default high confidence for indexed selection
+			RelevantColumns: tableColumns[tableName],
+		}
+		tables = append(tables, st)
+	}
+
+	return tables, resp.Reasoning, nil
+}
+
+// resolveNameBasedResponse handles cases where LLM outputs real table names instead of index labels
+func (a *LinkingAgent) resolveNameBasedResponse(resp *linkingResponseIndexed, indexed *IndexedPromptResult) ([]SelectedTable, string, error) {
+	// Build reverse lookup: table name → label
+	var nameToLabel map[string]string
+	// Build reverse lookup: column name → column index entries
+	var colNameToEntries map[string][]indexedColumn
+
+	if indexed != nil {
+		nameToLabel = make(map[string]string)
+		for label, name := range indexed.TableIndex {
+			nameToLabel[name] = label
+		}
+		colNameToEntries = make(map[string][]indexedColumn)
+		for label, ic := range indexed.ColumnIndex {
+			_ = label
+			colNameToEntries[ic.ColumnName] = append(colNameToEntries[ic.ColumnName], ic)
+		}
+	}
+
+	// Group columns by table
+	tableColumns := make(map[string][]RelevantColumn)
+	for _, cRef := range resp.Columns {
+		// cRef might be "C5" (index) or "column_name" (real name)
+		if indexed != nil {
+			if ic, ok := indexed.ColumnIndex[cRef]; ok {
+				rc := RelevantColumn{Name: ic.ColumnName}
+				if hint, ok := resp.Hints[cRef]; ok {
+					rc.Hint = hint
+					rc.Reason = hint
+				}
+				tableColumns[ic.TableName] = append(tableColumns[ic.TableName], rc)
+				continue
+			}
+		}
+		// Treat as column name — we don't know which table it belongs to
+		rc := RelevantColumn{Name: cRef}
+		if hint, ok := resp.Hints[cRef]; ok {
+			rc.Hint = hint
+			rc.Reason = hint
+		}
+		// Try to find the table
+		if colNameToEntries != nil {
+			if entries, ok := colNameToEntries[cRef]; ok && len(entries) > 0 {
+				tableColumns[entries[0].TableName] = append(tableColumns[entries[0].TableName], rc)
+				continue
+			}
+		}
+		tableColumns["_unknown_"] = append(tableColumns["_unknown_"], rc)
+	}
+
+	var tables []SelectedTable
+	for _, tRef := range resp.Tables {
+		tableName := tRef
+		st := SelectedTable{
+			Name:            tableName,
+			Reason:          "Selected by linking agent",
+			Confidence:      0.9,
+			RelevantColumns: tableColumns[tableName],
 		}
 		tables = append(tables, st)
 	}

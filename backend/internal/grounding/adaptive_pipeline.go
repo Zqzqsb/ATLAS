@@ -3,10 +3,12 @@ package grounding
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
 
+	"lucid/internal/adapter"
 	"lucid/internal/embedding"
 	"lucid/internal/lakebase"
 	"lucid/internal/logger"
@@ -57,9 +59,13 @@ type AdaptiveGroundingRequest struct {
 	TableCount int
 	// Optional progress callback for SSE streaming
 	ProgressCallback GroundingProgressCallback
-	// SkipLinking skips the LLM linking agent — uses vector retrieval results directly.
-	// Only meaningful in LargeScale mode.
-	SkipLinking bool
+	// LinkingMode controls the LLM linking agent behaviour.
+	// "off"      — skip linking, use vector retrieval results directly (LargeScale only)
+	// "one-shot" — single LLM call (default, current behaviour)
+	// "react"    — multi-step ReAct linking with execute_sql tool
+	LinkingMode string
+	// DBAdapter is required when LinkingMode == "react" (for the execute_sql tool).
+	DBAdapter adapter.DBAdapter
 	// ForceSmallScale forces SmallScale strategy regardless of table count.
 	// Used for ablation study: full schema injection to LLM without vector retrieval.
 	ForceSmallScale bool
@@ -173,9 +179,68 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 		"query", req.Query,
 		"schema_count", len(req.AllSchemas),
 		"compact", false,
+		"linking_mode", req.LinkingMode,
 	)
 
-	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
+	var linkResult *LinkingResult
+	var err error
+
+	switch req.LinkingMode {
+	case "off":
+		// No linking — return all tables as selected
+		log.Info("[SmallScale] LinkingMode=off, returning all tables without filtering")
+		allTables := make([]SelectedTable, 0, len(req.AllSchemas))
+		for _, s := range req.AllSchemas {
+			allTables = append(allTables, SelectedTable{
+				Name:       s.TableName,
+				Reason:     "All tables included (linking off)",
+				Confidence: 1.0,
+			})
+		}
+		groundedCtx := p.buildGroundedContext(req.Query, &LinkingResult{
+			SelectedTables: allTables,
+			Reasoning:      "Linking agent skipped — all tables included.",
+			Duration:       0,
+		}, req.AllSchemas)
+
+		if req.ProgressCallback != nil {
+			req.ProgressCallback("linking_done", map[string]interface{}{
+				"selected_tables": allTables,
+				"reasoning":       "Linking agent skipped — all tables included.",
+				"duration_ms":     int64(0),
+				"context":         groundedCtx,
+			})
+		}
+
+		return &AdaptiveGroundingResult{
+			Strategy:       StrategySmallScale,
+			SelectedTables: allTables,
+			Context:        groundedCtx,
+			TotalDuration:  time.Since(start),
+			Reasoning:      "Linking agent skipped — all tables included.",
+		}, nil
+
+	case "react":
+		if req.DBAdapter == nil {
+			log.Warn("[SmallScale] ReactLink requested but no DBAdapter, falling back to one-shot")
+			linkResult, err = p.linkingAgent.Link(ctx, linkReq)
+		} else {
+			// Build a step callback that forwards ReAct steps via ProgressCallback
+			var reactStepCB func(step interface{}, eventType string)
+			if req.ProgressCallback != nil {
+				reactStepCB = func(step interface{}, eventType string) {
+					req.ProgressCallback("linking_step", map[string]interface{}{
+						"step":       step,
+						"event_type": eventType,
+					})
+				}
+			}
+			linkResult, err = p.linkingAgent.ReactLink(ctx, linkReq, req.DBAdapter, reactStepCB)
+		}
+
+	default: // "one-shot" or empty
+		linkResult, err = p.linkingAgent.Link(ctx, linkReq)
+	}
 	if err != nil {
 		log.Error("[SmallScale] Linking agent failed", "error", err)
 		return nil, fmt.Errorf("linking agent failed: %w", err)
@@ -219,9 +284,19 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 }
 
 // groundLargeScale: vector retrieval → narrow candidates → linking agent
-// Vector retrieval reduces context, then linking agent makes final selection
+// Vector retrieval reduces context, then linking agent makes final selection.
+//
+// When LinkingMode == "react", cold-start acceleration kicks in:
+// vector retrieval and ReAct engine start concurrently. The ReAct LLM polls
+// get_candidate_schema until retrieval completes and writes schema data.
 func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGroundingRequest, start time.Time) (*AdaptiveGroundingResult, error) {
 	log := logger.With("component", "adaptive_grounding")
+
+	// Cold-start acceleration: react mode runs retrieval + LLM concurrently
+	if req.LinkingMode == "react" && req.DBAdapter != nil {
+		return p.groundLargeScaleReactAsync(ctx, req, start)
+	}
+
 	log.Info("[LargeScale] Starting vector retrieval → linking agent",
 		"total_tables", len(req.AllSchemas),
 	)
@@ -304,9 +379,9 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 		candidateSchemas = p.expandCandidates(req.AllSchemas, candidateSchemas, p.config.LinkingAgent.MaxTablesInContext)
 	}
 
-	// SkipLinking: use coarse retrieval results directly, no LLM call
-	if req.SkipLinking {
-		log.Info("[LargeScale] SkipLinking=true, using retrieval results directly",
+	// LinkingMode=off: use coarse retrieval results directly, no LLM call
+	if req.LinkingMode == "off" {
+		log.Info("[LargeScale] LinkingMode=off, using retrieval results directly",
 			"candidate_tables", len(candidateSchemas),
 		)
 		if req.ProgressCallback != nil {
@@ -343,7 +418,29 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 		VectorSignals: coarseResult.Signals,
 	}
 
-	linkResult, err := p.linkingAgent.Link(ctx, linkReq)
+	var linkResult *LinkingResult
+
+	switch req.LinkingMode {
+	case "react":
+		if req.DBAdapter == nil {
+			log.Warn("[LargeScale] ReactLink requested but no DBAdapter, falling back to one-shot")
+			linkResult, err = p.linkingAgent.Link(ctx, linkReq)
+		} else {
+			var reactStepCB func(step interface{}, eventType string)
+			if req.ProgressCallback != nil {
+				reactStepCB = func(step interface{}, eventType string) {
+					req.ProgressCallback("linking_step", map[string]interface{}{
+						"step":       step,
+						"event_type": eventType,
+					})
+				}
+			}
+			linkResult, err = p.linkingAgent.ReactLink(ctx, linkReq, req.DBAdapter, reactStepCB)
+		}
+	default: // "one-shot" or empty
+		linkResult, err = p.linkingAgent.Link(ctx, linkReq)
+	}
+
 	if err != nil {
 		// Fallback: use coarse results directly
 		log.Warn("[LargeScale] Linking agent failed, using coarse results", "error", err)
@@ -387,6 +484,203 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 		RetrievalTime:  retrievalTime,
 		LinkingTime:    linkResult.Duration,
 		CoarseSignals:  coarseResult.Signals,
+		ExecutionLogs:  executionLogs,
+		Reasoning:      linkResult.Reasoning,
+	}, nil
+}
+
+// groundLargeScaleReactAsync implements cold-start acceleration for ReAct linking.
+// Vector retrieval and ReAct LLM engine run concurrently:
+//   - Goroutine 1: vector retrieval → writes schema to atomic slot
+//   - Goroutine 2: ReAct LLM starts immediately, polls get_candidate_schema tool
+//
+// The LLM prefills its KV cache with system prompt + query while retrieval runs.
+// When retrieval completes, the schema data appears in the shared slot and the
+// LLM's next tool call picks it up — achieving near-zero wait time.
+func (p *AdaptivePipeline) groundLargeScaleReactAsync(ctx context.Context, req *AdaptiveGroundingRequest, start time.Time) (*AdaptiveGroundingResult, error) {
+	log := logger.With("component", "adaptive_grounding")
+	log.Info("[LargeScale/ReactAsync] Starting concurrent retrieval + ReAct linking",
+		"total_tables", len(req.AllSchemas),
+	)
+
+	// Shared memory slot: retrieval goroutine writes schema text, LLM tool reads it
+	var schemaSlot atomic.Pointer[string]
+
+	// Track retrieval results for building final output
+	type retrievalResult struct {
+		coarseResult *RetrievalResult
+		schemas      []SchemaInfo
+		err          error
+	}
+	retrievalCh := make(chan retrievalResult, 1)
+
+	// --- Goroutine 1: Vector retrieval ---
+	go func() {
+		if req.ProgressCallback != nil {
+			req.ProgressCallback("retrieval_start", map[string]interface{}{
+				"message":     "Vector retrieval starting...",
+				"table_count": len(req.AllSchemas),
+			})
+		}
+
+		var retrievalProgressCb RetrievalProgressCallback
+		if req.ProgressCallback != nil {
+			retrievalProgressCb = func(signalType SignalType, signals []*RetrievalSignal, execLog ExecutionLog) {
+				req.ProgressCallback("retrieval_signal", map[string]interface{}{
+					"signal_type":   string(signalType),
+					"result_count":  len(signals),
+					"duration_ms":   execLog.Duration.Milliseconds(),
+					"execution_log": execLog,
+					"signals":       signals,
+				})
+			}
+		}
+
+		coarseResult, err := p.coarseRetriever.Retrieve(ctx, &RetrievalRequest{
+			Query:        req.Query,
+			DatasourceID: req.DatasourceID,
+			SignalTypes: []SignalType{
+				SignalTypeTable,
+				SignalTypeColumn,
+				SignalTypeContext,
+				SignalTypeSQLTemplate,
+			},
+			ProgressCallback: retrievalProgressCb,
+		})
+		if err != nil {
+			retrievalCh <- retrievalResult{err: err}
+			return
+		}
+
+		// Extract candidates and build schema text
+		candidateTableNames := p.extractCandidateTableNames(coarseResult.Signals)
+		candidateSchemas := p.filterSchemaByCandidates(req.AllSchemas, candidateTableNames)
+
+		if len(candidateSchemas) < 5 && len(req.AllSchemas) > len(candidateSchemas) {
+			candidateSchemas = p.expandCandidates(req.AllSchemas, candidateSchemas, p.config.LinkingAgent.MaxTablesInContext)
+		}
+
+		// Build schema description text and write to shared slot
+		tempReq := &LinkingRequest{
+			Query:         req.Query,
+			Schemas:       candidateSchemas,
+			VectorSignals: coarseResult.Signals,
+		}
+		schemaText := p.linkingAgent.buildLinkingPrompt(tempReq)
+		schemaSlot.Store(&schemaText)
+
+		log.Info("[LargeScale/ReactAsync] Retrieval complete, schema written to slot",
+			"candidate_tables", len(candidateSchemas),
+			"schema_text_length", len(schemaText),
+			"retrieval_time", coarseResult.Duration.Round(time.Millisecond),
+		)
+
+		// Notify frontend
+		if req.ProgressCallback != nil {
+			req.ProgressCallback("retrieval_done", map[string]interface{}{
+				"candidate_tables": len(candidateTableNames),
+				"duration_ms":      coarseResult.Duration.Milliseconds(),
+				"signals":          coarseResult.Signals,
+				"execution_logs":   coarseResult.ExecutionLogs,
+				"strategy":         string(StrategyLargeScale),
+			})
+		}
+
+		retrievalCh <- retrievalResult{
+			coarseResult: coarseResult,
+			schemas:      candidateSchemas,
+		}
+	}()
+
+	// --- Goroutine 2 (main): ReAct LLM starts immediately ---
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_start", map[string]interface{}{
+			"message":     "ReAct linking agent starting (concurrent with retrieval)...",
+			"table_count": len(req.AllSchemas),
+		})
+	}
+
+	var reactStepCB func(step interface{}, eventType string)
+	if req.ProgressCallback != nil {
+		reactStepCB = func(step interface{}, eventType string) {
+			req.ProgressCallback("linking_step", map[string]interface{}{
+				"step":       step,
+				"event_type": eventType,
+			})
+		}
+	}
+
+	linkResult, linkErr := p.linkingAgent.ReactLinkAsync(ctx, req.Query, &schemaSlot, req.DBAdapter, reactStepCB)
+
+	// Wait for retrieval to finish (it may already be done)
+	retResult := <-retrievalCh
+
+	// Handle retrieval failure
+	if retResult.err != nil {
+		log.Warn("[LargeScale/ReactAsync] Vector retrieval failed", "error", retResult.err)
+		if linkErr != nil {
+			// Both failed — fall back to small scale
+			return p.groundSmallScale(ctx, req, start)
+		}
+		// LLM succeeded despite retrieval failure (got schema from slot before error?)
+		// This is unlikely but handle gracefully
+	}
+
+	// Handle linking failure
+	if linkErr != nil {
+		log.Warn("[LargeScale/ReactAsync] ReactLinkAsync failed, falling back to coarse results", "error", linkErr)
+		if retResult.coarseResult != nil {
+			return &AdaptiveGroundingResult{
+				Strategy:       StrategyLargeScale,
+				SelectedTables: p.signalsToSelectedTables(retResult.coarseResult.Signals),
+				Context:        p.signalsOnlyContext(retResult.coarseResult.Signals, req.Query),
+				TotalDuration:  time.Since(start),
+				RetrievalTime:  retResult.coarseResult.Duration,
+				CoarseSignals:  retResult.coarseResult.Signals,
+				ExecutionLogs:  retResult.coarseResult.ExecutionLogs,
+			}, nil
+		}
+		return p.groundSmallScale(ctx, req, start)
+	}
+
+	// Both succeeded — build result
+	var retrievalTime time.Duration
+	var coarseSignals []*RetrievalSignal
+	var executionLogs []ExecutionLog
+	candidateSchemas := retResult.schemas
+
+	if retResult.coarseResult != nil {
+		retrievalTime = retResult.coarseResult.Duration
+		coarseSignals = retResult.coarseResult.Signals
+		executionLogs = retResult.coarseResult.ExecutionLogs
+	}
+
+	groundedCtx := p.buildGroundedContext(req.Query, linkResult, candidateSchemas)
+
+	if req.ProgressCallback != nil {
+		req.ProgressCallback("linking_done", map[string]interface{}{
+			"selected_tables": linkResult.SelectedTables,
+			"reasoning":       linkResult.Reasoning,
+			"duration_ms":     linkResult.Duration.Milliseconds(),
+			"context":         groundedCtx,
+		})
+	}
+
+	executionLogs = append(executionLogs, ExecutionLog{
+		Phase:       "linking_agent_async",
+		Summary:     fmt.Sprintf("Async ReAct linking: selected %d tables in %v (concurrent with retrieval)", len(linkResult.SelectedTables), linkResult.Duration.Round(time.Millisecond)),
+		ResultCount: len(linkResult.SelectedTables),
+		Duration:    linkResult.Duration,
+	})
+
+	return &AdaptiveGroundingResult{
+		Strategy:       StrategyLargeScale,
+		SelectedTables: linkResult.SelectedTables,
+		Context:        groundedCtx,
+		TotalDuration:  time.Since(start),
+		RetrievalTime:  retrievalTime,
+		LinkingTime:    linkResult.Duration,
+		CoarseSignals:  coarseSignals,
 		ExecutionLogs:  executionLogs,
 		Reasoning:      linkResult.Reasoning,
 	}, nil

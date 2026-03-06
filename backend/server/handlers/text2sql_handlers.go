@@ -10,9 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"lucid/internal/adapter"
 	"lucid/internal/grounding"
 	"lucid/internal/lakebase"
 	"lucid/internal/logger"
+	"lucid/internal/react"
 	"lucid/server/services"
 )
 
@@ -28,15 +30,16 @@ type Text2SQLRequest struct {
 
 // Text2SQLOptions holds optional parameters.
 type Text2SQLOptions struct {
-	UseRichContext  bool `json:"use_rich_context"`
-	UseReact        bool `json:"use_react"`
-	UseGrounding    bool `json:"use_grounding"`
-	SkipLinking     bool `json:"skip_linking"`      // When true, skip LLM linking agent (use vector retrieval only)
-	ForceSmallScale bool `json:"force_small_scale"` // When true, force SmallScale strategy (full schema to LLM)
-	MaxIterations   int  `json:"max_iterations"`
-	Stream          bool `json:"stream"`
-	GroundingOnly   bool `json:"grounding_only"` // When true, stop after grounding (for field alignment)
-	SkipGrounding   bool `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
+	UseRichContext  bool   `json:"use_rich_context"`
+	UseReact        bool   `json:"use_react"`
+	UseGrounding    bool   `json:"use_grounding"`
+	LinkingMode     string `json:"linking_mode"`      // "off" | "one-shot" | "react" (default: "one-shot")
+	SkipLinking     bool   `json:"skip_linking"`      // Deprecated: use linking_mode instead. true → "off"
+	ForceSmallScale bool   `json:"force_small_scale"` // When true, force SmallScale strategy (full schema to LLM)
+	MaxIterations   int    `json:"max_iterations"`
+	Stream          bool   `json:"stream"`
+	GroundingOnly   bool   `json:"grounding_only"` // When true, stop after grounding (for field alignment)
+	SkipGrounding   bool   `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
 }
 
 // Text2SQLRequest represents the input for text2sql conversion.
@@ -115,6 +118,18 @@ type JoinPathInfo struct {
 	ToTable    string `json:"to_table"`
 	ToColumn   string `json:"to_column"`
 	Reason     string `json:"reason,omitempty"`
+}
+
+// resolveLinkingMode returns the effective linking mode from options.
+// Supports backward compatibility: skip_linking=true → "off".
+func resolveLinkingMode(opts Text2SQLOptions) string {
+	if opts.LinkingMode != "" {
+		return opts.LinkingMode
+	}
+	if opts.SkipLinking {
+		return "off"
+	}
+	return "one-shot"
 }
 
 // resolveDatasourceIDByName resolves the datasource ID from a database name.
@@ -285,188 +300,239 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		var groundingErr error
 		var retrievalCompleteSent bool // guard: send retrieval_complete at most once
 		var linkingCompleteSent bool   // guard: send linking_complete at most once
+		var sseMu sync.Mutex          // Protects SSE writes — ProgressCallback may be called from multiple goroutines (ReactAsync)
 
 		if h.groundingService.IsAvailable() && h.lakebaseService != nil && datasourceID > 0 {
 			schemas, err := h.loadSchemasForGrounding(ctx, datasourceID)
 			if err == nil && len(schemas) > 0 {
+				linkingMode := resolveLinkingMode(req.Options)
+
+				// Create a DBAdapter for ReAct linking (execute_sql tool needs it)
+				var groundingDBAdapter adapter.DBAdapter
+				if linkingMode == "react" && h.dbService != nil {
+					if adp, aErr := h.dbService.NewIsolatedAdapter(req.DatabaseID); aErr == nil {
+						if cErr := adp.Connect(ctx); cErr == nil {
+							groundingDBAdapter = adp
+						} else {
+							log.Warn("Failed to connect DBAdapter for ReAct linking, falling back to one-shot", "error", cErr)
+							linkingMode = "one-shot"
+						}
+					} else {
+						log.Warn("Failed to create DBAdapter for ReAct linking, falling back to one-shot", "error", aErr)
+						linkingMode = "one-shot"
+					}
+				}
+
 				adaptiveReq := &grounding.AdaptiveGroundingRequest{
 					Query:           req.Question,
 					DatasourceID:    datasourceID,
 					AllSchemas:      schemas,
 					TableCount:      len(schemas),
-					SkipLinking:     req.Options.SkipLinking,
+					LinkingMode:     linkingMode,
+					DBAdapter:       groundingDBAdapter,
 					ForceSmallScale: req.Options.ForceSmallScale,
-					ProgressCallback: func(stage string, data map[string]interface{}) {
-					switch stage {
-						case "schema_loaded":
-							// SmallScale: immediately push all tables/columns so
-							// the frontend can populate the Vector Search card instantly.
-							if !retrievalCompleteSent {
-								retrievalCompleteSent = true
-								var tables []GroundedTableInfo
-								var columns []GroundedColumnInfo
-								if rawSchemas, ok := data["schemas"].([]grounding.SchemaInfo); ok {
-									for _, s := range rawSchemas {
-										tables = append(tables, GroundedTableInfo{
-											Name:        s.TableName,
-											Description: s.Description,
-											Confidence:  1.0,
-										})
-										for _, col := range s.Columns {
-											columns = append(columns, GroundedColumnInfo{
-												TableName:  s.TableName,
-												ColumnName: col.Name,
-												DataType:   col.Type,
-												Confidence: 1.0,
-											})
-										}
-									}
-								}
-								SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
-									"tables":            tables,
-									"columns":           columns,
-									"execution_time_ms": 0,
-									"strategy":          data["strategy"],
-								})
-								flusher.Flush()
-							}
+				ProgressCallback: func(stage string, data map[string]interface{}) {
+					// Lock to protect concurrent SSE writes — in ReactAsync mode,
+					// retrieval goroutine and ReAct LLM goroutine call this concurrently.
+					sseMu.Lock()
+					defer sseMu.Unlock()
 
-						case "retrieval_start":
-							// Forward as grounding_progress
-							SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
-								"stage": stage,
-								"data":  data,
-							})
-							flusher.Flush()
-
-						case "retrieval_signal":
-							// Incremental: each SQL query result pushed as it completes
-							// Convert execution log to frontend-expected format
-							sseData := map[string]interface{}{
-								"signal_type":  data["signal_type"],
-								"result_count": data["result_count"],
-								"duration_ms":  data["duration_ms"],
-							}
-							if execLog, ok := data["execution_log"].(grounding.ExecutionLog); ok {
-								sseData["execution_log"] = ExecutionLogInfo{
-									Phase:       execLog.Phase,
-									SQL:         execLog.SQL,
-									ResultCount: execLog.ResultCount,
-									DurationMs:  execLog.Duration.Milliseconds(),
-									Summary:     execLog.Summary,
-								}
-							}
-							SendSSE(c.Writer, "retrieval_signal", sseData)
-							flusher.Flush()
-
-						case "retrieval_done":
-							// All 4 SQL queries done → send retrieval_complete immediately
-							// (before the LLM linking agent starts, saving ~1-5s of wait time)
-							if !retrievalCompleteSent {
-								retrievalCompleteSent = true
-
-								// Convert raw signals into tables/columns format the frontend expects
-								var tables []GroundedTableInfo
-								var columns []GroundedColumnInfo
-								if rawSignals, ok := data["signals"].([]*grounding.RetrievalSignal); ok {
-									tableSet := make(map[string]bool)
-									for _, sig := range rawSignals {
-										switch sig.SignalType {
-										case grounding.SignalTypeTable:
-											if !tableSet[sig.EntityName] {
-												tableSet[sig.EntityName] = true
-												tables = append(tables, GroundedTableInfo{
-													Name:       sig.EntityName,
-													Confidence: float64(sig.Score),
-												})
-											}
-										case grounding.SignalTypeColumn:
-											columns = append(columns, GroundedColumnInfo{
-												TableName:  sig.SourceTable,
-												ColumnName: sig.EntityName,
-												Confidence: float64(sig.Score),
-											})
-										}
-									}
-								}
-
-								// Convert execution logs to frontend format
-								var execLogs []ExecutionLogInfo
-								if rawLogs, ok := data["execution_logs"].([]grounding.ExecutionLog); ok {
-									for _, log := range rawLogs {
-										execLogs = append(execLogs, ExecutionLogInfo{
-											Phase:       log.Phase,
-											SQL:         log.SQL,
-											ResultCount: log.ResultCount,
-											DurationMs:  log.Duration.Milliseconds(),
-											Summary:     log.Summary,
-										})
-									}
-								}
-
-							SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
-									"tables":            tables,
-									"columns":           columns,
-									"execution_logs":    execLogs,
-									"execution_time_ms": data["duration_ms"],
-									"strategy":          data["strategy"],
-								})
-								flusher.Flush()
-							}
-
-						case "linking_start":
-							SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
-								"stage": stage,
-								"data":  data,
-							})
-							flusher.Flush()
-
-						case "linking_done":
-							// LLM done → send linking_complete, then field_suggestions with a delay
-							// so the UI can show the three steps (schema → linking → fields) sequentially.
-							if !linkingCompleteSent {
-								linkingCompleteSent = true
-								// Build GroundingInfo from the linking result for rich SSE data
-								if groundedCtx, ok := data["context"].(*grounding.GroundedContext); ok {
-									partialInfo := convertGroundingResult(&grounding.GroundingResult{
-										Context:   groundedCtx,
-										Mode:      "large_scale",
+				switch stage {
+					case "schema_loaded":
+						// SmallScale: immediately push all tables/columns so
+						// the frontend can populate the Vector Search card instantly.
+						if !retrievalCompleteSent {
+							retrievalCompleteSent = true
+							var tables []GroundedTableInfo
+							var columns []GroundedColumnInfo
+							if rawSchemas, ok := data["schemas"].([]grounding.SchemaInfo); ok {
+								for _, s := range rawSchemas {
+									tables = append(tables, GroundedTableInfo{
+										Name:        s.TableName,
+										Description: s.Description,
+										Confidence:  1.0,
 									})
-									if partialInfo != nil {
-										SendSSE(c.Writer, "linking_complete", map[string]interface{}{
-											"tables":         partialInfo.Tables,
-											"columns":        partialInfo.Columns,
-											"join_paths":     partialInfo.JoinPaths,
-											"reasoning":      data["reasoning"],
-											"duration_ms":    data["duration_ms"],
+									for _, col := range s.Columns {
+										columns = append(columns, GroundedColumnInfo{
+											TableName:  s.TableName,
+											ColumnName: col.Name,
+											DataType:   col.Type,
+											Confidence: 1.0,
 										})
-										flusher.Flush()
-
-										if len(partialInfo.SuggestedFields) > 0 {
-											SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
-												"suggested_fields": partialInfo.SuggestedFields,
-											})
-											flusher.Flush()
-										}
 									}
-								} else {
-									// Fallback: send raw data
-									SendSSE(c.Writer, "linking_complete", data)
-									flusher.Flush()
 								}
 							}
-
-						default:
-							// Forward any other stage as generic progress
-							SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
-								"stage": stage,
-								"data":  data,
+							SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
+								"tables":            tables,
+								"columns":           columns,
+								"execution_time_ms": 0,
+								"strategy":          data["strategy"],
 							})
 							flusher.Flush()
 						}
-					},
+
+					case "retrieval_start":
+						// Forward as grounding_progress
+						SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
+							"stage": stage,
+							"data":  data,
+						})
+						flusher.Flush()
+
+					case "retrieval_signal":
+						// Incremental: each SQL query result pushed as it completes
+						// Convert execution log to frontend-expected format
+						sseData := map[string]interface{}{
+							"signal_type":  data["signal_type"],
+							"result_count": data["result_count"],
+							"duration_ms":  data["duration_ms"],
+						}
+						if execLog, ok := data["execution_log"].(grounding.ExecutionLog); ok {
+							sseData["execution_log"] = ExecutionLogInfo{
+								Phase:       execLog.Phase,
+								SQL:         execLog.SQL,
+								ResultCount: execLog.ResultCount,
+								DurationMs:  execLog.Duration.Milliseconds(),
+								Summary:     execLog.Summary,
+							}
+						}
+						SendSSE(c.Writer, "retrieval_signal", sseData)
+						flusher.Flush()
+
+					case "retrieval_done":
+						// All 4 SQL queries done → send retrieval_complete immediately
+						// (before the LLM linking agent starts, saving ~1-5s of wait time)
+						if !retrievalCompleteSent {
+							retrievalCompleteSent = true
+
+							// Convert raw signals into tables/columns format the frontend expects
+							var tables []GroundedTableInfo
+							var columns []GroundedColumnInfo
+							if rawSignals, ok := data["signals"].([]*grounding.RetrievalSignal); ok {
+								tableSet := make(map[string]bool)
+								for _, sig := range rawSignals {
+									switch sig.SignalType {
+									case grounding.SignalTypeTable:
+										if !tableSet[sig.EntityName] {
+											tableSet[sig.EntityName] = true
+											tables = append(tables, GroundedTableInfo{
+												Name:       sig.EntityName,
+												Confidence: float64(sig.Score),
+											})
+										}
+									case grounding.SignalTypeColumn:
+										columns = append(columns, GroundedColumnInfo{
+											TableName:  sig.SourceTable,
+											ColumnName: sig.EntityName,
+											Confidence: float64(sig.Score),
+										})
+									}
+								}
+							}
+
+							// Convert execution logs to frontend format
+							var execLogs []ExecutionLogInfo
+							if rawLogs, ok := data["execution_logs"].([]grounding.ExecutionLog); ok {
+								for _, log := range rawLogs {
+									execLogs = append(execLogs, ExecutionLogInfo{
+										Phase:       log.Phase,
+										SQL:         log.SQL,
+										ResultCount: log.ResultCount,
+										DurationMs:  log.Duration.Milliseconds(),
+										Summary:     log.Summary,
+									})
+								}
+							}
+
+						SendSSE(c.Writer, "retrieval_complete", map[string]interface{}{
+								"tables":            tables,
+								"columns":           columns,
+								"execution_logs":    execLogs,
+								"execution_time_ms": data["duration_ms"],
+								"strategy":          data["strategy"],
+							})
+							flusher.Flush()
+						}
+
+					case "linking_start":
+						SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
+							"stage": stage,
+							"data":  data,
+						})
+						flusher.Flush()
+
+					case "linking_done":
+						// LLM done → send linking_complete, then field_suggestions with a delay
+						// so the UI can show the three steps (schema → linking → fields) sequentially.
+						if !linkingCompleteSent {
+							linkingCompleteSent = true
+							// Build GroundingInfo from the linking result for rich SSE data
+							if groundedCtx, ok := data["context"].(*grounding.GroundedContext); ok {
+								partialInfo := convertGroundingResult(&grounding.GroundingResult{
+									Context:   groundedCtx,
+									Mode:      "large_scale",
+								})
+								if partialInfo != nil {
+									SendSSE(c.Writer, "linking_complete", map[string]interface{}{
+										"tables":         partialInfo.Tables,
+										"columns":        partialInfo.Columns,
+										"join_paths":     partialInfo.JoinPaths,
+										"reasoning":      data["reasoning"],
+										"duration_ms":    data["duration_ms"],
+									})
+									flusher.Flush()
+
+									if len(partialInfo.SuggestedFields) > 0 {
+										SendSSE(c.Writer, "field_suggestions", map[string]interface{}{
+											"suggested_fields": partialInfo.SuggestedFields,
+										})
+										flusher.Flush()
+									}
+								}
+							} else {
+								// Fallback: send raw data
+								SendSSE(c.Writer, "linking_complete", data)
+								flusher.Flush()
+							}
+						}
+
+					case "linking_step":
+						// ReAct linking step — forward as thought/action/observation SSE events
+						// so the frontend can show multi-step reasoning in Card 2.
+						// The step data is a react.Step struct.
+						eventType, _ := data["event_type"].(string)
+						if eventType == "" {
+							break
+						}
+						ssePayload := map[string]interface{}{
+							"phase": "schema_linking",
+						}
+						// Extract fields from react.Step (passed as interface{})
+						if step, ok := data["step"].(react.Step); ok {
+							ssePayload["step"] = step.Iteration
+							ssePayload["thought"] = step.Thought
+							ssePayload["action"] = step.Action
+							ssePayload["action_input"] = step.ActionInput
+							ssePayload["observation"] = step.Observation
+						}
+						SendSSE(c.Writer, eventType, ssePayload)
+						flusher.Flush()
+
+					default:
+						// Forward any other stage as generic progress
+						SendSSE(c.Writer, "grounding_progress", map[string]interface{}{
+							"stage": stage,
+							"data":  data,
+						})
+						flusher.Flush()
+					}
+				},
 				}
 				result, err := h.groundingService.Ground(ctx, adaptiveReq)
+				// Clean up the isolated DBAdapter used for ReAct linking
+				if groundingDBAdapter != nil {
+					groundingDBAdapter.Close()
+				}
 				if err == nil {
 					groundingInfo = h.convertGroundingResultRich(result)
 				} else {
@@ -696,7 +762,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		DatasourceID:    datasourceID,
 		AllSchemas:      schemas,
 		TableCount:      len(schemas),
-		SkipLinking:     req.Options.SkipLinking,
+		LinkingMode:     resolveLinkingMode(req.Options),
 		ForceSmallScale: req.Options.ForceSmallScale,
 	})
 	if err != nil {

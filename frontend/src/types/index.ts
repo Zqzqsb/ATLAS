@@ -140,6 +140,8 @@ export interface GroundingResult {
   linkingTables?: GroundingTable[]
   linkingColumns?: GroundingColumn[]
   linkingJoinPaths?: JoinPath[]
+  linkingDurationMs?: number          // Backend-reported linking agent duration (ms)
+  retrievalDurationMs?: number        // Backend-reported retrieval duration (ms) — accurate even in ReactAsync mode
 }
 
 // SuggestedFieldFromLinking represents a field suggested by the linking agent
@@ -222,7 +224,7 @@ export interface Text2SQLOptions {
   useRichContext: boolean
   useReact: boolean
   useGrounding: boolean
-  skipLinking?: boolean   // When true, skip LLM linking agent (use vector retrieval only)
+  linkingMode?: 'off' | 'one-shot' | 'react' // Linking mode: off/one-shot/react (default: one-shot)
   maxIterations: number
   temperature?: number
   model?: string

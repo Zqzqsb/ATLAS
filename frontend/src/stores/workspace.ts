@@ -65,7 +65,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     useRichContext: true,
     useReact: true,
     useGrounding: true,
-    skipLinking: false,
+    linkingMode: 'one-shot',
     maxIterations: 5
   })
 
@@ -74,6 +74,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const reactSteps = ref<ReActStep[]>([])
   const groundingResult = ref<GroundingResult | null>(null)
   const groundingStage = ref<'idle' | 'stage1' | 'retrieval_done' | 'stage2' | 'done'>('idle')
+
+  // Stage ordering for monotonic transitions — prevents backward state jumps
+  // when concurrent SSE events arrive (e.g. ReactAsync: retrieval_complete after linking_complete)
+  const stageOrder: Record<string, number> = { idle: 0, stage1: 1, retrieval_done: 2, stage2: 3, done: 4 }
+  function advanceGroundingStage(target: 'idle' | 'stage1' | 'retrieval_done' | 'stage2' | 'done') {
+    const current = stageOrder[groundingStage.value] ?? 0
+    const next = stageOrder[target] ?? 0
+    if (next > current) {
+      groundingStage.value = target
+    }
+  }
   const usedContexts = ref<RichContext[]>([])
   const queryDuration = ref(0)
   const executionResult = ref<any[] | null>(null)
@@ -393,7 +404,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
             break
           case 'grounding_start':
-            groundingStage.value = 'stage1'
+            advanceGroundingStage('stage1')
             groundingProgress.value = null
             // Hide skeleton once real grounding data starts arriving
             showSkeleton.value = false
@@ -405,15 +416,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             // Only transition to stage2 when linking is actually done (not on linking_start).
             // This prevents the Schema Linking card from activating before Vector Search completes.
             if (stage === 'linking_done') {
-              groundingStage.value = 'stage2'
+              advanceGroundingStage('stage2')
             }
             break
           }
           case 'grounding_stage1':
-            groundingStage.value = 'stage1'
+            advanceGroundingStage('stage1')
             break
           case 'grounding_stage2':
-            groundingStage.value = 'stage2'
+            advanceGroundingStage('stage2')
             break
           case 'retrieval_complete': {
             // Progressive Step 1: retrieval results → Vector Search card
@@ -426,23 +437,26 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               execution_logs: event.data.execution_logs,
             })
 
-            // For small_scale, data arrives instantly (0ms). Keep skeleton visible
-            // and delay BOTH data reveal + stage transition so they appear together.
+            // For small_scale, data arrives instantly (0ms). Delay skeleton→data
+            // visual transition for polish, but set groundingResult and stage
+            // IMMEDIATELY so later events (linking_complete, grounding_complete)
+            // don't race against a pending setTimeout.
             if (event.data.strategy === 'small_scale') {
-              // Stash strategy immediately so isSmallScale computed works
-              if (groundingResult.value) {
+              // Set data + stage immediately (monotonic guard prevents backward jump)
+              if (partialRetrieval) {
+                groundingResult.value = {
+                  ...groundingResult.value,
+                  ...partialRetrieval,
+                  strategy: 'small_scale',
+                  retrievalDurationMs: event.data.execution_time_ms || 0,
+                } as GroundingResult
+              } else if (groundingResult.value) {
                 groundingResult.value = { ...groundingResult.value, strategy: 'small_scale' } as GroundingResult
               }
+              advanceGroundingStage('retrieval_done')
+              // Only delay the visual reveal (skeleton → real content)
               setTimeout(() => {
                 showSkeleton.value = false
-                if (partialRetrieval) {
-                  groundingResult.value = {
-                    ...groundingResult.value,
-                    ...partialRetrieval,
-                    strategy: 'small_scale',
-                  } as GroundingResult
-                }
-                groundingStage.value = 'retrieval_done'
               }, 2100)
             } else {
               // Large-scale: show data immediately as it arrives
@@ -452,9 +466,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                   ...groundingResult.value,
                   ...partialRetrieval,
                   ...(event.data.strategy ? { strategy: event.data.strategy } : {}),
+                  retrievalDurationMs: event.data.execution_time_ms || 0,
                 } as GroundingResult
               }
-              groundingStage.value = 'retrieval_done'
+              advanceGroundingStage('retrieval_done')
             }
             break
           }
@@ -494,10 +509,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             // Progressive Step 2: linking agent results → Schema Linking card
             // IMPORTANT: Do NOT overwrite retrieval snapshot (tables/columns/joinPaths).
             // Store linking results separately so left panel stays frozen.
-            groundingStage.value = 'stage2'
+            advanceGroundingStage('stage2')
             const linkingMeta: any = {}
             linkingMeta.reasoning = event.data.reasoning || ''
             linkingMeta.mode = event.data.mode || ''
+            // Preserve backend-reported linking duration (ms)
+            if (event.data.duration_ms != null) {
+              linkingMeta.linkingDurationMs = event.data.duration_ms
+            }
 
             // Store linking agent's independent selection into dedicated fields
             if (event.data.tables) {
@@ -574,7 +593,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             break
           }
           case 'grounding_complete':
-            groundingStage.value = 'done'
+            advanceGroundingStage('done')
             // Full grounding result — merge any remaining fields not yet sent
             // (this ensures downstream extractLinkedContext has everything)
             if (!groundingResult.value) {

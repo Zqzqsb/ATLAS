@@ -39,13 +39,16 @@ watch(() => workspaceStore.groundingStage, (newStage, oldStage) => {
     // retrieval_complete SSE arrived → Vector search is done
     stageTimings.value.vectorSearch.end = Date.now()
   } else if (newStage === 'stage2') {
-    // linking_complete arrived → Schema linking starts
+    // linking_complete arrived → Schema linking is done
     if (!stageTimings.value.vectorSearch.end) {
       stageTimings.value.vectorSearch.end = Date.now()
     }
+    // Fallback: if linking_start wasn't received, mark start now
     if (!stageTimings.value.schemaLinking.start) {
       stageTimings.value.schemaLinking.start = Date.now()
     }
+    // Mark end immediately — the actual duration comes from backend linkingDurationMs
+    stageTimings.value.schemaLinking.end = Date.now()
   } else if (newStage === 'done') {
     if (!stageTimings.value.vectorSearch.end) {
       stageTimings.value.vectorSearch.end = Date.now()
@@ -54,6 +57,13 @@ watch(() => workspaceStore.groundingStage, (newStage, oldStage) => {
     if (stageTimings.value.schemaLinking.start && !stageTimings.value.schemaLinking.end) {
       stageTimings.value.schemaLinking.end = Date.now()
     }
+  }
+})
+
+// Watch grounding progress for linking_start to capture the real start time
+watch(() => workspaceStore.groundingProgress, (progress) => {
+  if (progress?.stage === 'linking_start' && !stageTimings.value.schemaLinking.start) {
+    stageTimings.value.schemaLinking.start = Date.now()
   }
 })
 
@@ -93,12 +103,19 @@ function resetTimings() {
 
 // Query options
 const maxIterations = ref(5)
-const useFieldAlignment = ref(true)
+const useFieldAlignment = ref(false)
 const selectedModel = ref('deepseek_v3')
 const useRichContext = ref(true)
 const useReact = ref(true)
 const useGrounding = ref(true)
-const skipLinking = ref(false)
+const linkingMode = ref<'off' | 'one-shot' | 'react'>('one-shot')
+
+// Linking mode options for the NSelect
+const linkingModeOptions = [
+  { label: 'Off', value: 'off' },
+  { label: 'One-Shot', value: 'one-shot' },
+  { label: 'ReAct', value: 'react' }
+]
 
 // Model options - loaded from backend /models API
 const modelOptions = ref<{ label: string; value: string }[]>([
@@ -195,12 +212,16 @@ const vectorSearchStage = computed(() => {
   const hasRetrievalData = workspaceStore.groundingResult && 
     ((workspaceStore.groundingResult.tables?.length ?? 0) > 0 || (workspaceStore.groundingResult.columns?.length ?? 0) > 0)
   const stageDone = hasRetrievalData || workspaceStore.groundingStage === 'retrieval_done' || workspaceStore.groundingStage === 'done'
+  // Prefer backend-reported retrieval duration (accurate, not affected by concurrent ReAct linking).
+  // Fall back to client-side timestamps only if backend didn't report duration.
+  const backendDuration = workspaceStore.groundingResult?.retrievalDurationMs
+  const clientDuration = end && start ? end - start : 0
   return {
     active: isExecuting.value && workspaceStore.groundingStage !== 'idle',
     completed: stageDone && hasGroundingContent.value,
     empty: stageDone && !hasGroundingContent.value,
     data: workspaceStore.groundingResult,
-    duration: end && start ? end - start : 0
+    duration: backendDuration != null && backendDuration > 0 ? backendDuration : clientDuration
   }
 })
 
@@ -237,19 +258,33 @@ const schemaLinkingStage = computed(() => {
   const hasSqlGenerationSteps = workspaceStore.reactSteps.some(s => s.phase === 'sql_generation')
   const completed = end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql
   
-  // Active when: vector search is visually done AND (grounding stage2/done OR has linking data)
+  // Active when: vector search is visually done AND (linking started/done OR has linking data)
   // Gate on vectorSearchStage to prevent Schema Linking from activating before Vector Search completes
   const vectorDone = vectorSearchStage.value.completed || vectorSearchStage.value.empty
   const groundingDone = workspaceStore.groundingStage === 'done' || workspaceStore.groundingStage === 'stage2'
-  const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.executionLogs?.length || !!workspaceStore.groundingResult?.linkingTables?.length
-  const active = awaitingFieldConfirmation.value || (vectorDone && (hasLinkingData || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)))
+  const linkingInProgress = workspaceStore.groundingProgress?.stage === 'linking_start'
+  const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.linkingTables?.length
+  const active = awaitingFieldConfirmation.value || (vectorDone && (hasLinkingData || linkingInProgress || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)))
   
+  // Separate polling steps (get_candidate_schema with no result) from real analysis steps
+  // Also filter out get_candidate_schema calls that returned schema data (successful fetch)
+  // — those are infrastructure steps, not analysis steps worth showing.
+  const pollingSteps = steps.filter(s => s.action === 'get_candidate_schema' && !s.observation)
+  const schemaReceivedSteps = steps.filter(s => s.action === 'get_candidate_schema' && !!s.observation)
+  const realSteps = steps.filter(s => s.action !== 'get_candidate_schema')
+
   return {
     active: active || (isExecuting.value && hasSchemaLinkingSteps),
     completed: completed && hasSchemaLinkingSteps,
-    steps,
+    steps: realSteps,
+    pollingCount: pollingSteps.length,
+    schemaReceived: schemaReceivedSteps.length > 0,
+    isPolling: pollingSteps.length > 0 && realSteps.length === 0 && isExecuting.value,
     contexts: workspaceStore.usedContexts,
-    duration: completed && start && end ? end - start : 0
+    // Prefer backend-reported linking duration (accurate); fallback to client-side timestamps
+    duration: workspaceStore.groundingResult?.linkingDurationMs
+      ? workspaceStore.groundingResult.linkingDurationMs
+      : (completed && start && end ? end - start : 0)
   }
 })
 
@@ -405,7 +440,7 @@ async function doExecuteGroundingOnly() {
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
-  workspaceStore.queryOptions.skipLinking = skipLinking.value
+  workspaceStore.queryOptions.linkingMode = linkingMode.value
 
   try {
     await workspaceStore.executeQuery(question.value, undefined, true) // groundingOnly=true
@@ -425,7 +460,7 @@ async function doExecuteFull(fieldDescription?: string) {
   workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.useGrounding = useGrounding.value
-  workspaceStore.queryOptions.skipLinking = skipLinking.value
+  workspaceStore.queryOptions.linkingMode = linkingMode.value
 
   try {
     await workspaceStore.executeQuery(question.value, fieldDescription, false)
@@ -561,11 +596,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </div>
 
-        <div class="param-item flex items-end">
-          <div class="flex items-center gap-3 h-8">
-            <NSwitch v-model:value="skipLinking" :disabled="isExecuting" size="small" />
-            <span class="text-sm font-medium text-gray-700">Skip Linking</span>
-          </div>
+        <div class="param-item">
+          <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Linking Mode</label>
+          <NSelect
+            v-model:value="linkingMode"
+            :options="linkingModeOptions"
+            :disabled="isExecuting"
+            size="small"
+          />
         </div>
       </div>
 
@@ -795,7 +833,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
       <!-- Stage 2: Schema Linking -->
       <RealtimeCard
-        title="ReAct Schema Linking"
+        :title="linkingMode === 'react' ? 'ReAct Schema Linking' : linkingMode === 'off' ? 'Schema Linking (Off)' : 'One-Shot Schema Linking'"
         icon="i-lucide-link"
         :active="schemaLinkingStage.active"
         :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"
@@ -805,7 +843,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       >
         <template #content>
           <!-- Step 1: Linking Agent Result (LLM Fine Selection + Selected Tables/Columns + Execution Logs) -->
-          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length" class="space-y-3 mb-4">
+          <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length" class="space-y-3 mb-4">
             <!-- LLM Fine Selection -->
             <div v-if="workspaceStore.groundingResult.reasoning" class="stagger-item" style="--stagger: 0">
               <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
@@ -966,9 +1004,24 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </Transition>
 
           <!-- Schema Linking Steps (only shown when inference is running / complete) -->
-          <div v-if="schemaLinkingStage.steps.length" class="space-y-4" :class="{ 'mt-4': showFieldPanel }">
-            <!-- Step counter -->
-            <div class="flex items-center gap-2 pb-2 border-b border-gray-100">
+          <div v-if="schemaLinkingStage.isPolling || schemaLinkingStage.steps.length" class="space-y-4" :class="{ 'mt-4': showFieldPanel }">
+            <!-- Polling indicator: waiting for schema data (cold-start acceleration) -->
+            <div v-if="schemaLinkingStage.pollingCount > 0 || schemaLinkingStage.schemaReceived" class="flex items-center gap-3 px-4 py-3 rounded-lg border"
+              :class="schemaLinkingStage.schemaReceived ? 'bg-green-50/50 border-green-100' : 'bg-cyan-50/50 border-cyan-100'"
+            >
+              <div v-if="schemaLinkingStage.isPolling" class="i-lucide-loader-2 animate-spin text-cyan-500 text-lg flex-shrink-0" />
+              <div v-else class="i-lucide-check-circle text-green-500 text-lg flex-shrink-0" />
+              <div class="flex-1">
+                <span v-if="schemaLinkingStage.isPolling" class="text-sm font-medium text-gray-600">Waiting for schema data...</span>
+                <span v-else class="text-sm font-medium text-green-700">Schema data received</span>
+                <span v-if="schemaLinkingStage.pollingCount > 0 && !schemaLinkingStage.isPolling" class="text-xs text-gray-400 ml-2">
+                  (waited {{ schemaLinkingStage.pollingCount }} {{ schemaLinkingStage.pollingCount === 1 ? 'round' : 'rounds' }})
+                </span>
+              </div>
+            </div>
+
+            <!-- Step counter (only for real analysis steps) -->
+            <div v-if="schemaLinkingStage.steps.length" class="flex items-center gap-2 pb-2 border-b border-gray-100">
               <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">
                 {{ schemaLinkingStage.steps.length }} reasoning step{{ schemaLinkingStage.steps.length > 1 ? 's' : '' }}
               </div>
@@ -1018,7 +1071,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </TransitionGroup>
           </div>
           <!-- Loading/Waiting states (only when NO linking result AND field panel is NOT shown) -->
-          <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length || workspaceStore.groundingResult?.executionLogs?.length)">
+          <div v-else-if="!showFieldPanel && !(workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length)">
             <!-- Linking agent progress from grounding sub-stages -->
             <div v-if="workspaceStore.groundingProgress?.stage === 'linking_start'" class="space-y-3">
               <div class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">

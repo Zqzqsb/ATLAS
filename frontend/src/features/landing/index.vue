@@ -5,6 +5,8 @@ import { NButton, NSpin, useMessage } from 'naive-ui'
 import { useDatabaseStore } from '@/stores/database'
 import DatabaseCard from './DatabaseCard.vue'
 import SpiderDatasetCard from './SpiderDatasetCard.vue'
+import TpchEnterpriseCard from './TpchEnterpriseCard.vue'
+import EvolutionCard from './EvolutionCard.vue'
 import AddDatabaseDialog from './AddDatabaseDialog.vue'
 import type { DatabaseConfig } from '@/types'
 
@@ -21,13 +23,24 @@ function isSpiderDatabase(name: string): boolean {
   return name.toLowerCase().startsWith('spider_')
 }
 
+// Special database identifiers
+const SPECIAL_IDS = new Set(['tpch_enterprise', 'lucid_evolution'])
+
 // Separate Spider databases from other databases
 const spiderDatabases = computed(() => 
   databaseStore.databases.filter(db => isSpiderDatabase(db.name))
 )
 
+const tpchDatabase = computed(() =>
+  databaseStore.databases.find(db => db.name === 'tpch_enterprise') || null
+)
+
+const evolutionDatabase = computed(() =>
+  databaseStore.databases.find(db => db.name === 'lucid_evolution') || null
+)
+
 const otherDatabases = computed(() => 
-  databaseStore.databases.filter(db => !isSpiderDatabase(db.name))
+  databaseStore.databases.filter(db => !isSpiderDatabase(db.name) && !SPECIAL_IDS.has(db.name))
 )
 
 // Whether to show Spider Dataset card
@@ -132,6 +145,18 @@ async function handleAddDatabase(config: DatabaseConfig) {
             <SpiderDatasetCard 
               v-if="showSpiderCard"
               :databases="spiderDatabases"
+            />
+
+            <!-- TPC-H Enterprise Card -->
+            <TpchEnterpriseCard
+              v-if="tpchDatabase"
+              :database="tpchDatabase"
+            />
+
+            <!-- Evolution Demo Card -->
+            <EvolutionCard
+              v-if="evolutionDatabase"
+              :database="evolutionDatabase"
             />
             
             <!-- Other database cards -->

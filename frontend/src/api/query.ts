@@ -48,7 +48,7 @@ export const queryApi = {
           use_rich_context: request.options.useRichContext,
           use_react: request.options.useReact,
           use_grounding: request.options.useGrounding,
-          skip_linking: request.options.skipLinking || false,
+          linking_mode: request.options.linkingMode || 'one-shot',
           max_iterations: request.options.maxIterations,
           grounding_only: request.options.groundingOnly || false,
           skip_grounding: request.options.skipGrounding || false,

@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config 系统配置
+// Config holds the top-level system configuration.
 type Config struct {
 	Server    ServerConfig     `yaml:"server" json:"server"`
 	LLM       LLMConfig        `yaml:"llm" json:"llm"`
@@ -17,7 +17,7 @@ type Config struct {
 	React     ReactConfig      `yaml:"react" json:"react"`
 }
 
-// ServerConfig 服务器配置
+// ServerConfig holds HTTP server settings.
 type ServerConfig struct {
 	Host     string `yaml:"host" json:"host"`
 	Port     int    `yaml:"port" json:"port"`
@@ -25,13 +25,13 @@ type ServerConfig struct {
 	LogLevel string `yaml:"log_level" json:"log_level"` // debug | info | warn | error
 }
 
-// LLMConfig LLM配置
+// LLMConfig holds LLM provider settings.
 type LLMConfig struct {
 	ConfigFile   string `yaml:"config_file" json:"config_file"`
 	DefaultModel string `yaml:"default_model" json:"default_model"`
 }
 
-// DatabaseConfig 数据库连接配置
+// DatabaseConfig holds connection details for a target database.
 type DatabaseConfig struct {
 	ID          string `yaml:"id" json:"id"`
 	Name        string `yaml:"name" json:"name"`
@@ -44,13 +44,13 @@ type DatabaseConfig struct {
 	Description string `yaml:"description" json:"description"`
 }
 
-// ReactConfig ReAct配置
+// ReactConfig holds ReAct agent settings.
 type ReactConfig struct {
 	MaxIterations    int  `yaml:"max_iterations" json:"max_iterations"`
 	EnableRichContext bool `yaml:"enable_rich_context" json:"enable_rich_context"`
 }
 
-// Load 从文件加载配置
+// Load reads and parses a config file (YAML or JSON).
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -59,7 +59,7 @@ func Load(path string) (*Config, error) {
 
 	config := &Config{}
 	
-	// 根据扩展名选择解析方式
+	// Choose parser based on file extension
 	ext := filepath.Ext(path)
 	switch ext {
 	case ".yaml", ".yml":
@@ -74,23 +74,23 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("unsupported config file format: %s", ext)
 	}
 
-	// 应用环境变量覆盖
+	// Apply environment variable overrides
 	applyEnvOverrides(config)
 
-	// 设置默认值
+	// Set default values
 	setDefaults(config)
 
 	return config, nil
 }
 
-// applyEnvOverrides 应用环境变量覆盖配置
+// applyEnvOverrides overrides config values from environment variables.
 func applyEnvOverrides(config *Config) {
-	// LLM 默认模型
+	// LLM default model
 	if model := os.Getenv("LLM_DEFAULT_MODEL"); model != "" {
 		config.LLM.DefaultModel = model
 	}
 
-	// 服务器端口
+	// Server port
 	if port := os.Getenv("SERVER_PORT"); port != "" {
 		var p int
 		fmt.Sscanf(port, "%d", &p)
@@ -99,18 +99,18 @@ func applyEnvOverrides(config *Config) {
 		}
 	}
 
-	// 服务器模式
+	// Server mode
 	if mode := os.Getenv("SERVER_MODE"); mode != "" {
 		config.Server.Mode = mode
 	}
 
-	// 日志级别
+	// Log level
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
 		config.Server.LogLevel = logLevel
 	}
 }
 
-// setDefaults 设置默认值
+// setDefaults fills in zero-value fields with sensible defaults.
 func setDefaults(config *Config) {
 	if config.Server.Port == 0 {
 		config.Server.Port = 8081

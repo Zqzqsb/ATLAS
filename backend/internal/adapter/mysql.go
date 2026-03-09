@@ -11,13 +11,13 @@ import (
 	"lucid/internal/logger"
 )
 
-// MySQLAdapter MySQL适配器
+// MySQLAdapter implements DBAdapter for MySQL / MariaDB.
 type MySQLAdapter struct {
 	db     *sql.DB
 	config *MySQLConfig
 }
 
-// MySQLConfig MySQL连接配置
+// MySQLConfig holds MySQL connection parameters.
 type MySQLConfig struct {
 	Host     string
 	Port     int
@@ -26,14 +26,14 @@ type MySQLConfig struct {
 	Password string
 }
 
-// NewMySQLAdapter 创建MySQL适配器
+// NewMySQLAdapter creates a new MySQLAdapter.
 func NewMySQLAdapter(config *MySQLConfig) *MySQLAdapter {
 	return &MySQLAdapter{
 		config: config,
 	}
 }
 
-// Connect 连接数据库
+// Connect establishes a connection to the database.
 func (a *MySQLAdapter) Connect(ctx context.Context) error {
 	log := logger.With("component", "mysql_adapter")
 	log.Info("[Connect] Connecting to database",
@@ -57,7 +57,7 @@ func (a *MySQLAdapter) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// 测试连接
+	// Test connectivity
 	if err := db.PingContext(ctx); err != nil {
 		log.Error("[Connect] Failed to ping database", "error", err)
 		return fmt.Errorf("failed to ping database: %w", err)
@@ -70,7 +70,7 @@ func (a *MySQLAdapter) Connect(ctx context.Context) error {
 	return nil
 }
 
-// Close 关闭连接
+// Close closes the database connection.
 func (a *MySQLAdapter) Close() error {
 	if a.db != nil {
 		return a.db.Close()
@@ -78,7 +78,7 @@ func (a *MySQLAdapter) Close() error {
 	return nil
 }
 
-// ExecuteQuery 执行查询
+// ExecuteQuery runs an SQL query and returns the result.
 func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryResult, error) {
 	log := logger.With("component", "mysql_adapter")
 	start := time.Now()
@@ -155,12 +155,12 @@ func (a *MySQLAdapter) ExecuteQuery(ctx context.Context, query string) (*QueryRe
 	}, nil
 }
 
-// GetDatabaseType 获取数据库类型
+// GetDatabaseType returns the database engine name.
 func (a *MySQLAdapter) GetDatabaseType() string {
 	return "MySQL"
 }
 
-// GetDatabaseVersion 获取数据库版本
+// GetDatabaseVersion returns the server version string.
 func (a *MySQLAdapter) GetDatabaseVersion(ctx context.Context) (string, error) {
 	result, err := a.ExecuteQuery(ctx, "SELECT VERSION() as version")
 	if err != nil {

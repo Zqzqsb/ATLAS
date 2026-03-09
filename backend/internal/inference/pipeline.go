@@ -103,12 +103,12 @@ type Result struct {
 	ReActSteps     []ReActStep
 }
 
-// ReActStep ReAct 步骤
+// ReActStep represents a single ReAct reasoning step.
 type ReActStep struct {
 	Step        int         `json:"step,omitempty"`              // Step number for streaming
 	Thought     string      `json:"thought"`
 	Action      string      `json:"action"`
-	ActionInput interface{} `json:"action_input,omitempty"` // 支持 string 和 map[string]interface{}
+	ActionInput interface{} `json:"action_input,omitempty"` // Supports string and map[string]interface{}
 	Observation string      `json:"observation,omitempty"`
 	Phase       string      `json:"phase,omitempty"` // "schema_linking" or "sql_generation"
 }
@@ -413,7 +413,7 @@ func (p *Pipeline) buildRichSchemaPrompt(tables []string) string {
 
 // extractTableInfoFromDB extracts table info from the database directly.
 func (p *Pipeline) extractTableInfoFromDB(ctx context.Context) (map[string]*TableInfo, error) {
-	// 获取所有表名
+	// Get all table names
 	var query string
 	switch p.adapter.GetDatabaseType() {
 	case "MySQL":
@@ -433,7 +433,7 @@ func (p *Pipeline) extractTableInfoFromDB(ctx context.Context) (map[string]*Tabl
 
 	tableInfo := make(map[string]*TableInfo)
 
-	// 对每个表查询列信息
+	// Query column info for each table
 	for _, row := range result.Rows {
 		var tableName string
 		for _, val := range row {
@@ -447,7 +447,7 @@ func (p *Pipeline) extractTableInfoFromDB(ctx context.Context) (map[string]*Tabl
 			continue
 		}
 
-		// 查询列信息
+		// Query column information
 		var colQuery string
 		switch p.adapter.GetDatabaseType() {
 		case "MySQL":
@@ -495,14 +495,14 @@ func (p *Pipeline) extractTableInfoFromDB(ctx context.Context) (map[string]*Tabl
 	return tableInfo, nil
 }
 
-// buildBasicSchema 构建基础 Schema（从数据库查询表结构）
+// buildBasicSchema builds a basic schema string from database metadata.
 func (p *Pipeline) buildBasicSchema(ctx context.Context, tables []string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Database: %s\n\n", p.adapter.GetDatabaseType()))
 
 	for _, tableName := range tables {
-		// 查询表结构
+		// Query table structure
 		var query string
 		switch p.adapter.GetDatabaseType() {
 		case "MySQL":
@@ -520,13 +520,13 @@ func (p *Pipeline) buildBasicSchema(ctx context.Context, tables []string) string
 			continue
 		}
 
-		// 格式化表结构
+		// Format table structure
 		sb.WriteString(fmt.Sprintf("Table %s:\n", tableName))
 
 		for _, row := range result.Rows {
 			var colName, colType string
 
-			// 根据数据库类型提取列名和类型
+			// Extract column name and type based on database engine
 			switch p.adapter.GetDatabaseType() {
 			case "MySQL":
 				if field, ok := row["Field"].(string); ok {

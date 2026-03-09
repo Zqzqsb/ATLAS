@@ -78,7 +78,7 @@ type SelectedTable struct {
 type RelevantColumn struct {
 	Name   string `json:"name"`
 	Reason string `json:"reason"`
-	Hint   string `json:"hint,omitempty"` // Query-specific usage hint (e.g. "ORDER BY this DESC for '最高'")
+	Hint   string `json:"hint,omitempty"` // Query-specific usage hint (e.g. "ORDER BY this DESC for 'highest'")
 }
 
 // LinkingAgent performs LLM-based schema linking with full schema context
@@ -161,7 +161,7 @@ func (a *LinkingAgent) LinkAsync(
 	default: // "one-shot"
 		// One-shot mode: must give Final Answer immediately after get_schema
 		systemPrompt = oneShotAsyncSystemPrompt
-		maxIter = 3  // 1 get_schema + 1 Final Answer + 1 余量
+		maxIter = 3  // 1 get_schema + 1 Final Answer + 1 buffer
 		actualMax = 8
 	}
 

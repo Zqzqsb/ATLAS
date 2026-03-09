@@ -70,7 +70,7 @@ var DefaultEvolutionStages = []EvolutionStage{
 	{
 		ID:          1,
 		Name:        "Add User Phone Column",
-		Description: "业务需求：需要用户手机号用于联系",
+		Description: "Business need: add user phone number for contact",
 		DDLs: []string{
 			"ALTER TABLE users ADD COLUMN phone VARCHAR(20)",
 		},
@@ -83,7 +83,7 @@ var DefaultEvolutionStages = []EvolutionStage{
 	{
 		ID:          2,
 		Name:        "Add Products Table",
-		Description: "业务需求：引入商品系统",
+		Description: "Business need: introduce product catalog",
 		DDLs: []string{
 			`CREATE TABLE products (
 				id INT PRIMARY KEY AUTO_INCREMENT,
@@ -94,17 +94,17 @@ var DefaultEvolutionStages = []EvolutionStage{
 			)`,
 		},
 		SampleData: []string{
-			"INSERT INTO products (name, price, category) VALUES ('iPhone 15', 7999.00, '电子产品')",
-			"INSERT INTO products (name, price, category) VALUES ('MacBook Pro', 14999.00, '电子产品')",
-			"INSERT INTO products (name, price, category) VALUES ('AirPods Pro', 1899.00, '配件')",
-			"INSERT INTO products (name, price, category) VALUES ('iPad Air', 4799.00, '电子产品')",
+			"INSERT INTO products (name, price, category) VALUES ('iPhone 15', 7999.00, 'Electronics')",
+			"INSERT INTO products (name, price, category) VALUES ('MacBook Pro', 14999.00, 'Electronics')",
+			"INSERT INTO products (name, price, category) VALUES ('AirPods Pro', 1899.00, 'Accessories')",
+			"INSERT INTO products (name, price, category) VALUES ('iPad Air', 4799.00, 'Electronics')",
 		},
 		ExpectedChanges: []SchemaChangeType{ChangeTypeTableAdded},
 	},
 	{
 		ID:          3,
 		Name:        "Add Order-Product Foreign Key",
-		Description: "业务需求：订单需要关联商品",
+		Description: "Business need: link orders to products",
 		DDLs: []string{
 			"ALTER TABLE orders ADD COLUMN product_id INT",
 			"ALTER TABLE orders ADD CONSTRAINT fk_order_product FOREIGN KEY (product_id) REFERENCES products(id)",
@@ -120,7 +120,7 @@ var DefaultEvolutionStages = []EvolutionStage{
 	{
 		ID:          4,
 		Name:        "Modify Amount Precision",
-		Description: "业务需求：金额精度从 2 位升级到 4 位，支持更精细定价",
+		Description: "Business need: upgrade amount precision from 2 to 4 decimal places",
 		DDLs: []string{
 			"ALTER TABLE orders MODIFY COLUMN amount DECIMAL(15,4)",
 		},
@@ -129,7 +129,7 @@ var DefaultEvolutionStages = []EvolutionStage{
 	{
 		ID:          5,
 		Name:        "Drop Email Column",
-		Description: "业务调整：用户隐私合规，移除 email 字段",
+		Description: "Business change: remove email column for privacy compliance",
 		DDLs: []string{
 			"ALTER TABLE users DROP COLUMN email",
 		},
@@ -435,17 +435,17 @@ func (s *EvolutionService) resetToInitialLocked(ctx context.Context, dsID int64)
 		"DROP TABLE IF EXISTS users",
 		`CREATE TABLE users (
 			id INT PRIMARY KEY AUTO_INCREMENT,
-			name VARCHAR(100) NOT NULL COMMENT '用户姓名',
-			email VARCHAR(255) UNIQUE COMMENT '用户邮箱'
-		) COMMENT='用户信息表'`,
+			name VARCHAR(100) NOT NULL COMMENT 'User name',
+			email VARCHAR(255) UNIQUE COMMENT 'User email'
+		) COMMENT='User information'`,
 		`CREATE TABLE orders (
 			id INT PRIMARY KEY AUTO_INCREMENT,
-			user_id INT NOT NULL COMMENT '关联用户ID',
-			amount DECIMAL(10,2) COMMENT '订单金额',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+			user_id INT NOT NULL COMMENT 'Associated user ID',
+			amount DECIMAL(10,2) COMMENT 'Order amount',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
 			FOREIGN KEY (user_id) REFERENCES users(id)
-		) COMMENT='订单信息表'`,
-		"INSERT INTO users (name, email) VALUES ('张三', 'zhang@example.com'), ('李四', 'li@example.com'), ('王五', 'wang@example.com')",
+		) COMMENT='Order information'`,
+		"INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com'), ('Bob', 'bob@example.com'), ('Charlie', 'charlie@example.com')",
 		"INSERT INTO orders (user_id, amount) VALUES (1, 99.00), (1, 199.00), (2, 59.00), (3, 299.00)",
 	}
 

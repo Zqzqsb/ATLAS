@@ -10,7 +10,7 @@ import (
 // Core types — used across internal/ and server/
 // ============================================
 
-// DBAdapter 数据库适配器接口
+// DBAdapter defines the interface for database operations.
 type DBAdapter interface {
 	Connect(ctx context.Context) error
 	Close() error
@@ -20,7 +20,7 @@ type DBAdapter interface {
 	DryRunSQL(ctx context.Context, sql string) (*QueryResult, error)
 }
 
-// DBConfig 数据库连接配置
+// DBConfig holds database connection parameters.
 type DBConfig struct {
 	Type     string // "mysql", "mariadb"
 	Host     string
@@ -33,7 +33,7 @@ type DBConfig struct {
 	MaxIdleConns int
 }
 
-// QueryResult 查询结果
+// QueryResult holds the result of an SQL query execution.
 type QueryResult struct {
 	Columns       []string                 `json:"columns"`
 	Rows          []map[string]interface{} `json:"rows"`
@@ -42,7 +42,7 @@ type QueryResult struct {
 	Error         string                   `json:"error,omitempty"`
 }
 
-// AdapterFactory 适配器工厂函数类型
+// AdapterFactory is a constructor function type for adapters.
 type AdapterFactory func(config *DBConfig) (DBAdapter, error)
 
 // ============================================
@@ -59,7 +59,7 @@ const (
 // Factory
 // ============================================
 
-// NewAdapter 工厂函数：根据配置创建对应的适配器
+// NewAdapter creates a DBAdapter based on the config type.
 func NewAdapter(config *DBConfig) (DBAdapter, error) {
 	switch config.Type {
 	case "mysql", "mariadb":
@@ -75,7 +75,7 @@ func NewAdapter(config *DBConfig) (DBAdapter, error) {
 	}
 }
 
-// UnsupportedDatabaseError 不支持的数据库类型错误
+// UnsupportedDatabaseError indicates an unsupported database type.
 type UnsupportedDatabaseError struct {
 	Type string
 }

@@ -11,7 +11,7 @@ import (
 // Inference Engine
 // ============================================
 
-// InferenceEngineInterface 推理引擎接口
+// InferenceEngineInterface defines the inference engine contract.
 type InferenceEngineInterface interface {
 	Execute(ctx context.Context, req *InferenceRequest) (*InferenceResult, error)
 	ExecuteStream(ctx context.Context, req *InferenceRequest, events chan<- StreamEvent) error
@@ -21,7 +21,7 @@ type InferenceEngineInterface interface {
 	GetLLMModel() interface{}
 }
 
-// InferenceRequest 推理请求
+// InferenceRequest holds the parameters for an inference call.
 type InferenceRequest struct {
 	Question         string `json:"question"`
 	DatabaseID       string `json:"database_id"`
@@ -37,7 +37,7 @@ type InferenceRequest struct {
 	LinkedContextPrompt string  `json:"linked_context_prompt,omitempty"`
 }
 
-// InferenceResult 推理结果
+// InferenceResult holds the output of an inference call.
 type InferenceResult struct {
 	SQL             string               `json:"sql"`
 	ExecutionResult *adapter.QueryResult `json:"execution_result,omitempty"`
@@ -55,7 +55,7 @@ type InferenceMetadata struct {
 	Model              string        `json:"model"`
 }
 
-// ModelInfo 模型信息
+// ModelInfo describes an available LLM model.
 type ModelInfo struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -68,7 +68,7 @@ type ModelInfo struct {
 // ReAct
 // ============================================
 
-// ReActStep ReAct 推理步骤
+// ReActStep represents a single step in a ReAct reasoning trace.
 type ReActStep struct {
 	Step        int         `json:"step"`
 	Thought     string      `json:"thought"`
@@ -83,7 +83,7 @@ type ReActStep struct {
 // Streaming
 // ============================================
 
-// EventType 事件类型
+// EventType identifies the kind of streaming event.
 type EventType string
 
 const (
@@ -99,14 +99,14 @@ const (
 	EventRichContextUpdate EventType = "rich_context_update"
 )
 
-// StreamEvent 流式事件
+// StreamEvent is a single SSE event sent to the frontend.
 type StreamEvent struct {
 	Type      EventType   `json:"type"`
 	Data      interface{} `json:"data"`
 	Timestamp int64       `json:"timestamp"`
 }
 
-// ErrorEventData 错误事件数据
+// ErrorEventData carries error details inside a StreamEvent.
 type ErrorEventData struct {
 	Error string `json:"error"`
 }
@@ -115,12 +115,12 @@ type ErrorEventData struct {
 // Field Suggester
 // ============================================
 
-// FieldSuggesterInterface 字段建议器接口
+// FieldSuggesterInterface defines the field suggestion contract.
 type FieldSuggesterInterface interface {
 	SuggestFields(ctx context.Context, req *SuggestFieldsRequest) (*SuggestFieldsResult, error)
 }
 
-// SuggestFieldsRequest 字段建议请求
+// SuggestFieldsRequest holds parameters for a field suggestion call.
 type SuggestFieldsRequest struct {
 	Question   string `json:"question"`
 	DatabaseID string `json:"database_id"`
@@ -128,13 +128,13 @@ type SuggestFieldsRequest struct {
 	Language   string `json:"language"`
 }
 
-// SuggestFieldsResult 字段建议结果
+// SuggestFieldsResult holds the output of a field suggestion call.
 type SuggestFieldsResult struct {
 	SuggestedFields []SuggestedField `json:"suggested_fields"`
 	AnalysisNote    string           `json:"analysis_note"`
 }
 
-// SuggestedField 建议的字段
+// SuggestedField is a single field recommendation.
 type SuggestedField struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`

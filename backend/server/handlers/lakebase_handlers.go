@@ -732,10 +732,13 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	// and trigger incremental embedding immediately
 	rcWriter := reacttools.NewLakebaseRCWriter(h.lakebaseService.GetRepository())
 
-	// Track incremental embedding count
-	var embeddingCount int
+	// Track incremental embedding progress.
+	// embeddingsExpected increments on each RC write (queued for embedding).
+	// embeddingsCompleted increments when an embedding actually finishes.
+	// This gives an accurate N/M progress display instead of a static estimate.
+	var embeddingsExpected int
+	var embeddingsCompleted int
 	var embeddingMu sync.Mutex
-	embeddingsTotal := len(tables) + len(columns)
 
 	// Announce embedding agent is running (starts alongside RC gen)
 	sendEvent("agent_start", GenerateContextEvent{
@@ -755,6 +758,12 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		if contextType == "business_term" {
 			target = "rc_terms"
 		}
+
+		// Increment expected count when a new RC is written (before embedding starts)
+		embeddingMu.Lock()
+		embeddingsExpected++
+		embeddingMu.Unlock()
+
 		sendEvent("storage", GenerateContextEvent{
 			Agent:   "storage",
 			Phase:   contextType,
@@ -779,19 +788,20 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 				return
 			}
 			embeddingMu.Lock()
-			embeddingCount++
-			cnt := embeddingCount
+			embeddingsCompleted++
+			completed := embeddingsCompleted
+			expected := embeddingsExpected
 			embeddingMu.Unlock()
 			sendEvent("agent_step", GenerateContextEvent{
 				Agent:   "embedding",
 				Phase:   "embedding",
-				Message: fmt.Sprintf("🧬 Embedded %s: %s (%d/%d)", ct, detail, cnt, embeddingsTotal),
+				Message: fmt.Sprintf("🧬 Embedded %s: %s (%d/%d)", ct, detail, completed, expected),
 				Data: map[string]interface{}{
 					"context_type":        ct,
 					"table":               tn,
 					"column":              cn,
-					"embeddings_so_far":   cnt,
-					"embeddings_total":    embeddingsTotal,
+					"embeddings_so_far":   completed,
+					"embeddings_total":    expected,
 				},
 			})
 		}(contextType, tableName, columnName)
@@ -889,7 +899,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 	// Phase 3: Catch-up embeddings for any entities that may have been missed
 	// (e.g., entities that existed before but had no embedding yet)
 	embeddingMu.Lock()
-	streamEmbedded := embeddingCount
+	streamEmbedded := embeddingsCompleted
 	embeddingMu.Unlock()
 
 	var catchupEmbeddings int

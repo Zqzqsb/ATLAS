@@ -517,6 +517,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             if (event.data.duration_ms != null) {
               linkingMeta.linkingDurationMs = event.data.duration_ms
             }
+            // Latency breakdown from concurrent cold-start architecture:
+            // retrieval_latency_ms = T0→T1 (vector search wall-clock time)
+            // reasoning_latency_ms = T1.1→T2 (LLM reasoning after first schema data)
+            if (event.data.retrieval_latency_ms != null) {
+              linkingMeta.retrievalLatencyMs = event.data.retrieval_latency_ms
+            }
+            if (event.data.reasoning_latency_ms != null) {
+              linkingMeta.reasoningLatencyMs = event.data.reasoning_latency_ms
+            }
 
             // Store linking agent's independent selection into dedicated fields
             if (event.data.tables) {

@@ -142,6 +142,8 @@ export interface GroundingResult {
   linkingJoinPaths?: JoinPath[]
   linkingDurationMs?: number          // Backend-reported linking agent duration (ms)
   retrievalDurationMs?: number        // Backend-reported retrieval duration (ms) — accurate even in ReactAsync mode
+  retrievalLatencyMs?: number         // T0→T1: time from agent start to retrieval complete (includes concurrent overlap)
+  reasoningLatencyMs?: number         // T1.1→T2: LLM reasoning time after first schema data received
 }
 
 // SuggestedFieldFromLinking represents a field suggested by the linking agent

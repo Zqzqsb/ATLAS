@@ -212,8 +212,9 @@ const vectorSearchStage = computed(() => {
   const hasRetrievalData = workspaceStore.groundingResult && 
     ((workspaceStore.groundingResult.tables?.length ?? 0) > 0 || (workspaceStore.groundingResult.columns?.length ?? 0) > 0)
   const stageDone = hasRetrievalData || workspaceStore.groundingStage === 'retrieval_done' || workspaceStore.groundingStage === 'done'
-  // Prefer backend-reported retrieval duration (accurate, not affected by concurrent ReAct linking).
-  // Fall back to client-side timestamps only if backend didn't report duration.
+  // Prefer backend-reported retrieval latency T0→T1 (from linking_complete event).
+  // Fall back to retrievalDurationMs (from retrieval_complete), then client-side timestamps.
+  const backendLatency = workspaceStore.groundingResult?.retrievalLatencyMs
   const backendDuration = workspaceStore.groundingResult?.retrievalDurationMs
   const clientDuration = end && start ? end - start : 0
   return {
@@ -221,7 +222,9 @@ const vectorSearchStage = computed(() => {
     completed: stageDone && hasGroundingContent.value,
     empty: stageDone && !hasGroundingContent.value,
     data: workspaceStore.groundingResult,
-    duration: backendDuration != null && backendDuration > 0 ? backendDuration : clientDuration
+    duration: backendLatency != null && backendLatency > 0 ? backendLatency
+      : backendDuration != null && backendDuration > 0 ? backendDuration
+      : clientDuration
   }
 })
 
@@ -281,8 +284,11 @@ const schemaLinkingStage = computed(() => {
     schemaReceived: schemaReceivedSteps.length > 0,
     isPolling: pollingSteps.length > 0 && realSteps.length === 0 && isExecuting.value,
     contexts: workspaceStore.usedContexts,
-    // Prefer backend-reported linking duration (accurate); fallback to client-side timestamps
-    duration: workspaceStore.groundingResult?.linkingDurationMs
+    // Prefer backend-reported reasoning latency T1.1→T2 (from linking_complete event).
+    // Fall back to linkingDurationMs, then client-side timestamps.
+    duration: workspaceStore.groundingResult?.reasoningLatencyMs
+      ? workspaceStore.groundingResult.reasoningLatencyMs
+      : workspaceStore.groundingResult?.linkingDurationMs
       ? workspaceStore.groundingResult.linkingDurationMs
       : (completed && start && end ? end - start : 0)
   }
@@ -684,6 +690,18 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </div>
     </div>
 
+    <!-- DEBUG: duration values -->
+    <div v-if="vectorSearchStage.completed || schemaLinkingStage.completed" class="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono">
+      VS duration={{ vectorSearchStage.duration }}ms |
+      SL duration={{ schemaLinkingStage.duration }}ms |
+      retrievalLatencyMs={{ workspaceStore.groundingResult?.retrievalLatencyMs }} |
+      retrievalDurationMs={{ workspaceStore.groundingResult?.retrievalDurationMs }} |
+      reasoningLatencyMs={{ workspaceStore.groundingResult?.reasoningLatencyMs }} |
+      linkingDurationMs={{ workspaceStore.groundingResult?.linkingDurationMs }} |
+      VS timing={{ JSON.stringify(stageTimings.vectorSearch) }} |
+      SL timing={{ JSON.stringify(stageTimings.schemaLinking) }} |
+      SL completed={{ schemaLinkingStage.completed }}
+    </div>
     <!-- Real-time Execution Cards -->
     <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <!-- Stage 1: Vector Search / Schema Loaded -->

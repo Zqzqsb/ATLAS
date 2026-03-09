@@ -1,11 +1,11 @@
--- Spider wta_1 数据库导入脚本 (MariaDB)
--- 用于演示空值滥用和空格问题
+-- Spider wta_1 database import script (MariaDB)
+-- Demonstrates null value abuse and whitespace issues
 
 DROP DATABASE IF EXISTS spider_wta;
 CREATE DATABASE spider_wta CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE spider_wta;
 
--- players 表
+-- players table
 CREATE TABLE players (
     player_id INT PRIMARY KEY,
     first_name VARCHAR(100),
@@ -15,7 +15,7 @@ CREATE TABLE players (
     country_code VARCHAR(10)
 ) ENGINE=InnoDB;
 
--- matches 表
+-- matches table
 CREATE TABLE matches (
     best_of INT,
     draw_size INT,
@@ -53,7 +53,7 @@ CREATE TABLE matches (
     INDEX idx_winner (winner_id)
 ) ENGINE=InnoDB;
 
--- rankings 表
+-- rankings table
 CREATE TABLE rankings (
     ranking_date DATE,
     ranking INT,

@@ -16,7 +16,7 @@ CREATE TABLE customers (
     email VARCHAR(150) UNIQUE NOT NULL COMMENT 'Email address',
     phone VARCHAR(20) COMMENT 'Phone number',
     city VARCHAR(50) COMMENT 'City',
-    vip_level ENUM('normal', 'silver', 'gold', 'platinum') DEFAULT 'normal' COMMENT 'VIP level: normal=普通会员, silver=白银会员, gold=黄金会员, platinum=白金会员',
+    vip_level ENUM('normal', 'silver', 'gold', 'platinum') DEFAULT 'normal' COMMENT 'VIP level: normal=Basic, silver=Silver, gold=Gold, platinum=Platinum',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Registration time',
     INDEX idx_city (city),
     INDEX idx_vip (vip_level)
@@ -28,10 +28,10 @@ CREATE TABLE customers (
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(200) NOT NULL COMMENT 'Product name',
-    category VARCHAR(50) NOT NULL COMMENT 'Category: electronics=电子产品, clothing=服装, food=食品, books=图书, home=家居',
+    category VARCHAR(50) NOT NULL COMMENT 'Category: electronics, clothing, food, books, home',
     price DECIMAL(10, 2) NOT NULL COMMENT 'Unit price',
     stock INT DEFAULT 0 COMMENT 'Stock quantity',
-    status ENUM('active', 'inactive', 'discontinued') DEFAULT 'active' COMMENT 'Status: active=在售, inactive=下架, discontinued=停产',
+    status ENUM('active', 'inactive', 'discontinued') DEFAULT 'active' COMMENT 'Status: active=On Sale, inactive=Delisted, discontinued=Discontinued',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_category (category),
     INDEX idx_status (status)
@@ -46,8 +46,8 @@ CREATE TABLE orders (
     customer_id INT NOT NULL COMMENT 'Customer ID',
     total_amount DECIMAL(12, 2) NOT NULL COMMENT 'Total amount',
     status ENUM('pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending' 
-        COMMENT 'Order status: pending=待支付, paid=已支付, shipped=已发货, delivered=已签收, cancelled=已取消, refunded=已退款',
-    payment_method ENUM('alipay', 'wechat', 'credit_card', 'bank_transfer') COMMENT 'Payment method: alipay=支付宝, wechat=微信支付, credit_card=信用卡, bank_transfer=银行转账',
+        COMMENT 'Order status: pending=Pending Payment, paid=Paid, shipped=Shipped, delivered=Delivered, cancelled=Cancelled, refunded=Refunded',
+    payment_method ENUM('alipay', 'wechat', 'credit_card', 'bank_transfer') COMMENT 'Payment method: alipay=Alipay, wechat=WeChat Pay, credit_card=Credit Card, bank_transfer=Bank Transfer',
     order_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Order time',
     shipped_date DATETIME COMMENT 'Shipping time',
     delivered_date DATETIME COMMENT 'Delivery time',
@@ -92,16 +92,16 @@ CREATE TABLE reviews (
 -- Insert sample data: Customers
 -- ============================================================
 INSERT INTO customers (name, email, phone, city, vip_level) VALUES
-('张三', 'zhangsan@example.com', '13800138001', '北京', 'gold'),
-('李四', 'lisi@example.com', '13800138002', '上海', 'platinum'),
-('王五', 'wangwu@example.com', '13800138003', '广州', 'silver'),
-('赵六', 'zhaoliu@example.com', '13800138004', '深圳', 'normal'),
-('钱七', 'qianqi@example.com', '13800138005', '杭州', 'gold'),
-('孙八', 'sunba@example.com', '13800138006', '成都', 'normal'),
-('周九', 'zhoujiu@example.com', '13800138007', '武汉', 'silver'),
-('吴十', 'wushi@example.com', '13800138008', '南京', 'normal'),
-('郑十一', 'zheng11@example.com', '13800138009', '西安', 'gold'),
-('王小明', 'wangxm@example.com', '13800138010', '北京', 'platinum');
+('Alice Wang', 'alice@example.com', '13800138001', 'Beijing', 'gold'),
+('Bob Li', 'bob@example.com', '13800138002', 'Shanghai', 'platinum'),
+('Charlie Zhang', 'charlie@example.com', '13800138003', 'Guangzhou', 'silver'),
+('David Zhao', 'david@example.com', '13800138004', 'Shenzhen', 'normal'),
+('Eva Qian', 'eva@example.com', '13800138005', 'Hangzhou', 'gold'),
+('Frank Sun', 'frank@example.com', '13800138006', 'Chengdu', 'normal'),
+('Grace Zhou', 'grace@example.com', '13800138007', 'Wuhan', 'silver'),
+('Henry Wu', 'henry@example.com', '13800138008', 'Nanjing', 'normal'),
+('Iris Zheng', 'iris@example.com', '13800138009', 'Xian', 'gold'),
+('Jack Wang', 'jack@example.com', '13800138010', 'Beijing', 'platinum');
 
 -- ============================================================
 -- Insert sample data: Products
@@ -112,21 +112,21 @@ INSERT INTO products (name, category, price, stock, status) VALUES
 ('AirPods Pro 2', 'electronics', 1899.00, 200, 'active'),
 ('iPad Air', 'electronics', 4799.00, 80, 'active'),
 ('Apple Watch Series 9', 'electronics', 3199.00, 120, 'active'),
-('华为 Mate 60 Pro', 'electronics', 6999.00, 150, 'active'),
-('小米 14 Ultra', 'electronics', 5999.00, 180, 'active'),
-('Nike 运动鞋', 'clothing', 899.00, 300, 'active'),
-('Adidas T恤', 'clothing', 299.00, 500, 'active'),
-('优衣库羽绒服', 'clothing', 599.00, 200, 'active'),
-('李宁运动裤', 'clothing', 199.00, 400, 'inactive'),
-('三只松鼠坚果礼盒', 'food', 168.00, 1000, 'active'),
-('良品铺子零食大礼包', 'food', 128.00, 800, 'active'),
-('星巴克咖啡豆', 'food', 98.00, 500, 'active'),
-('《深入理解计算机系统》', 'books', 139.00, 200, 'active'),
-('《算法导论》', 'books', 128.00, 150, 'active'),
-('《Python编程》', 'books', 89.00, 300, 'active'),
-('宜家台灯', 'home', 199.00, 250, 'active'),
-('无印良品收纳盒', 'home', 79.00, 400, 'active'),
-('小米空气净化器', 'home', 899.00, 100, 'discontinued');
+('Huawei Mate 60 Pro', 'electronics', 6999.00, 150, 'active'),
+('Xiaomi 14 Ultra', 'electronics', 5999.00, 180, 'active'),
+('Nike Running Shoes', 'clothing', 899.00, 300, 'active'),
+('Adidas T-Shirt', 'clothing', 299.00, 500, 'active'),
+('Uniqlo Down Jacket', 'clothing', 599.00, 200, 'active'),
+('Li-Ning Track Pants', 'clothing', 199.00, 400, 'inactive'),
+('Mixed Nuts Gift Box', 'food', 168.00, 1000, 'active'),
+('Snack Variety Pack', 'food', 128.00, 800, 'active'),
+('Starbucks Coffee Beans', 'food', 98.00, 500, 'active'),
+('Computer Systems: A Programmer''s Perspective', 'books', 139.00, 200, 'active'),
+('Introduction to Algorithms', 'books', 128.00, 150, 'active'),
+('Python Programming', 'books', 89.00, 300, 'active'),
+('IKEA Desk Lamp', 'home', 199.00, 250, 'active'),
+('MUJI Storage Box', 'home', 79.00, 400, 'active'),
+('Xiaomi Air Purifier', 'home', 899.00, 100, 'discontinued');
 
 -- ============================================================
 -- Insert sample data: Orders
@@ -155,24 +155,24 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
 (1, 1, 1, 8999.00),   -- iPhone 15 Pro
 (1, 3, 1, 1899.00),   -- AirPods Pro 2
 (2, 2, 1, 14999.00),  -- MacBook Pro 14
-(3, 8, 1, 899.00),    -- Nike 运动鞋
-(3, 9, 1, 299.00),    -- Adidas T恤
-(4, 6, 1, 6999.00),   -- 华为 Mate 60 Pro
+(3, 8, 1, 899.00),    -- Nike Running Shoes
+(3, 9, 1, 299.00),    -- Adidas T-Shirt
+(4, 6, 1, 6999.00),   -- Huawei Mate 60 Pro
 (5, 5, 1, 3199.00),   -- Apple Watch Series 9
-(6, 9, 1, 299.00),    -- Adidas T恤 (cancelled)
-(7, 12, 2, 168.00),   -- 三只松鼠坚果礼盒 x2
-(7, 14, 1, 98.00),    -- 星巴克咖啡豆
-(7, 19, 1, 79.00),    -- 无印良品收纳盒 (已停产的不会被购买,这里用其他)
+(6, 9, 1, 299.00),    -- Adidas T-Shirt (cancelled)
+(7, 12, 2, 168.00),   -- Mixed Nuts Gift Box x2
+(7, 14, 1, 98.00),    -- Starbucks Coffee Beans
+(7, 19, 1, 79.00),    -- MUJI Storage Box
 (8, 1, 1, 8999.00),   -- iPhone 15 Pro
-(9, 15, 1, 139.00),   -- 《深入理解计算机系统》
-(9, 16, 1, 128.00),   -- 《算法导论》
-(10, 7, 1, 5999.00),  -- 小米 14 Ultra
+(9, 15, 1, 139.00),   -- Computer Systems book
+(9, 16, 1, 128.00),   -- Introduction to Algorithms
+(10, 7, 1, 5999.00),  -- Xiaomi 14 Ultra
 (11, 1, 1, 8999.00),  -- iPhone 15 Pro
-(11, 2, 1, 14999.00), -- MacBook Pro 14 (错误的总额,应该是23998,这里保持演示)
-(11, 4, 1, 4799.00),  -- iPad Air (fix order 11: 8999+4799+6000=19798, let's adjust)
+(11, 2, 1, 14999.00), -- MacBook Pro 14 (wrong total, should be 23998, kept for demo)
+(11, 4, 1, 4799.00),  -- iPad Air (fix order 11: 8999+4799+6000=19798, adjusted)
 (12, 3, 1, 1899.00),  -- AirPods Pro 2
-(13, 8, 1, 899.00),   -- Nike 运动鞋
-(14, 12, 1, 168.00),  -- 三只松鼠坚果礼盒
+(13, 8, 1, 899.00),   -- Nike Running Shoes
+(14, 12, 1, 168.00),  -- Mixed Nuts Gift Box
 (15, 4, 1, 4799.00);  -- iPad Air
 
 -- Fix order 11 items (remove wrong entry and fix)
@@ -180,7 +180,7 @@ DELETE FROM order_items WHERE order_id = 11;
 INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
 (11, 1, 1, 8999.00),   -- iPhone 15 Pro
 (11, 4, 1, 4799.00),   -- iPad Air
-(11, 7, 1, 5999.00);   -- 小米 14 Ultra (8999+4799+5999=19797, close enough)
+(11, 7, 1, 5999.00);   -- Xiaomi 14 Ultra (8999+4799+5999=19797, close enough)
 
 -- Update order 11 total
 UPDATE orders SET total_amount = 19797.00 WHERE id = 11;
@@ -189,18 +189,18 @@ UPDATE orders SET total_amount = 19797.00 WHERE id = 11;
 -- Insert sample data: Reviews
 -- ============================================================
 INSERT INTO reviews (product_id, customer_id, rating, comment) VALUES
-(1, 1, 5, '非常棒的手机，拍照效果很好！'),
-(1, 2, 4, '整体不错，但价格有点贵'),
-(1, 10, 5, '流畅度很高，值得购买'),
-(2, 2, 5, '程序员必备神器，性能强悍'),
-(3, 1, 5, '降噪效果一流，音质很好'),
-(3, 2, 4, '续航还可以，佩戴舒适'),
-(5, 5, 4, '功能丰富，健康监测很实用'),
-(6, 4, 5, '华为信号真的强，支持国货！'),
-(7, 9, 3, '相机不错，但系统有点卡'),
-(8, 3, 4, '穿着舒服，跑步很轻便'),
-(12, 6, 5, '坚果新鲜，包装也很好'),
-(15, 8, 5, '经典教材，程序员必读');
+(1, 1, 5, 'Amazing phone, excellent camera quality!'),
+(1, 2, 4, 'Overall great, but a bit pricey'),
+(1, 10, 5, 'Very smooth performance, worth buying'),
+(2, 2, 5, 'A must-have for developers, powerful performance'),
+(3, 1, 5, 'Top-notch noise cancellation, great sound quality'),
+(3, 2, 4, 'Decent battery life, comfortable to wear'),
+(5, 5, 4, 'Feature-rich, health monitoring is very useful'),
+(6, 4, 5, 'Excellent signal strength, great build quality!'),
+(7, 9, 3, 'Camera is good, but system can be laggy'),
+(8, 3, 4, 'Comfortable to wear, lightweight for running'),
+(12, 6, 5, 'Fresh nuts, great packaging'),
+(15, 8, 5, 'Classic textbook, must-read for programmers');
 
 -- ============================================================
 -- Create view for order statistics

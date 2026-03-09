@@ -1,7 +1,7 @@
 -- =============================================================
 -- LUCID TPC-H Enterprise Demo Database
--- 用于展示两阶段 Adaptive Schema Linking（>30 表触发 LargeScale）
--- TPC-H 核心 8 表 + 30 企业扩展表 = 38 表
+-- Demonstrates two-stage Adaptive Schema Linking (>30 tables triggers LargeScale)
+-- TPC-H core 8 tables + 30 enterprise extension tables = 38 tables
 -- =============================================================
 
 CREATE DATABASE IF NOT EXISTS tpch_enterprise DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -9,15 +9,15 @@ USE tpch_enterprise;
 
 -- =============================================================
 -- PART I: TPC-H Core Tables (8 tables)
--- 标准 TPC-H schema，SF=0.01 级别样例数据
+-- Standard TPC-H schema, SF=0.01 sample data
 -- =============================================================
 
 -- Region (5 rows, fixed)
 CREATE TABLE region (
     r_regionkey  INTEGER NOT NULL PRIMARY KEY,
-    r_name       CHAR(25) NOT NULL COMMENT '区域名称',
-    r_comment    VARCHAR(152) COMMENT '备注'
-) COMMENT='TPC-H 区域表 — 全球五大区域';
+    r_name       CHAR(25) NOT NULL COMMENT 'Region name',
+    r_comment    VARCHAR(152) COMMENT 'Remark'
+) COMMENT='TPC-H Region table — five global regions';
 
 INSERT INTO region VALUES
 (0, 'AFRICA',      'Africa continent'),
@@ -29,11 +29,11 @@ INSERT INTO region VALUES
 -- Nation (25 rows, fixed)
 CREATE TABLE nation (
     n_nationkey  INTEGER NOT NULL PRIMARY KEY,
-    n_name       CHAR(25) NOT NULL COMMENT '国家名称',
-    n_regionkey  INTEGER NOT NULL COMMENT '所属区域',
-    n_comment    VARCHAR(152) COMMENT '备注',
+    n_name       CHAR(25) NOT NULL COMMENT 'Nation name',
+    n_regionkey  INTEGER NOT NULL COMMENT 'Region key',
+    n_comment    VARCHAR(152) COMMENT 'Remark',
     FOREIGN KEY (n_regionkey) REFERENCES region(r_regionkey)
-) COMMENT='TPC-H 国家表 — 25个国家';
+) COMMENT='TPC-H Nation table — 25 countries';
 
 INSERT INTO nation VALUES
 (0,  'ALGERIA',        0, 'North African country'),
@@ -65,14 +65,14 @@ INSERT INTO nation VALUES
 -- Supplier (100 rows @ SF=0.01)
 CREATE TABLE supplier (
     s_suppkey    INTEGER NOT NULL PRIMARY KEY,
-    s_name       CHAR(25) NOT NULL COMMENT '供应商名称',
-    s_address    VARCHAR(40) NOT NULL COMMENT '供应商地址',
-    s_nationkey  INTEGER NOT NULL COMMENT '所在国家',
-    s_phone      CHAR(15) NOT NULL COMMENT '联系电话',
-    s_acctbal    DECIMAL(15,2) NOT NULL COMMENT '账户余额',
-    s_comment    VARCHAR(101) COMMENT '备注',
+    s_name       CHAR(25) NOT NULL COMMENT 'Supplier name',
+    s_address    VARCHAR(40) NOT NULL COMMENT 'Supplier address',
+    s_nationkey  INTEGER NOT NULL COMMENT 'Nation key',
+    s_phone      CHAR(15) NOT NULL COMMENT 'Phone number',
+    s_acctbal    DECIMAL(15,2) NOT NULL COMMENT 'Account balance',
+    s_comment    VARCHAR(101) COMMENT 'Remark',
     FOREIGN KEY (s_nationkey) REFERENCES nation(n_nationkey)
-) COMMENT='TPC-H 供应商表 — 零部件供应商信息';
+) COMMENT='TPC-H Supplier table — parts supplier information';
 
 INSERT INTO supplier VALUES
 (1,  'Supplier#000000001', 'N kD4on9OM Ipw3,gf0JBoQDd7tgrzrddZ',  17, '27-918-335-1736',  5755.94, 'each slyly above the careful'),
@@ -89,15 +89,15 @@ INSERT INTO supplier VALUES
 -- Part (200 rows @ SF=0.01, showing 20)
 CREATE TABLE part (
     p_partkey     INTEGER NOT NULL PRIMARY KEY,
-    p_name        VARCHAR(55) NOT NULL COMMENT '零件名称',
-    p_mfgr        CHAR(25) NOT NULL COMMENT '制造商',
-    p_brand       CHAR(10) NOT NULL COMMENT '品牌',
-    p_type        VARCHAR(25) NOT NULL COMMENT '零件类型',
-    p_size        INTEGER NOT NULL COMMENT '尺寸',
-    p_container   CHAR(10) NOT NULL COMMENT '包装容器类型',
-    p_retailprice DECIMAL(15,2) NOT NULL COMMENT '零售价格',
-    p_comment     VARCHAR(23) COMMENT '备注'
-) COMMENT='TPC-H 零件表 — 供应链中的零部件目录';
+    p_name        VARCHAR(55) NOT NULL COMMENT 'Part name',
+    p_mfgr        CHAR(25) NOT NULL COMMENT 'Manufacturer',
+    p_brand       CHAR(10) NOT NULL COMMENT 'Brand',
+    p_type        VARCHAR(25) NOT NULL COMMENT 'Part type',
+    p_size        INTEGER NOT NULL COMMENT 'Size',
+    p_container   CHAR(10) NOT NULL COMMENT 'Container type',
+    p_retailprice DECIMAL(15,2) NOT NULL COMMENT 'Retail price',
+    p_comment     VARCHAR(23) COMMENT 'Remark'
+) COMMENT='TPC-H Part table — supply chain parts catalog';
 
 INSERT INTO part VALUES
 (1,  'goldenrod lavender spring chocolate lace', 'Manufacturer#1', 'Brand#13', 'PROMO BURNISHED COPPER', 7,  'JUMBO PKG',  901.00, 'ly. slyly ironi'),
@@ -123,15 +123,15 @@ INSERT INTO part VALUES
 
 -- PartSupp (composite PK)
 CREATE TABLE partsupp (
-    ps_partkey    INTEGER NOT NULL COMMENT '零件编号',
-    ps_suppkey    INTEGER NOT NULL COMMENT '供应商编号',
-    ps_availqty   INTEGER NOT NULL COMMENT '可用库存数量',
-    ps_supplycost DECIMAL(15,2) NOT NULL COMMENT '供应成本',
-    ps_comment    VARCHAR(199) COMMENT '备注',
+    ps_partkey    INTEGER NOT NULL COMMENT 'Part key',
+    ps_suppkey    INTEGER NOT NULL COMMENT 'Supplier key',
+    ps_availqty   INTEGER NOT NULL COMMENT 'Available quantity',
+    ps_supplycost DECIMAL(15,2) NOT NULL COMMENT 'Supply cost',
+    ps_comment    VARCHAR(199) COMMENT 'Remark',
     PRIMARY KEY (ps_partkey, ps_suppkey),
     FOREIGN KEY (ps_partkey) REFERENCES part(p_partkey),
     FOREIGN KEY (ps_suppkey) REFERENCES supplier(s_suppkey)
-) COMMENT='TPC-H 供应关系表 — 零件与供应商的多对多关系及成本';
+) COMMENT='TPC-H PartSupp table — part-supplier many-to-many relationship with costs';
 
 INSERT INTO partsupp VALUES
 (1, 2, 3325, 771.64, 'requests after the carefully ironic ideas'),
@@ -158,15 +158,15 @@ INSERT INTO partsupp VALUES
 -- Customer (150 rows @ SF=0.01, showing 20)
 CREATE TABLE customer (
     c_custkey    INTEGER NOT NULL PRIMARY KEY,
-    c_name       VARCHAR(25) NOT NULL COMMENT '客户名称',
-    c_address    VARCHAR(40) NOT NULL COMMENT '客户地址',
-    c_nationkey  INTEGER NOT NULL COMMENT '所在国家',
-    c_phone      CHAR(15) NOT NULL COMMENT '联系电话',
-    c_acctbal    DECIMAL(15,2) NOT NULL COMMENT '账户余额',
-    c_mktsegment CHAR(10) NOT NULL COMMENT '市场分类 (AUTOMOBILE/BUILDING/FURNITURE/HOUSEHOLD/MACHINERY)',
-    c_comment    VARCHAR(117) COMMENT '备注',
+    c_name       VARCHAR(25) NOT NULL COMMENT 'Customer name',
+    c_address    VARCHAR(40) NOT NULL COMMENT 'Customer address',
+    c_nationkey  INTEGER NOT NULL COMMENT 'Nation key',
+    c_phone      CHAR(15) NOT NULL COMMENT 'Phone number',
+    c_acctbal    DECIMAL(15,2) NOT NULL COMMENT 'Account balance',
+    c_mktsegment CHAR(10) NOT NULL COMMENT 'Market segment (AUTOMOBILE/BUILDING/FURNITURE/HOUSEHOLD/MACHINERY)',
+    c_comment    VARCHAR(117) COMMENT 'Remark',
     FOREIGN KEY (c_nationkey) REFERENCES nation(n_nationkey)
-) COMMENT='TPC-H 客户表 — 下单客户信息';
+) COMMENT='TPC-H Customer table — ordering customer information';
 
 INSERT INTO customer VALUES
 (1,  'Customer#000000001', 'IVhzIApeRb ot,c,E',            15, '25-989-741-2988', 711.56,   'BUILDING',   'to the even, regular platelets'),
@@ -193,16 +193,16 @@ INSERT INTO customer VALUES
 -- Orders (showing 30 rows)
 CREATE TABLE orders (
     o_orderkey      INTEGER NOT NULL PRIMARY KEY,
-    o_custkey       INTEGER NOT NULL COMMENT '客户编号',
-    o_orderstatus   CHAR(1) NOT NULL COMMENT '订单状态 (O=open, F=filled, P=partial)',
-    o_totalprice    DECIMAL(15,2) NOT NULL COMMENT '订单总金额',
-    o_orderdate     DATE NOT NULL COMMENT '下单日期',
-    o_orderpriority CHAR(15) NOT NULL COMMENT '订单优先级 (1-URGENT, 2-HIGH, 3-MEDIUM, 4-NOT SPECIFIED, 5-LOW)',
-    o_clerk         CHAR(15) NOT NULL COMMENT '处理员工编号',
-    o_shippriority  INTEGER NOT NULL COMMENT '发货优先级',
-    o_comment       VARCHAR(79) COMMENT '备注',
+    o_custkey       INTEGER NOT NULL COMMENT 'Customer key',
+    o_orderstatus   CHAR(1) NOT NULL COMMENT 'Order status (O=open, F=filled, P=partial)',
+    o_totalprice    DECIMAL(15,2) NOT NULL COMMENT 'Total order price',
+    o_orderdate     DATE NOT NULL COMMENT 'Order date',
+    o_orderpriority CHAR(15) NOT NULL COMMENT 'Order priority (1-URGENT, 2-HIGH, 3-MEDIUM, 4-NOT SPECIFIED, 5-LOW)',
+    o_clerk         CHAR(15) NOT NULL COMMENT 'Clerk ID',
+    o_shippriority  INTEGER NOT NULL COMMENT 'Shipping priority',
+    o_comment       VARCHAR(79) COMMENT 'Remark',
     FOREIGN KEY (o_custkey) REFERENCES customer(c_custkey)
-) COMMENT='TPC-H 订单表 — 客户采购订单';
+) COMMENT='TPC-H Orders table — customer purchase orders';
 
 INSERT INTO orders VALUES
 (1,   4,  'O', 172799.49, '1996-01-02', '5-LOW',          'Clerk#000000951', 0, 'nstructions sleep furiously among'),
@@ -228,25 +228,25 @@ INSERT INTO orders VALUES
 
 -- Lineitem (showing 40 rows)
 CREATE TABLE lineitem (
-    l_orderkey     INTEGER NOT NULL COMMENT '订单编号',
-    l_partkey      INTEGER NOT NULL COMMENT '零件编号',
-    l_suppkey      INTEGER NOT NULL COMMENT '供应商编号',
-    l_linenumber   INTEGER NOT NULL COMMENT '行项目号',
-    l_quantity     DECIMAL(15,2) NOT NULL COMMENT '数量',
-    l_extendedprice DECIMAL(15,2) NOT NULL COMMENT '金额 = 数量 × 单价',
-    l_discount     DECIMAL(15,2) NOT NULL COMMENT '折扣率 (0.00-0.10)',
-    l_tax          DECIMAL(15,2) NOT NULL COMMENT '税率',
-    l_returnflag   CHAR(1) NOT NULL COMMENT '退货标记 (A=accepted, R=returned, N=none)',
-    l_linestatus   CHAR(1) NOT NULL COMMENT '行状态 (O=open, F=filled)',
-    l_shipdate     DATE NOT NULL COMMENT '发货日期',
-    l_commitdate   DATE NOT NULL COMMENT '承诺交期',
-    l_receiptdate  DATE NOT NULL COMMENT '实际收货日期',
-    l_shipinstruct CHAR(25) NOT NULL COMMENT '发货指示',
-    l_shipmode     CHAR(10) NOT NULL COMMENT '运输方式 (REG AIR/AIR/RAIL/SHIP/TRUCK/MAIL/FOB)',
-    l_comment      VARCHAR(44) COMMENT '备注',
+    l_orderkey     INTEGER NOT NULL COMMENT 'Order key',
+    l_partkey      INTEGER NOT NULL COMMENT 'Part key',
+    l_suppkey      INTEGER NOT NULL COMMENT 'Supplier key',
+    l_linenumber   INTEGER NOT NULL COMMENT 'Line item number',
+    l_quantity     DECIMAL(15,2) NOT NULL COMMENT 'Quantity',
+    l_extendedprice DECIMAL(15,2) NOT NULL COMMENT 'Extended price = quantity x unit price',
+    l_discount     DECIMAL(15,2) NOT NULL COMMENT 'Discount rate (0.00-0.10)',
+    l_tax          DECIMAL(15,2) NOT NULL COMMENT 'Tax rate',
+    l_returnflag   CHAR(1) NOT NULL COMMENT 'Return flag (A=accepted, R=returned, N=none)',
+    l_linestatus   CHAR(1) NOT NULL COMMENT 'Line status (O=open, F=filled)',
+    l_shipdate     DATE NOT NULL COMMENT 'Ship date',
+    l_commitdate   DATE NOT NULL COMMENT 'Commit date',
+    l_receiptdate  DATE NOT NULL COMMENT 'Receipt date',
+    l_shipinstruct CHAR(25) NOT NULL COMMENT 'Shipping instructions',
+    l_shipmode     CHAR(10) NOT NULL COMMENT 'Ship mode (REG AIR/AIR/RAIL/SHIP/TRUCK/MAIL/FOB)',
+    l_comment      VARCHAR(44) COMMENT 'Remark',
     PRIMARY KEY (l_orderkey, l_linenumber),
     FOREIGN KEY (l_orderkey) REFERENCES orders(o_orderkey)
-) COMMENT='TPC-H 订单明细表 — 每笔订单的行项目，包含价格、数量、折扣、运输信息';
+) COMMENT='TPC-H Lineitem table — order line items with price, quantity, discount, and shipping info';
 
 INSERT INTO lineitem VALUES
 (1, 2, 3, 1, 17.00, 21168.23, 0.04, 0.02, 'N', 'O', '1996-03-13', '1996-02-12', '1996-03-22', 'DELIVER IN PERSON', 'TRUCK',   'egular courts above the'),
@@ -273,18 +273,18 @@ INSERT INTO lineitem VALUES
 
 -- =============================================================
 -- PART II: Enterprise Extension Tables (30 tables)
--- 模拟真实企业场景，设计干扰表以展示精排价值
+-- Simulates real enterprise scenarios with distractor tables to demonstrate ranking value
 -- =============================================================
 
--- ─── Module: HR (5 tables) — 纯干扰模块 ───
+-- --- Module: HR (5 tables) --- Pure distractor module ---
 
 CREATE TABLE departments (
     dept_id      INT PRIMARY KEY AUTO_INCREMENT,
-    dept_name    VARCHAR(100) NOT NULL COMMENT '部门名称',
-    location     VARCHAR(100) COMMENT '办公地点',
-    budget       DECIMAL(15,2) COMMENT '部门年度预算',
-    manager_name VARCHAR(100) COMMENT '部门经理'
-) COMMENT='人力资源 — 部门信息表';
+    dept_name    VARCHAR(100) NOT NULL COMMENT 'Department name',
+    location     VARCHAR(100) COMMENT 'Office location',
+    budget       DECIMAL(15,2) COMMENT 'Annual department budget',
+    manager_name VARCHAR(100) COMMENT 'Department manager'
+) COMMENT='HR — Department information';
 
 INSERT INTO departments (dept_name, location, budget, manager_name) VALUES
 ('Sales',        'Shanghai', 5000000.00, 'Zhang Wei'),
@@ -298,16 +298,16 @@ INSERT INTO departments (dept_name, location, budget, manager_name) VALUES
 
 CREATE TABLE employees (
     emp_id       INT PRIMARY KEY AUTO_INCREMENT,
-    emp_name     VARCHAR(100) NOT NULL COMMENT '员工姓名',
-    dept_id      INT COMMENT '所属部门',
-    title        VARCHAR(100) COMMENT '职位',
-    hire_date    DATE COMMENT '入职日期',
-    salary       DECIMAL(12,2) COMMENT '月薪',
-    email        VARCHAR(255) COMMENT '工作邮箱',
-    phone        VARCHAR(20) COMMENT '联系电话',
-    status       VARCHAR(20) DEFAULT 'active' COMMENT '在职状态 (active/inactive/leave)',
+    emp_name     VARCHAR(100) NOT NULL COMMENT 'Employee name',
+    dept_id      INT COMMENT 'Department ID',
+    title        VARCHAR(100) COMMENT 'Job title',
+    hire_date    DATE COMMENT 'Hire date',
+    salary       DECIMAL(12,2) COMMENT 'Monthly salary',
+    email        VARCHAR(255) COMMENT 'Work email',
+    phone        VARCHAR(20) COMMENT 'Phone number',
+    status       VARCHAR(20) DEFAULT 'active' COMMENT 'Employment status (active/inactive/leave)',
     FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
-) COMMENT='人力资源 — 员工信息表';
+) COMMENT='HR — Employee information';
 
 INSERT INTO employees (emp_name, dept_id, title, hire_date, salary, email, phone, status) VALUES
 ('Zhang Wei',   1, 'Sales Director',       '2018-03-15', 35000.00, 'zhangwei@corp.com',  '13800001001', 'active'),
@@ -328,12 +328,12 @@ INSERT INTO employees (emp_name, dept_id, title, hire_date, salary, email, phone
 
 CREATE TABLE salaries (
     salary_id  INT PRIMARY KEY AUTO_INCREMENT,
-    emp_id     INT NOT NULL COMMENT '员工编号',
-    base_pay   DECIMAL(12,2) COMMENT '基本工资',
-    bonus      DECIMAL(12,2) COMMENT '奖金',
-    effective_date DATE COMMENT '生效日期',
+    emp_id     INT NOT NULL COMMENT 'Employee ID',
+    base_pay   DECIMAL(12,2) COMMENT 'Base salary',
+    bonus      DECIMAL(12,2) COMMENT 'Bonus',
+    effective_date DATE COMMENT 'Effective date',
     FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-) COMMENT='人力资源 — 薪资记录表';
+) COMMENT='HR — Salary records';
 
 INSERT INTO salaries (emp_id, base_pay, bonus, effective_date) VALUES
 (1, 35000.00, 15000.00, '2024-01-01'),
@@ -345,13 +345,13 @@ INSERT INTO salaries (emp_id, base_pay, bonus, effective_date) VALUES
 
 CREATE TABLE job_history (
     history_id   INT PRIMARY KEY AUTO_INCREMENT,
-    emp_id       INT NOT NULL COMMENT '员工编号',
-    old_title    VARCHAR(100) COMMENT '原职位',
-    new_title    VARCHAR(100) COMMENT '新职位',
-    change_date  DATE COMMENT '变更日期',
-    reason       VARCHAR(200) COMMENT '变更原因',
+    emp_id       INT NOT NULL COMMENT 'Employee ID',
+    old_title    VARCHAR(100) COMMENT 'Previous title',
+    new_title    VARCHAR(100) COMMENT 'New title',
+    change_date  DATE COMMENT 'Change date',
+    reason       VARCHAR(200) COMMENT 'Reason for change',
     FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-) COMMENT='人力资源 — 职位变更历史';
+) COMMENT='HR — Job title change history';
 
 INSERT INTO job_history (emp_id, old_title, new_title, change_date, reason) VALUES
 (1, 'Sales Manager',      'Sales Director',  '2022-06-01', 'Promotion'),
@@ -360,13 +360,13 @@ INSERT INTO job_history (emp_id, old_title, new_title, change_date, reason) VALU
 
 CREATE TABLE performance_reviews (
     review_id   INT PRIMARY KEY AUTO_INCREMENT,
-    emp_id      INT NOT NULL COMMENT '员工编号',
-    review_date DATE COMMENT '评审日期',
-    rating      INT COMMENT '评分 (1-5分)',
-    reviewer    VARCHAR(100) COMMENT '评审人',
-    comments    TEXT COMMENT '评语',
+    emp_id      INT NOT NULL COMMENT 'Employee ID',
+    review_date DATE COMMENT 'Review date',
+    rating      INT COMMENT 'Rating (1-5)',
+    reviewer    VARCHAR(100) COMMENT 'Reviewer',
+    comments    TEXT COMMENT 'Comments',
     FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-) COMMENT='人力资源 — 员工绩效评审记录';
+) COMMENT='HR — Employee performance review records';
 
 INSERT INTO performance_reviews (emp_id, review_date, rating, reviewer, comments) VALUES
 (1,  '2024-06-01', 4, 'Wu Hao',    'Strong sales leadership, exceeded Q1 targets'),
@@ -376,18 +376,18 @@ INSERT INTO performance_reviews (emp_id, review_date, rating, reviewer, comments
 (10, '2024-06-01', 5, 'Li Ming',   'Outstanding code quality and mentorship');
 
 
--- ─── Module: CRM (5 tables) — 半相关（customer_feedback 关联 customer） ───
+-- --- Module: CRM (5 tables) --- Semi-related (customer_feedback links to customer) ---
 
 CREATE TABLE contacts (
     contact_id   INT PRIMARY KEY AUTO_INCREMENT,
-    contact_name VARCHAR(100) NOT NULL COMMENT '联系人姓名',
-    company      VARCHAR(200) COMMENT '公司名称',
-    email        VARCHAR(255) COMMENT '邮箱',
-    phone        VARCHAR(20) COMMENT '电话',
-    vip_flag     TINYINT(1) DEFAULT 0 COMMENT 'VIP标记',
-    source       VARCHAR(50) COMMENT '来源渠道 (web/referral/trade_show/cold_call)',
+    contact_name VARCHAR(100) NOT NULL COMMENT 'Contact name',
+    company      VARCHAR(200) COMMENT 'Company name',
+    email        VARCHAR(255) COMMENT 'Email',
+    phone        VARCHAR(20) COMMENT 'Phone',
+    vip_flag     TINYINT(1) DEFAULT 0 COMMENT 'VIP flag',
+    source       VARCHAR(50) COMMENT 'Lead source (web/referral/trade_show/cold_call)',
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-) COMMENT='CRM — 潜在客户联系人信息';
+) COMMENT='CRM — Prospect contact information';
 
 INSERT INTO contacts (contact_name, company, email, phone, vip_flag, source) VALUES
 ('Alice Johnson',  'TechCorp Inc.',     'alice@techcorp.com',     '+1-555-0101', 1, 'referral'),
@@ -401,15 +401,15 @@ INSERT INTO contacts (contact_name, company, email, phone, vip_flag, source) VAL
 
 CREATE TABLE leads (
     lead_id     INT PRIMARY KEY AUTO_INCREMENT,
-    contact_id  INT COMMENT '联系人编号',
-    priority    VARCHAR(20) COMMENT '优先级 (hot/warm/cold)',
-    deal_value  DECIMAL(15,2) COMMENT '预估成交额',
-    status      VARCHAR(30) COMMENT '状态 (new/contacted/qualified/proposal/won/lost)',
-    assigned_to INT COMMENT '负责销售员工',
+    contact_id  INT COMMENT 'Contact ID',
+    priority    VARCHAR(20) COMMENT 'Priority (hot/warm/cold)',
+    deal_value  DECIMAL(15,2) COMMENT 'Estimated deal value',
+    status      VARCHAR(30) COMMENT 'Status (new/contacted/qualified/proposal/won/lost)',
+    assigned_to INT COMMENT 'Assigned sales employee',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (contact_id) REFERENCES contacts(contact_id),
     FOREIGN KEY (assigned_to) REFERENCES employees(emp_id)
-) COMMENT='CRM — 销售线索跟踪';
+) COMMENT='CRM — Sales lead tracking';
 
 INSERT INTO leads (contact_id, priority, deal_value, status, assigned_to) VALUES
 (1, 'hot',  500000.00, 'proposal',  1),
@@ -423,14 +423,14 @@ INSERT INTO leads (contact_id, priority, deal_value, status, assigned_to) VALUES
 
 CREATE TABLE opportunities (
     opp_id       INT PRIMARY KEY AUTO_INCREMENT,
-    lead_id      INT COMMENT '来源线索',
-    opp_name     VARCHAR(200) COMMENT '机会名称',
-    stage        VARCHAR(30) COMMENT '阶段 (prospecting/analysis/proposal/negotiation/closed_won/closed_lost)',
-    amount       DECIMAL(15,2) COMMENT '金额',
-    close_date   DATE COMMENT '预计关闭日期',
-    probability  INT COMMENT '成交概率 (%)',
+    lead_id      INT COMMENT 'Source lead',
+    opp_name     VARCHAR(200) COMMENT 'Opportunity name',
+    stage        VARCHAR(30) COMMENT 'Stage (prospecting/analysis/proposal/negotiation/closed_won/closed_lost)',
+    amount       DECIMAL(15,2) COMMENT 'Amount',
+    close_date   DATE COMMENT 'Expected close date',
+    probability  INT COMMENT 'Win probability (%)',
     FOREIGN KEY (lead_id) REFERENCES leads(lead_id)
-) COMMENT='CRM — 商机管理';
+) COMMENT='CRM — Opportunity management';
 
 INSERT INTO opportunities (lead_id, opp_name, stage, amount, close_date, probability) VALUES
 (1, 'TechCorp Server Upgrade',       'negotiation', 500000.00, '2025-03-15', 80),
@@ -440,14 +440,14 @@ INSERT INTO opportunities (lead_id, opp_name, stage, amount, close_date, probabi
 
 CREATE TABLE campaigns (
     campaign_id   INT PRIMARY KEY AUTO_INCREMENT,
-    campaign_name VARCHAR(200) NOT NULL COMMENT '活动名称',
-    campaign_type VARCHAR(50) COMMENT '类型 (email/social/event/webinar)',
-    start_date    DATE COMMENT '开始日期',
-    end_date      DATE COMMENT '结束日期',
-    budget        DECIMAL(12,2) COMMENT '活动预算',
-    actual_cost   DECIMAL(12,2) COMMENT '实际花费',
-    leads_generated INT DEFAULT 0 COMMENT '产生的线索数'
-) COMMENT='CRM — 营销活动';
+    campaign_name VARCHAR(200) NOT NULL COMMENT 'Campaign name',
+    campaign_type VARCHAR(50) COMMENT 'Type (email/social/event/webinar)',
+    start_date    DATE COMMENT 'Start date',
+    end_date      DATE COMMENT 'End date',
+    budget        DECIMAL(12,2) COMMENT 'Campaign budget',
+    actual_cost   DECIMAL(12,2) COMMENT 'Actual cost',
+    leads_generated INT DEFAULT 0 COMMENT 'Leads generated'
+) COMMENT='CRM — Marketing campaigns';
 
 INSERT INTO campaigns (campaign_name, campaign_type, start_date, end_date, budget, actual_cost, leads_generated) VALUES
 ('2024 Spring Promotion',     'email',   '2024-03-01', '2024-03-31', 50000.00, 42000.00, 120),
@@ -458,13 +458,13 @@ INSERT INTO campaigns (campaign_name, campaign_type, start_date, end_date, budge
 
 CREATE TABLE customer_feedback (
     feedback_id   INT PRIMARY KEY AUTO_INCREMENT,
-    customer_id   INT COMMENT '客户编号（关联TPC-H customer表）',
-    feedback_date DATE COMMENT '反馈日期',
-    rating        INT COMMENT '评分 (1-5)',
-    category      VARCHAR(50) COMMENT '反馈类别 (product_quality/delivery/service/pricing)',
-    comment       TEXT COMMENT '详细反馈内容',
-    resolved      TINYINT(1) DEFAULT 0 COMMENT '是否已解决'
-) COMMENT='CRM — 客户反馈与评价（关联 TPC-H customer 表）';
+    customer_id   INT COMMENT 'Customer ID (references TPC-H customer table)',
+    feedback_date DATE COMMENT 'Feedback date',
+    rating        INT COMMENT 'Rating (1-5)',
+    category      VARCHAR(50) COMMENT 'Feedback category (product_quality/delivery/service/pricing)',
+    comment       TEXT COMMENT 'Detailed feedback',
+    resolved      TINYINT(1) DEFAULT 0 COMMENT 'Whether resolved'
+) COMMENT='CRM — Customer feedback and ratings (references TPC-H customer table)';
 
 INSERT INTO customer_feedback (customer_id, feedback_date, rating, category, comment, resolved) VALUES
 (1,  '2024-08-15', 2, 'delivery',        'Shipment delayed by 10 days', 1),
@@ -479,36 +479,36 @@ INSERT INTO customer_feedback (customer_id, feedback_date, rating, category, com
 (15, '2024-07-10', 3, 'pricing',         'Volume discount could be better', 1);
 
 
--- ─── Module: Logistics (5 tables) — 真相关（与 orders/lineitem 联动） ───
+-- --- Module: Logistics (5 tables) --- Directly related (links to orders/lineitem) ---
 
 CREATE TABLE warehouses (
     warehouse_id   INT PRIMARY KEY AUTO_INCREMENT,
-    warehouse_name VARCHAR(100) NOT NULL COMMENT '仓库名称',
-    region_name    VARCHAR(50) COMMENT '所在区域 (华东/华南/华北/西南/海外)',
-    city           VARCHAR(50) COMMENT '城市',
-    capacity       INT COMMENT '最大库容（货位数）',
-    manager_id     INT COMMENT '仓库主管',
+    warehouse_name VARCHAR(100) NOT NULL COMMENT 'Warehouse name',
+    region_name    VARCHAR(50) COMMENT 'Region (East/South/North/Southwest/Overseas)',
+    city           VARCHAR(50) COMMENT 'City',
+    capacity       INT COMMENT 'Maximum capacity (storage slots)',
+    manager_id     INT COMMENT 'Warehouse manager',
     FOREIGN KEY (manager_id) REFERENCES employees(emp_id)
-) COMMENT='物流 — 仓库信息表';
+) COMMENT='Logistics — Warehouse information';
 
 INSERT INTO warehouses (warehouse_name, region_name, city, capacity, manager_id) VALUES
-('Shanghai Main Warehouse',  '华东', 'Shanghai',  50000, 5),
-('Beijing Distribution',     '华北', 'Beijing',   30000, 13),
-('Shenzhen Export Hub',      '华南', 'Shenzhen',  40000, 5),
-('Chengdu Regional',         '西南', 'Chengdu',   20000, 13),
-('Hong Kong Transit',        '海外', 'Hong Kong', 15000, NULL),
-('Frankfurt EU Warehouse',   '海外', 'Frankfurt', 25000, NULL);
+('Shanghai Main Warehouse',  'East',      'Shanghai',  50000, 5),
+('Beijing Distribution',     'North',     'Beijing',   30000, 13),
+('Shenzhen Export Hub',      'South',     'Shenzhen',  40000, 5),
+('Chengdu Regional',         'Southwest', 'Chengdu',   20000, 13),
+('Hong Kong Transit',        'Overseas',  'Hong Kong', 15000, NULL),
+('Frankfurt EU Warehouse',   'Overseas',  'Frankfurt', 25000, NULL);
 
 CREATE TABLE inventory (
     inventory_id   INT PRIMARY KEY AUTO_INCREMENT,
-    warehouse_id   INT NOT NULL COMMENT '仓库编号',
-    part_id        INT NOT NULL COMMENT '零件编号（关联 TPC-H part 表）',
-    quantity       INT NOT NULL DEFAULT 0 COMMENT '当前库存数量',
-    min_stock      INT DEFAULT 10 COMMENT '最低安全库存',
-    max_stock      INT DEFAULT 1000 COMMENT '最大库存',
-    last_restock   DATE COMMENT '最近补货日期',
+    warehouse_id   INT NOT NULL COMMENT 'Warehouse ID',
+    part_id        INT NOT NULL COMMENT 'Part ID (references TPC-H part table)',
+    quantity       INT NOT NULL DEFAULT 0 COMMENT 'Current stock quantity',
+    min_stock      INT DEFAULT 10 COMMENT 'Minimum safety stock',
+    max_stock      INT DEFAULT 1000 COMMENT 'Maximum stock',
+    last_restock   DATE COMMENT 'Last restock date',
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
-) COMMENT='物流 — 仓库库存（关联 TPC-H part 表，跟踪各零件在各仓库的库存水位）';
+) COMMENT='Logistics — Warehouse inventory (references TPC-H part table, tracks stock levels per warehouse)';
 
 INSERT INTO inventory (warehouse_id, part_id, quantity, min_stock, max_stock, last_restock) VALUES
 (1, 1,  500, 50, 2000, '2025-01-15'),
@@ -529,11 +529,11 @@ INSERT INTO inventory (warehouse_id, part_id, quantity, min_stock, max_stock, la
 
 CREATE TABLE shipping_methods (
     method_id   INT PRIMARY KEY AUTO_INCREMENT,
-    method_name VARCHAR(50) NOT NULL COMMENT '运输方式名称',
-    carrier     VARCHAR(100) COMMENT '承运商',
-    avg_days    INT COMMENT '平均运输天数',
-    cost_per_kg DECIMAL(8,2) COMMENT '每公斤运费'
-) COMMENT='物流 — 运输方式与承运商';
+    method_name VARCHAR(50) NOT NULL COMMENT 'Shipping method name',
+    carrier     VARCHAR(100) COMMENT 'Carrier',
+    avg_days    INT COMMENT 'Average transit days',
+    cost_per_kg DECIMAL(8,2) COMMENT 'Cost per kilogram'
+) COMMENT='Logistics — Shipping methods and carriers';
 
 INSERT INTO shipping_methods (method_name, carrier, avg_days, cost_per_kg) VALUES
 ('Express Air',     'FedEx',          2,  25.00),
@@ -545,17 +545,17 @@ INSERT INTO shipping_methods (method_name, carrier, avg_days, cost_per_kg) VALUE
 
 CREATE TABLE shipments (
     shipment_id    INT PRIMARY KEY AUTO_INCREMENT,
-    order_id       INT COMMENT '订单编号（关联 TPC-H orders 表）',
-    warehouse_id   INT COMMENT '出库仓库',
-    method_id      INT COMMENT '运输方式',
-    ship_date      DATE COMMENT '发货日期',
-    estimated_arrival DATE COMMENT '预计到达日期',
-    actual_arrival    DATE COMMENT '实际到达日期',
-    tracking_no    VARCHAR(50) COMMENT '物流跟踪号',
-    status         VARCHAR(30) COMMENT '状态 (preparing/shipped/in_transit/delivered/returned)',
+    order_id       INT COMMENT 'Order ID (references TPC-H orders table)',
+    warehouse_id   INT COMMENT 'Source warehouse',
+    method_id      INT COMMENT 'Shipping method',
+    ship_date      DATE COMMENT 'Ship date',
+    estimated_arrival DATE COMMENT 'Estimated arrival date',
+    actual_arrival    DATE COMMENT 'Actual arrival date',
+    tracking_no    VARCHAR(50) COMMENT 'Tracking number',
+    status         VARCHAR(30) COMMENT 'Status (preparing/shipped/in_transit/delivered/returned)',
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id),
     FOREIGN KEY (method_id) REFERENCES shipping_methods(method_id)
-) COMMENT='物流 — 发货记录（关联 TPC-H orders 表）';
+) COMMENT='Logistics — Shipment records (references TPC-H orders table)';
 
 INSERT INTO shipments (order_id, warehouse_id, method_id, ship_date, estimated_arrival, actual_arrival, tracking_no, status) VALUES
 (1,  1, 5, '1996-01-05', '1996-01-08', '1996-01-09', 'SF1996010500001', 'delivered'),
@@ -576,13 +576,13 @@ INSERT INTO shipments (order_id, warehouse_id, method_id, ship_date, estimated_a
 
 CREATE TABLE delivery_tracking (
     tracking_id   INT PRIMARY KEY AUTO_INCREMENT,
-    shipment_id   INT NOT NULL COMMENT '发货记录编号',
-    event_time    DATETIME COMMENT '事件时间',
-    location      VARCHAR(200) COMMENT '当前位置',
-    event_type    VARCHAR(50) COMMENT '事件类型 (pickup/departure/arrival/customs/delivered)',
-    notes         VARCHAR(300) COMMENT '备注',
+    shipment_id   INT NOT NULL COMMENT 'Shipment ID',
+    event_time    DATETIME COMMENT 'Event time',
+    location      VARCHAR(200) COMMENT 'Current location',
+    event_type    VARCHAR(50) COMMENT 'Event type (pickup/departure/arrival/customs/delivered)',
+    notes         VARCHAR(300) COMMENT 'Notes',
     FOREIGN KEY (shipment_id) REFERENCES shipments(shipment_id)
-) COMMENT='物流 — 物流轨迹追踪';
+) COMMENT='Logistics — Delivery tracking events';
 
 INSERT INTO delivery_tracking (shipment_id, event_time, location, event_type, notes) VALUES
 (1,  '1996-01-05 09:00:00', 'Shanghai Warehouse',   'pickup',    'Package picked up'),
@@ -597,15 +597,15 @@ INSERT INTO delivery_tracking (shipment_id, event_time, location, event_type, no
 (14, '1992-07-15 14:00:00', 'Customer Warehouse',   'delivered', 'Delivered');
 
 
--- ─── Module: Finance (5 tables) — 半相关（invoices 关联 orders） ───
+-- --- Module: Finance (5 tables) --- Semi-related (invoices links to orders) ---
 
 CREATE TABLE accounts (
     account_id    INT PRIMARY KEY AUTO_INCREMENT,
-    account_name  VARCHAR(100) NOT NULL COMMENT '科目名称',
-    account_type  VARCHAR(30) COMMENT '科目类型 (asset/liability/equity/revenue/expense)',
-    balance       DECIMAL(15,2) DEFAULT 0 COMMENT '当前余额',
-    currency      CHAR(3) DEFAULT 'CNY' COMMENT '币种'
-) COMMENT='财务 — 会计科目表';
+    account_name  VARCHAR(100) NOT NULL COMMENT 'Account name',
+    account_type  VARCHAR(30) COMMENT 'Account type (asset/liability/equity/revenue/expense)',
+    balance       DECIMAL(15,2) DEFAULT 0 COMMENT 'Current balance',
+    currency      CHAR(3) DEFAULT 'CNY' COMMENT 'Currency'
+) COMMENT='Finance — Chart of accounts';
 
 INSERT INTO accounts (account_name, account_type, balance, currency) VALUES
 ('Cash',                'asset',     15000000.00, 'CNY'),
@@ -621,15 +621,15 @@ INSERT INTO accounts (account_name, account_type, balance, currency) VALUES
 
 CREATE TABLE invoices (
     invoice_id    INT PRIMARY KEY AUTO_INCREMENT,
-    order_id      INT COMMENT '关联订单（TPC-H orders 表）',
-    invoice_no    VARCHAR(30) NOT NULL COMMENT '发票编号',
-    invoice_date  DATE COMMENT '开票日期',
-    due_date      DATE COMMENT '到期日期',
-    amount        DECIMAL(15,2) COMMENT '发票金额',
-    tax_amount    DECIMAL(15,2) COMMENT '税额',
-    status        VARCHAR(20) COMMENT '状态 (draft/sent/paid/overdue/cancelled)',
-    payment_date  DATE COMMENT '付款日期'
-) COMMENT='财务 — 发票管理（关联 TPC-H orders 表）';
+    order_id      INT COMMENT 'Associated order (TPC-H orders table)',
+    invoice_no    VARCHAR(30) NOT NULL COMMENT 'Invoice number',
+    invoice_date  DATE COMMENT 'Invoice date',
+    due_date      DATE COMMENT 'Due date',
+    amount        DECIMAL(15,2) COMMENT 'Invoice amount',
+    tax_amount    DECIMAL(15,2) COMMENT 'Tax amount',
+    status        VARCHAR(20) COMMENT 'Status (draft/sent/paid/overdue/cancelled)',
+    payment_date  DATE COMMENT 'Payment date'
+) COMMENT='Finance — Invoice management (references TPC-H orders table)';
 
 INSERT INTO invoices (order_id, invoice_no, invoice_date, due_date, amount, tax_amount, status, payment_date) VALUES
 (1,  'INV-2024-0001', '1996-01-05', '1996-02-05', 172799.49, 22263.93, 'paid',    '1996-01-28'),
@@ -643,13 +643,13 @@ INSERT INTO invoices (order_id, invoice_no, invoice_date, due_date, amount, tax_
 
 CREATE TABLE payments (
     payment_id     INT PRIMARY KEY AUTO_INCREMENT,
-    invoice_id     INT COMMENT '关联发票',
-    payment_date   DATE COMMENT '付款日期',
-    amount         DECIMAL(15,2) COMMENT '付款金额',
-    payment_method VARCHAR(30) COMMENT '支付方式 (wire_transfer/check/credit_card/cash)',
-    reference_no   VARCHAR(50) COMMENT '支付参考号',
+    invoice_id     INT COMMENT 'Associated invoice',
+    payment_date   DATE COMMENT 'Payment date',
+    amount         DECIMAL(15,2) COMMENT 'Payment amount',
+    payment_method VARCHAR(30) COMMENT 'Payment method (wire_transfer/check/credit_card/cash)',
+    reference_no   VARCHAR(50) COMMENT 'Payment reference number',
     FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
-) COMMENT='财务 — 收款记录';
+) COMMENT='Finance — Payment records';
 
 INSERT INTO payments (invoice_id, payment_date, amount, payment_method, reference_no) VALUES
 (1, '1996-01-28', 172799.49, 'wire_transfer', 'PAY-1996-0001'),
@@ -661,14 +661,14 @@ INSERT INTO payments (invoice_id, payment_date, amount, payment_method, referenc
 
 CREATE TABLE budget_items (
     budget_id     INT PRIMARY KEY AUTO_INCREMENT,
-    dept_id       INT COMMENT '部门编号',
-    fiscal_year   INT COMMENT '财年',
-    category      VARCHAR(50) COMMENT '预算类别 (personnel/operations/equipment/travel/marketing)',
-    planned       DECIMAL(15,2) COMMENT '计划金额',
-    actual        DECIMAL(15,2) COMMENT '实际金额',
-    variance      DECIMAL(15,2) COMMENT '偏差（实际-计划）',
+    dept_id       INT COMMENT 'Department ID',
+    fiscal_year   INT COMMENT 'Fiscal year',
+    category      VARCHAR(50) COMMENT 'Budget category (personnel/operations/equipment/travel/marketing)',
+    planned       DECIMAL(15,2) COMMENT 'Planned amount',
+    actual        DECIMAL(15,2) COMMENT 'Actual amount',
+    variance      DECIMAL(15,2) COMMENT 'Variance (actual - planned)',
     FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
-) COMMENT='财务 — 部门预算执行表';
+) COMMENT='Finance — Department budget execution';
 
 INSERT INTO budget_items (dept_id, fiscal_year, category, planned, actual, variance) VALUES
 (1, 2024, 'personnel',  3000000.00, 3100000.00,  100000.00),
@@ -682,12 +682,12 @@ INSERT INTO budget_items (dept_id, fiscal_year, category, planned, actual, varia
 
 CREATE TABLE tax_rates (
     tax_id      INT PRIMARY KEY AUTO_INCREMENT,
-    tax_name    VARCHAR(50) NOT NULL COMMENT '税种名称',
-    rate        DECIMAL(6,4) COMMENT '税率',
-    region      VARCHAR(50) COMMENT '适用地区',
-    effective_from DATE COMMENT '生效日期',
-    effective_to   DATE COMMENT '失效日期'
-) COMMENT='财务 — 税率配置表';
+    tax_name    VARCHAR(50) NOT NULL COMMENT 'Tax name',
+    rate        DECIMAL(6,4) COMMENT 'Tax rate',
+    region      VARCHAR(50) COMMENT 'Applicable region',
+    effective_from DATE COMMENT 'Effective from date',
+    effective_to   DATE COMMENT 'Effective to date'
+) COMMENT='Finance — Tax rate configuration';
 
 INSERT INTO tax_rates (tax_name, rate, region, effective_from, effective_to) VALUES
 ('VAT Standard',       0.1300, 'China',         '2019-04-01', NULL),
@@ -698,15 +698,15 @@ INSERT INTO tax_rates (tax_name, rate, region, effective_from, effective_to) VAL
 ('Import Duty',        0.0500, 'China',         '2020-01-01', NULL);
 
 
--- ─── Module: Product (4 tables) — 半相关（关联 part） ───
+-- --- Module: Product (4 tables) --- Semi-related (links to part) ---
 
 CREATE TABLE product_categories (
     category_id   INT PRIMARY KEY AUTO_INCREMENT,
-    category_name VARCHAR(100) NOT NULL COMMENT '产品类别名称',
-    parent_id     INT COMMENT '上级类别',
-    description   TEXT COMMENT '类别描述',
+    category_name VARCHAR(100) NOT NULL COMMENT 'Product category name',
+    parent_id     INT COMMENT 'Parent category',
+    description   TEXT COMMENT 'Category description',
     FOREIGN KEY (parent_id) REFERENCES product_categories(category_id)
-) COMMENT='产品 — 产品分类目录（树形结构）';
+) COMMENT='Product — Product category catalog (tree structure)';
 
 INSERT INTO product_categories (category_name, parent_id, description) VALUES
 ('Industrial Parts',   NULL, 'All industrial components and parts'),
@@ -720,14 +720,14 @@ INSERT INTO product_categories (category_name, parent_id, description) VALUES
 
 CREATE TABLE product_reviews (
     review_id     INT PRIMARY KEY AUTO_INCREMENT,
-    part_id       INT COMMENT '零件编号（关联 TPC-H part 表）',
-    reviewer_name VARCHAR(100) COMMENT '评价人',
-    rating        INT COMMENT '评分 (1-5)',
-    review_date   DATE COMMENT '评价日期',
-    title         VARCHAR(200) COMMENT '评价标题',
-    content       TEXT COMMENT '评价内容',
-    verified      TINYINT(1) DEFAULT 0 COMMENT '是否已验证购买'
-) COMMENT='产品 — 零件评价记录（关联 TPC-H part 表）';
+    part_id       INT COMMENT 'Part ID (references TPC-H part table)',
+    reviewer_name VARCHAR(100) COMMENT 'Reviewer name',
+    rating        INT COMMENT 'Rating (1-5)',
+    review_date   DATE COMMENT 'Review date',
+    title         VARCHAR(200) COMMENT 'Review title',
+    content       TEXT COMMENT 'Review content',
+    verified      TINYINT(1) DEFAULT 0 COMMENT 'Verified purchase'
+) COMMENT='Product — Part review records (references TPC-H part table)';
 
 INSERT INTO product_reviews (part_id, reviewer_name, rating, review_date, title, content, verified) VALUES
 (1,  'Customer#000000001', 5, '2024-06-15', 'Excellent copper component',    'Perfect fit, great quality finish. Exactly as described.', 1),
@@ -748,12 +748,12 @@ INSERT INTO product_reviews (part_id, reviewer_name, rating, review_date, title,
 
 CREATE TABLE price_history (
     price_id    INT PRIMARY KEY AUTO_INCREMENT,
-    part_id     INT COMMENT '零件编号（关联 TPC-H part 表）',
-    old_price   DECIMAL(15,2) COMMENT '原价',
-    new_price   DECIMAL(15,2) COMMENT '新价',
-    change_date DATE COMMENT '调价日期',
-    reason      VARCHAR(200) COMMENT '调价原因'
-) COMMENT='产品 — 零件价格变更历史';
+    part_id     INT COMMENT 'Part ID (references TPC-H part table)',
+    old_price   DECIMAL(15,2) COMMENT 'Old price',
+    new_price   DECIMAL(15,2) COMMENT 'New price',
+    change_date DATE COMMENT 'Price change date',
+    reason      VARCHAR(200) COMMENT 'Reason for change'
+) COMMENT='Product — Part price change history';
 
 INSERT INTO price_history (part_id, old_price, new_price, change_date, reason) VALUES
 (1,  800.00,  920.00,  '2024-01-15', 'Annual price adjustment - copper cost increase'),
@@ -766,14 +766,14 @@ INSERT INTO price_history (part_id, old_price, new_price, change_date, reason) V
 
 CREATE TABLE promotions (
     promo_id      INT PRIMARY KEY AUTO_INCREMENT,
-    promo_name    VARCHAR(200) NOT NULL COMMENT '促销活动名称',
-    discount_pct  DECIMAL(5,2) COMMENT '折扣率 (%)',
-    start_date    DATE COMMENT '开始日期',
-    end_date      DATE COMMENT '结束日期',
-    min_quantity  INT COMMENT '最低起订量',
-    applicable_brands VARCHAR(200) COMMENT '适用品牌 (逗号分隔)',
-    status        VARCHAR(20) DEFAULT 'active' COMMENT '状态 (active/expired/scheduled)'
-) COMMENT='产品 — 促销活动配置';
+    promo_name    VARCHAR(200) NOT NULL COMMENT 'Promotion name',
+    discount_pct  DECIMAL(5,2) COMMENT 'Discount percentage (%)',
+    start_date    DATE COMMENT 'Start date',
+    end_date      DATE COMMENT 'End date',
+    min_quantity  INT COMMENT 'Minimum order quantity',
+    applicable_brands VARCHAR(200) COMMENT 'Applicable brands (comma-separated)',
+    status        VARCHAR(20) DEFAULT 'active' COMMENT 'Status (active/expired/scheduled)'
+) COMMENT='Product — Promotion configuration';
 
 INSERT INTO promotions (promo_name, discount_pct, start_date, end_date, min_quantity, applicable_brands, status) VALUES
 ('New Year Bulk Discount',   10.00, '2025-01-01', '2025-01-31', 100,  'Brand#13,Brand#42',     'active'),
@@ -783,18 +783,18 @@ INSERT INTO promotions (promo_name, discount_pct, start_date, end_date, min_quan
 ('Quarter-end Flash Sale',   20.00, '2025-03-25', '2025-03-31', 500,  NULL,                    'scheduled');
 
 
--- ─── Module: System (6 tables) — 纯干扰模块 ───
+-- --- Module: System (6 tables) --- Pure distractor module ---
 
 CREATE TABLE user_accounts (
     user_id       INT PRIMARY KEY AUTO_INCREMENT,
-    username      VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
-    password_hash VARCHAR(255) COMMENT '密码哈希',
-    role          VARCHAR(30) COMMENT '角色 (admin/manager/analyst/viewer)',
-    emp_id        INT COMMENT '关联员工',
-    last_login    DATETIME COMMENT '最后登录时间',
-    is_active     TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    username      VARCHAR(50) NOT NULL UNIQUE COMMENT 'Username',
+    password_hash VARCHAR(255) COMMENT 'Password hash',
+    role          VARCHAR(30) COMMENT 'Role (admin/manager/analyst/viewer)',
+    emp_id        INT COMMENT 'Associated employee',
+    last_login    DATETIME COMMENT 'Last login time',
+    is_active     TINYINT(1) DEFAULT 1 COMMENT 'Whether active',
     FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-) COMMENT='系统 — 用户账户';
+) COMMENT='System — User accounts';
 
 INSERT INTO user_accounts (username, password_hash, role, emp_id, last_login, is_active) VALUES
 ('admin',     'pbkdf2:sha256:...', 'admin',   8,  '2025-01-20 09:30:00', 1),
@@ -807,14 +807,14 @@ INSERT INTO user_accounts (username, password_hash, role, emp_id, last_login, is
 
 CREATE TABLE audit_log (
     log_id      INT PRIMARY KEY AUTO_INCREMENT,
-    user_id     INT COMMENT '操作用户',
-    action      VARCHAR(50) COMMENT '操作类型 (login/logout/query/export/update/delete)',
-    target      VARCHAR(200) COMMENT '操作对象',
-    details     TEXT COMMENT '详细信息',
-    ip_address  VARCHAR(45) COMMENT 'IP地址',
+    user_id     INT COMMENT 'User ID',
+    action      VARCHAR(50) COMMENT 'Action type (login/logout/query/export/update/delete)',
+    target      VARCHAR(200) COMMENT 'Target object',
+    details     TEXT COMMENT 'Details',
+    ip_address  VARCHAR(45) COMMENT 'IP address',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES user_accounts(user_id)
-) COMMENT='系统 — 操作审计日志';
+) COMMENT='System — Audit log';
 
 INSERT INTO audit_log (user_id, action, target, details, ip_address, created_at) VALUES
 (1, 'login',  'system',             'Admin login',                    '192.168.1.100', '2025-01-20 09:30:00'),
@@ -826,11 +826,11 @@ INSERT INTO audit_log (user_id, action, target, details, ip_address, created_at)
 
 CREATE TABLE system_config (
     config_id    INT PRIMARY KEY AUTO_INCREMENT,
-    config_key   VARCHAR(100) NOT NULL UNIQUE COMMENT '配置项',
-    config_value TEXT COMMENT '配置值',
-    description  VARCHAR(300) COMMENT '说明',
+    config_key   VARCHAR(100) NOT NULL UNIQUE COMMENT 'Configuration key',
+    config_value TEXT COMMENT 'Configuration value',
+    description  VARCHAR(300) COMMENT 'Description',
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-) COMMENT='系统 — 全局配置表';
+) COMMENT='System — Global configuration';
 
 INSERT INTO system_config (config_key, config_value, description) VALUES
 ('company_name',       'TPC-H Enterprise Corp.',  'Company display name'),
@@ -844,14 +844,14 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 
 CREATE TABLE notifications (
     notification_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id         INT COMMENT '接收用户',
-    title           VARCHAR(200) COMMENT '通知标题',
-    message         TEXT COMMENT '通知内容',
-    is_read         TINYINT(1) DEFAULT 0 COMMENT '是否已读',
-    priority        VARCHAR(20) DEFAULT 'normal' COMMENT '优先级 (low/normal/high/urgent)',
+    user_id         INT COMMENT 'Recipient user',
+    title           VARCHAR(200) COMMENT 'Notification title',
+    message         TEXT COMMENT 'Notification message',
+    is_read         TINYINT(1) DEFAULT 0 COMMENT 'Whether read',
+    priority        VARCHAR(20) DEFAULT 'normal' COMMENT 'Priority (low/normal/high/urgent)',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES user_accounts(user_id)
-) COMMENT='系统 — 消息通知';
+) COMMENT='System — Notifications';
 
 INSERT INTO notifications (user_id, title, message, is_read, priority, created_at) VALUES
 (2, 'Q4 Sales Target Achieved',    'Congratulations! Q4 sales exceeded target by 12%.', 1, 'normal',  '2025-01-15 09:00:00'),
@@ -861,14 +861,14 @@ INSERT INTO notifications (user_id, title, message, is_read, priority, created_a
 (3, 'Engineering Headcount Approved', 'Two new senior engineer positions approved.',     1, 'normal',  '2025-01-17 14:00:00');
 
 CREATE TABLE user_sessions (
-    session_id   VARCHAR(64) PRIMARY KEY COMMENT '会话ID',
-    user_id      INT COMMENT '用户编号',
-    login_time   DATETIME COMMENT '登录时间',
-    logout_time  DATETIME COMMENT '登出时间',
-    ip_address   VARCHAR(45) COMMENT 'IP地址',
-    user_agent   VARCHAR(300) COMMENT '浏览器标识',
+    session_id   VARCHAR(64) PRIMARY KEY COMMENT 'Session ID',
+    user_id      INT COMMENT 'User ID',
+    login_time   DATETIME COMMENT 'Login time',
+    logout_time  DATETIME COMMENT 'Logout time',
+    ip_address   VARCHAR(45) COMMENT 'IP address',
+    user_agent   VARCHAR(300) COMMENT 'Browser user agent',
     FOREIGN KEY (user_id) REFERENCES user_accounts(user_id)
-) COMMENT='系统 — 用户会话记录';
+) COMMENT='System — User session records';
 
 INSERT INTO user_sessions VALUES
 ('sess_abc123', 1, '2025-01-20 09:30:00', NULL, '192.168.1.100', 'Mozilla/5.0 Chrome/120'),
@@ -877,14 +877,14 @@ INSERT INTO user_sessions VALUES
 
 CREATE TABLE data_exports (
     export_id    INT PRIMARY KEY AUTO_INCREMENT,
-    user_id      INT COMMENT '导出用户',
-    export_type  VARCHAR(30) COMMENT '导出格式 (csv/excel/pdf)',
-    table_name   VARCHAR(100) COMMENT '导出数据源',
-    row_count    INT COMMENT '导出行数',
-    file_size_kb INT COMMENT '文件大小 (KB)',
+    user_id      INT COMMENT 'Export user',
+    export_type  VARCHAR(30) COMMENT 'Export format (csv/excel/pdf)',
+    table_name   VARCHAR(100) COMMENT 'Export data source',
+    row_count    INT COMMENT 'Exported row count',
+    file_size_kb INT COMMENT 'File size (KB)',
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES user_accounts(user_id)
-) COMMENT='系统 — 数据导出记录';
+) COMMENT='System — Data export records';
 
 INSERT INTO data_exports (user_id, export_type, table_name, row_count, file_size_kb, created_at) VALUES
 (2, 'csv',   'orders',    15000, 2048, '2025-01-20 08:45:00'),

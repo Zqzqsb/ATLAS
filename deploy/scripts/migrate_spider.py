@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Spider 数据库迁移脚本：SQLite → MariaDB
+Spider database migration script: SQLite -> MariaDB
 """
 import sqlite3
 import pymysql
 import sys
 from pathlib import Path
 
-# MariaDB 连接配置
+# MariaDB connection config
 MARIA_CONFIG = {
     'host': '127.0.0.1',
     'port': 19010,
@@ -16,13 +16,13 @@ MARIA_CONFIG = {
     'charset': 'utf8mb4'
 }
 
-# Spider 数据路径
+# Spider data path
 SPIDER_DATA = Path('/root/workspace/ReActSql/data/spider_data/database')
 
 
 def migrate_flight2():
-    """迁移 flight_2 数据库"""
-    print("=== 迁移 flight_2 ===")
+    """Migrate flight_2 database"""
+    print("=== Migrating flight_2 ===")
     
     sqlite_path = SPIDER_DATA / 'flight_2' / 'flight_2.sqlite'
     sqlite_conn = sqlite3.connect(str(sqlite_path))
@@ -31,7 +31,7 @@ def migrate_flight2():
     maria_conn = pymysql.connect(**MARIA_CONFIG)
     cursor = maria_conn.cursor()
     
-    # 创建数据库和表
+    # Create database and tables
     with open('/root/workspace/lucid/deploy/scripts/import_spider_flight.sql', 'r') as f:
         sql_script = f.read()
     
@@ -46,45 +46,45 @@ def migrate_flight2():
     maria_conn.commit()
     cursor.execute("USE spider_flight")
     
-    # 迁移 airlines
-    print("  迁移 airlines...")
+    # Migrate airlines
+    print("  Migrating airlines...")
     rows = sqlite_conn.execute("SELECT * FROM airlines").fetchall()
     for row in rows:
         cursor.execute(
             "INSERT INTO airlines (uid, Airline, Abbreviation, Country) VALUES (%s, %s, %s, %s)",
             (row['uid'], row['Airline'], row['Abbreviation'], row['Country'])
         )
-    print(f"    插入 {len(rows)} 行")
+    print(f"    Inserted {len(rows)} rows")
     
-    # 迁移 airports
-    print("  迁移 airports...")
+    # Migrate airports
+    print("  Migrating airports...")
     rows = sqlite_conn.execute("SELECT * FROM airports").fetchall()
     for row in rows:
         cursor.execute(
             "INSERT INTO airports (City, AirportCode, AirportName, Country, CountryAbbrev) VALUES (%s, %s, %s, %s, %s)",
             (row['City'], row['AirportCode'], row['AirportName'], row['Country'], row['CountryAbbrev'])
         )
-    print(f"    插入 {len(rows)} 行")
+    print(f"    Inserted {len(rows)} rows")
     
-    # 迁移 flights
-    print("  迁移 flights...")
+    # Migrate flights
+    print("  Migrating flights...")
     rows = sqlite_conn.execute("SELECT * FROM flights").fetchall()
     for row in rows:
         cursor.execute(
             "INSERT INTO flights (Airline, FlightNo, SourceAirport, DestAirport) VALUES (%s, %s, %s, %s)",
             (row['Airline'], row['FlightNo'], row['SourceAirport'], row['DestAirport'])
         )
-    print(f"    插入 {len(rows)} 行")
+    print(f"    Inserted {len(rows)} rows")
     
     maria_conn.commit()
     sqlite_conn.close()
     maria_conn.close()
-    print("  完成！\n")
+    print("  Done!\n")
 
 
 def migrate_wta1():
-    """迁移 wta_1 数据库"""
-    print("=== 迁移 wta_1 ===")
+    """Migrate wta_1 database"""
+    print("=== Migrating wta_1 ===")
     
     sqlite_path = SPIDER_DATA / 'wta_1' / 'wta_1.sqlite'
     sqlite_conn = sqlite3.connect(str(sqlite_path))
@@ -94,7 +94,7 @@ def migrate_wta1():
     maria_conn = pymysql.connect(**MARIA_CONFIG)
     cursor = maria_conn.cursor()
     
-    # 创建数据库和表
+    # Create database and tables
     with open('/root/workspace/lucid/deploy/scripts/import_spider_wta.sql', 'r') as f:
         sql_script = f.read()
     
@@ -109,8 +109,8 @@ def migrate_wta1():
     maria_conn.commit()
     cursor.execute("USE spider_wta")
     
-    # 迁移 players
-    print("  迁移 players...")
+    # Migrate players
+    print("  Migrating players...")
     rows = sqlite_conn.execute("SELECT * FROM players").fetchall()
     batch_size = 1000
     for i in range(0, len(rows), batch_size):
@@ -127,10 +127,10 @@ def migrate_wta1():
             values
         )
         maria_conn.commit()
-    print(f"    插入 {len(rows)} 行")
+    print(f"    Inserted {len(rows)} rows")
     
-    # 迁移 matches
-    print("  迁移 matches...")
+    # Migrate matches
+    print("  Migrating matches...")
     rows = sqlite_conn.execute("SELECT * FROM matches").fetchall()
     for row in rows:
         cursor.execute("""
@@ -147,16 +147,16 @@ def migrate_wta1():
               row['tourney_name'], row['winner_age'], row['winner_entry'], row['winner_hand'],
               row['winner_ht'], row['winner_id'], row['winner_ioc'], row['winner_name'], row['winner_rank'],
               row['winner_rank_points'], row['winner_seed'], row['year']))
-    print(f"    插入 {len(rows)} 行")
+    print(f"    Inserted {len(rows)} rows")
     maria_conn.commit()
     
-    # 迁移 rankings (大表，分批插入)
-    print("  迁移 rankings (大表)...")
+    # Migrate rankings (large table, batch insert)
+    print("  Migrating rankings (large table)...")
     cursor_sqlite = sqlite_conn.cursor()
     cursor_sqlite.execute("SELECT * FROM rankings")
     
     def clean_value(v):
-        """处理空字符串为 None"""
+        """Convert empty strings to None"""
         if v == '' or v is None:
             return None
         return v
@@ -175,32 +175,32 @@ def migrate_wta1():
         )
         maria_conn.commit()
         total += len(rows)
-        print(f"    已插入 {total} 行...")
+        print(f"    Inserted {total} rows so far...")
     
-    print(f"    总计插入 {total} 行")
+    print(f"    Total inserted: {total} rows")
     
     sqlite_conn.close()
     maria_conn.close()
-    print("  完成！\n")
+    print("  Done!\n")
 
 
 def verify():
-    """验证导入结果"""
-    print("=== 验证导入结果 ===")
+    """Verify import results"""
+    print("=== Verifying import results ===")
     
     maria_conn = pymysql.connect(**MARIA_CONFIG)
     cursor = maria_conn.cursor()
     
-    # 验证 flight_2
+    # Verify flight_2
     cursor.execute("USE spider_flight")
     cursor.execute("SELECT COUNT(*) FROM airlines")
-    print(f"  spider_flight.airlines: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.airlines: {cursor.fetchone()[0]} rows")
     cursor.execute("SELECT COUNT(*) FROM airports")
-    print(f"  spider_flight.airports: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.airports: {cursor.fetchone()[0]} rows")
     cursor.execute("SELECT COUNT(*) FROM flights")
-    print(f"  spider_flight.flights: {cursor.fetchone()[0]} 行")
+    print(f"  spider_flight.flights: {cursor.fetchone()[0]} rows")
     
-    # 验证孤儿记录
+    # Verify orphan records
     cursor.execute("""
         SELECT COUNT(*) FROM flights f 
         LEFT JOIN airports a ON f.SourceAirport = a.AirportCode 
@@ -213,26 +213,26 @@ def verify():
         WHERE a.AirportCode IS NULL
     """)
     orphan_dest = cursor.fetchone()[0]
-    print(f"  孤儿记录: SourceAirport={orphan_source}, DestAirport={orphan_dest}")
+    print(f"  Orphan records: SourceAirport={orphan_source}, DestAirport={orphan_dest}")
     
-    # 验证空格问题
+    # Verify whitespace issues
     cursor.execute("SELECT COUNT(*) FROM airports WHERE CountryAbbrev != TRIM(CountryAbbrev)")
     whitespace = cursor.fetchone()[0]
-    print(f"  空格问题 (CountryAbbrev): {whitespace} 行")
+    print(f"  Whitespace issues (CountryAbbrev): {whitespace} rows")
     
     print()
     
-    # 验证 wta_1
+    # Verify wta_1
     cursor.execute("USE spider_wta")
     cursor.execute("SELECT COUNT(*) FROM players")
-    print(f"  spider_wta.players: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.players: {cursor.fetchone()[0]} rows")
     cursor.execute("SELECT COUNT(*) FROM matches")
-    print(f"  spider_wta.matches: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.matches: {cursor.fetchone()[0]} rows")
     cursor.execute("SELECT COUNT(*) FROM rankings")
-    print(f"  spider_wta.rankings: {cursor.fetchone()[0]} 行")
+    print(f"  spider_wta.rankings: {cursor.fetchone()[0]} rows")
     
     maria_conn.close()
-    print("\n验证完成！")
+    print("\nVerification complete!")
 
 
 if __name__ == '__main__':
@@ -248,4 +248,4 @@ if __name__ == '__main__':
             migrate_wta1()
             verify()
     else:
-        print("用法: python migrate_spider.py [flight|wta|verify|all]")
+        print("Usage: python migrate_spider.py [flight|wta|verify|all]")

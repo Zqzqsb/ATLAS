@@ -85,13 +85,13 @@ export interface Relationship {
 // ============================================
 
 export type ContextType =
-  | 'description'      // 字段/表描述
-  | 'example'          // 示例值
-  | 'constraint'       // 约束条件
-  | 'synonym'          // 同义词/缩写
-  | 'value_mapping'    // 枚举值映射
-  | 'business_rule'    // 业务规则
-  | 'calculation'      // 计算规则
+  | 'description'      // Field/table description
+  | 'example'          // Example values
+  | 'constraint'       // Constraints
+  | 'synonym'          // Synonyms/abbreviations
+  | 'value_mapping'    // Enum value mappings
+  | 'business_rule'    // Business rules
+  | 'calculation'      // Calculation rules
 
 export type ContextSource = 'auto' | 'manual' | 'feedback' | 'schema_change'
 
@@ -310,17 +310,17 @@ export interface ComparisonResult {
 // ============================================
 
 export type MaintenanceType =
-  | 'error_feedback'    // SQL执行错误反馈
-  | 'user_correction'   // 用户手动纠正
-  | 'schema_change'     // Schema变更检测
-  | 'pattern_learning'  // 查询模式学习
+  | 'error_feedback'    // SQL execution error feedback
+  | 'user_correction'   // User manual correction
+  | 'schema_change'     // Schema change detection
+  | 'pattern_learning'  // Query pattern learning
 
 export type MaintenanceStatus =
-  | 'pending'           // 待处理
-  | 'analyzing'         // 分析中
-  | 'applied'           // 已应用
-  | 'verified'          // 已验证
-  | 'rejected'          // 已拒绝
+  | 'pending'           // Pending
+  | 'analyzing'         // Analyzing
+  | 'applied'           // Applied
+  | 'verified'          // Verified
+  | 'rejected'          // Rejected
 
 export interface MaintenanceLog {
   id: string

@@ -23,55 +23,55 @@ export const comparisonApi = {
     return [
       {
         id: 'D1',
-        name: '脏数据：缩写识别',
+        name: 'Dirty Data: Abbreviation Recognition',
         category: 'dirty_data',
-        question: '查询CA州的所有客户',
-        description: 'CA 是 California 的缩写，Rich Context 提供缩写映射',
+        question: 'Find all customers in CA state',
+        description: 'CA is an abbreviation for California; Rich Context provides abbreviation mapping',
         expectedSql: "SELECT * FROM customers WHERE state = 'California'",
         difficulty: 'easy'
       },
       {
         id: 'D2',
-        name: '脏数据：格式变体',
+        name: 'Dirty Data: Format Variants',
         category: 'dirty_data',
-        question: '查询电话号码 138-0000-1234 的用户',
-        description: '数据库中电话格式不一致，Rich Context 提供格式说明',
+        question: 'Find the user with phone number 138-0000-1234',
+        description: 'Phone formats are inconsistent in the database; Rich Context provides format specifications',
         expectedSql: "SELECT * FROM users WHERE phone LIKE '%13800001234%'",
         difficulty: 'medium'
       },
       {
         id: 'S1',
-        name: '复杂Schema：同名列消歧',
+        name: 'Complex Schema: Same-Name Column Disambiguation',
         category: 'complex_schema',
-        question: '查询每个部门的员工数量',
-        description: '多个表都有 name 列，Rich Context 说明各表用途',
+        question: 'Count the number of employees in each department',
+        description: 'Multiple tables have a "name" column; Rich Context clarifies each table\'s purpose',
         expectedSql: 'SELECT d.name, COUNT(e.id) FROM departments d LEFT JOIN employees e ON d.id = e.dept_id GROUP BY d.id',
         difficulty: 'medium'
       },
       {
         id: 'S2',
-        name: '复杂Schema：隐式关系',
+        name: 'Complex Schema: Implicit Relationships',
         category: 'complex_schema',
-        question: '查询张三的所有订单金额',
-        description: '用户表和订单表通过中间表关联，Rich Context 提供关系说明',
-        expectedSql: 'SELECT SUM(o.amount) FROM orders o JOIN user_orders uo ON o.id = uo.order_id JOIN users u ON uo.user_id = u.id WHERE u.name = "张三"',
+        question: 'Find the total order amount for user Alice',
+        description: 'Users and orders are linked through a junction table; Rich Context provides relationship details',
+        expectedSql: 'SELECT SUM(o.amount) FROM orders o JOIN user_orders uo ON o.id = uo.order_id JOIN users u ON uo.user_id = u.id WHERE u.name = "Alice"',
         difficulty: 'hard'
       },
       {
         id: 'B1',
-        name: '业务规则：状态枚举',
+        name: 'Business Rule: Status Enum',
         category: 'business_rule',
-        question: '查询所有有效订单',
-        description: 'status=1 表示有效，Rich Context 提供业务规则说明',
+        question: 'Find all active orders',
+        description: 'status=1 means active; Rich Context provides business rule explanations',
         expectedSql: 'SELECT * FROM orders WHERE status = 1',
         difficulty: 'easy'
       },
       {
         id: 'B2',
-        name: '业务规则：计算逻辑',
+        name: 'Business Rule: Calculation Logic',
         category: 'business_rule',
-        question: '查询每个商品的实际售价',
-        description: '实际价格=原价*(1-折扣)，Rich Context 提供计算规则',
+        question: 'Find the actual selling price of each product',
+        description: 'Actual price = original price * (1 - discount); Rich Context provides calculation rules',
         expectedSql: 'SELECT name, price * (1 - discount) as actual_price FROM products',
         difficulty: 'medium'
       }
@@ -94,19 +94,19 @@ export const comparisonApi = {
               tableName: 'customers',
               columnName: 'state',
               type: 'synonym',
-              content: 'CA 是 California 的标准缩写',
+              content: 'CA is the standard abbreviation for California',
               createdAt: '2024-01-01',
               source: 'auto'
             }
           ],
           duration: 1200,
-          explanation: '通过 Rich Context 识别到 CA 是 California 的缩写'
+          explanation: 'Rich Context identified CA as an abbreviation for California'
         },
         withoutContext: {
           sql: "SELECT * FROM customers WHERE state = 'CA'",
           isCorrect: false,
           duration: 800,
-          errorReason: '无法识别 CA 缩写，直接使用原始值导致查询结果为空'
+          errorReason: 'Failed to resolve CA abbreviation, used raw value leading to empty results'
         }
       },
       'B1': {
@@ -121,19 +121,19 @@ export const comparisonApi = {
               tableName: 'orders',
               columnName: 'status',
               type: 'value_mapping',
-              content: 'status 订单状态枚举: 0=待支付, 1=已支付(有效), 2=已发货, 3=已完成, 4=已取消',
+              content: 'status order status enum: 0=Pending, 1=Paid (active), 2=Shipped, 3=Completed, 4=Cancelled',
               createdAt: '2024-01-01',
               source: 'manual'
             }
           ],
           duration: 1100,
-          explanation: '通过 Rich Context 理解"有效订单"对应 status=1'
+          explanation: 'Rich Context mapped "active orders" to status=1'
         },
         withoutContext: {
           sql: "SELECT * FROM orders WHERE status = 'active'",
           isCorrect: false,
           duration: 750,
-          errorReason: '不知道"有效"对应的状态值，猜测使用字符串导致类型错误'
+          errorReason: 'Unknown status value for "active", guessed a string value causing type mismatch'
         }
       }
     }
@@ -149,8 +149,8 @@ export const selfMaintainApi = {
       {
         id: 'log-1',
         type: 'error_feedback',
-        trigger: 'SQL执行失败: column "stat" not found in table "orders"',
-        action: '自动添加列名纠错映射: stat → status',
+        trigger: 'SQL execution failed: column "stat" not found in table "orders"',
+        action: 'Auto-added column name correction mapping: stat -> status',
         status: 'verified',
         timestamp: '2024-01-15 10:30:00',
         contextAfter: {
@@ -159,7 +159,7 @@ export const selfMaintainApi = {
           tableId: 'orders',
           tableName: 'orders',
           type: 'synonym',
-          content: 'stat 是 status 的常见拼写错误或缩写',
+          content: '"stat" is a common typo or abbreviation for "status"',
           createdAt: '2024-01-15T10:30:00Z',
           source: 'feedback'
         }
@@ -167,8 +167,8 @@ export const selfMaintainApi = {
       {
         id: 'log-2',
         type: 'user_correction',
-        trigger: '用户反馈: "有效订单"应该是 status IN (1,2,3) 而不是 status=1',
-        action: '更新业务规则 Context，扩展有效订单的定义',
+        trigger: 'User feedback: "active orders" should be status IN (1,2,3) not status=1',
+        action: 'Updated business rule context, expanded the definition of active orders',
         status: 'applied',
         timestamp: '2024-01-15 11:00:00',
         contextBefore: {
@@ -177,7 +177,7 @@ export const selfMaintainApi = {
           tableId: 'orders',
           tableName: 'orders',
           type: 'business_rule',
-          content: '"有效订单"指 status = 1 的订单',
+          content: '"Active orders" means status = 1',
           createdAt: '2024-01-10T00:00:00Z',
           source: 'manual'
         },
@@ -187,7 +187,7 @@ export const selfMaintainApi = {
           tableId: 'orders',
           tableName: 'orders',
           type: 'business_rule',
-          content: '"有效订单"指 status IN (1, 2, 3) 的订单，即已支付、已发货、已完成状态',
+          content: '"Active orders" means status IN (1, 2, 3) — Paid, Shipped, and Completed',
           createdAt: '2024-01-15T11:00:00Z',
           source: 'feedback'
         }
@@ -195,16 +195,16 @@ export const selfMaintainApi = {
       {
         id: 'log-3',
         type: 'schema_change',
-        trigger: '检测到 customers 表新增列: vip_expire_date',
-        action: '自动生成列描述 Context',
+        trigger: 'Detected new column in customers table: vip_expire_date',
+        action: 'Auto-generated column description context',
         status: 'pending',
         timestamp: '2024-01-16 09:00:00'
       },
       {
         id: 'log-4',
         type: 'pattern_learning',
-        trigger: '检测到高频查询模式: "最近N天的订单"',
-        action: '学习时间范围查询模式，优化日期处理',
+        trigger: 'Detected frequent query pattern: "orders in the last N days"',
+        action: 'Learned time-range query pattern, optimized date handling',
         status: 'analyzing',
         timestamp: '2024-01-16 14:00:00'
       }
@@ -216,8 +216,8 @@ export const selfMaintainApi = {
     return {
       id: `log-${Date.now()}`,
       type: type as any,
-      trigger: data?.trigger || '手动触发维护检查',
-      action: '正在分析...',
+      trigger: data?.trigger || 'Manually triggered maintenance check',
+      action: 'Analyzing...',
       status: 'analyzing',
       timestamp: new Date().toISOString()
     }
@@ -228,8 +228,8 @@ export const selfMaintainApi = {
     return {
       id: logId,
       type: 'user_correction',
-      trigger: '用户确认应用',
-      action: '已应用更新',
+      trigger: 'User confirmed apply',
+      action: 'Update applied',
       status: 'applied',
       timestamp: new Date().toISOString()
     }

@@ -50,7 +50,7 @@ const tableData = computed(() =>
         size="small"
         flex-height
       />
-      <NEmpty v-else description="暂无数据" class="py-12" />
+      <NEmpty v-else description="No data available" class="py-12" />
     </NScrollbar>
     
     <!-- Footer with row count -->

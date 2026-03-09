@@ -4,10 +4,10 @@ import { ref } from 'vue'
 const showArchitecture = ref(true)
 
 const storageItems = [
-  { label: 'Schema 元数据', type: 'RELATIONAL', icon: 'i-lucide-table-2', color: 'blue' },
-  { label: '向量索引', type: 'VECTOR', icon: 'i-lucide-shapes', color: 'purple' },
+  { label: 'Schema Metadata', type: 'RELATIONAL', icon: 'i-lucide-table-2', color: 'blue' },
+  { label: 'Vector Index', type: 'VECTOR', icon: 'i-lucide-shapes', color: 'purple' },
   { label: 'Rich Context', type: 'JSON', icon: 'i-lucide-file-text', color: 'green' },
-  { label: 'SQL 模板', type: 'SQL', icon: 'i-lucide-code-2', color: 'orange' }
+  { label: 'SQL Templates', type: 'SQL', icon: 'i-lucide-code-2', color: 'orange' }
 ]
 </script>
 
@@ -18,13 +18,13 @@ const storageItems = [
       <div class="flex-between mb-3">
         <h3 class="font-medium flex items-center gap-2">
           <span class="i-lucide-box text-blue-500" />
-          湖基统一存储
+          Lake-Base Unified Storage
         </h3>
         <button 
           @click="showArchitecture = !showArchitecture"
           class="text-sm text-blue-500 hover:underline"
         >
-          {{ showArchitecture ? '收起' : '展开' }}架构对比
+          {{ showArchitecture ? 'Collapse' : 'Expand' }} Comparison
         </button>
       </div>
 
@@ -53,37 +53,37 @@ const storageItems = [
       </div>
 
       <div class="mt-3 text-xs text-gray-500 text-center">
-        全部存储于 MariaDB · 同库同湖
+        All stored in MariaDB &middot; Single-DB Lake
       </div>
     </div>
 
     <!-- Architecture Comparison -->
     <div v-if="showArchitecture" class="card p-4">
-      <h3 class="font-medium mb-3 text-sm">架构对比</h3>
+      <h3 class="font-medium mb-3 text-sm">Architecture Comparison</h3>
       
       <div class="grid grid-cols-2 gap-3">
         <!-- Traditional -->
         <div class="p-3 bg-red-50 rounded-lg border border-red-100">
-          <div class="text-xs font-medium text-red-700 mb-2">传统方案</div>
+          <div class="text-xs font-medium text-red-700 mb-2">Traditional Approach</div>
           <div class="flex gap-2 justify-center mb-2">
             <div class="px-2 py-1 bg-white rounded text-xs shadow-sm">MySQL</div>
             <div class="px-2 py-1 bg-white rounded text-xs shadow-sm">Milvus</div>
           </div>
           <div class="text-center text-xs text-red-600">
             <div class="i-lucide-x-filled inline-block mr-1" />
-            数据同步延迟
+            Data sync latency
           </div>
         </div>
 
         <!-- Lakebase -->
         <div class="p-3 bg-green-50 rounded-lg border border-green-100">
-          <div class="text-xs font-medium text-green-700 mb-2">湖基方案</div>
+          <div class="text-xs font-medium text-green-700 mb-2">Lake-Base Approach</div>
           <div class="flex justify-center mb-2">
             <div class="px-3 py-1 bg-white rounded text-xs shadow-sm">MariaDB</div>
           </div>
           <div class="text-center text-xs text-green-600">
             <div class="i-lucide-check-filled inline-block mr-1" />
-            原生一致性
+            Native consistency
           </div>
         </div>
       </div>
@@ -93,24 +93,24 @@ const storageItems = [
     <div class="card p-4">
       <h3 class="font-medium mb-3 text-sm flex items-center gap-2">
         <span class="i-lucide-lightbulb text-yellow-500" />
-        核心创新点
+        Key Innovations
       </h3>
       <ul class="space-y-2 text-sm">
         <li class="flex items-start gap-2">
           <span class="i-lucide-check text-green-500 mt-0.5" />
-          <span>湖基多模统一存储</span>
+          <span>Lake-base multi-modal unified storage</span>
         </li>
         <li class="flex items-start gap-2">
           <span class="i-lucide-check text-green-500 mt-0.5" />
-          <span>库内向量检索 Schema Linking</span>
+          <span>In-database vector search for Schema Linking</span>
         </li>
         <li class="flex items-start gap-2">
           <span class="i-lucide-check text-green-500 mt-0.5" />
-          <span>Agent 自维持机制</span>
+          <span>Agent-driven self-maintenance</span>
         </li>
         <li class="flex items-start gap-2">
           <span class="i-lucide-check text-green-500 mt-0.5" />
-          <span>端到端零外挂</span>
+          <span>End-to-end, zero external dependencies</span>
         </li>
       </ul>
     </div>

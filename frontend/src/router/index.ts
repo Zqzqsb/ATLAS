@@ -16,7 +16,7 @@ const router = createRouter({
       path: '/workspace/:databaseId',
       name: 'Workspace',
       component: () => import('@/features/workspace/index.vue'),
-      meta: { title: '工作区' }
+      meta: { title: 'Workspace' }
     },
 
     // Demo Showcase
@@ -24,7 +24,7 @@ const router = createRouter({
       path: '/demo',
       name: 'Demo',
       component: () => import('@/features/demo/index.vue'),
-      meta: { title: 'Demo 展示' }
+      meta: { title: 'Demo Showcase' }
     },
 
     // Settings (placeholder)
@@ -32,7 +32,7 @@ const router = createRouter({
       path: '/settings',
       name: 'Settings',
       component: () => import('@/features/landing/index.vue'), // Placeholder
-      meta: { title: '设置' }
+      meta: { title: 'Settings' }
     },
 
     // Catch all - redirect to landing

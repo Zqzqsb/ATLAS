@@ -6,9 +6,9 @@ import type { ComparisonCase } from '@/types'
 const store = useDemoStore()
 
 const categories = [
-  { key: 'dirty_data', label: '脏数据处理', icon: 'i-lucide-eraser', color: 'orange' },
-  { key: 'complex_schema', label: '复杂Schema', icon: 'i-lucide-git-branch', color: 'blue' },
-  { key: 'business_rule', label: '业务规则', icon: 'i-lucide-scale', color: 'purple' }
+  { key: 'dirty_data', label: 'Dirty Data Handling', icon: 'i-lucide-eraser', color: 'orange' },
+  { key: 'complex_schema', label: 'Complex Schema', icon: 'i-lucide-git-branch', color: 'blue' },
+  { key: 'business_rule', label: 'Business Rules', icon: 'i-lucide-scale', color: 'purple' }
 ] as const
 
 const groupedCases = computed(() => {
@@ -32,11 +32,11 @@ function selectCase(c: ComparisonCase) {
     <div class="card p-6">
       <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
         <span class="i-lucide-columns-2 text-blue-500" />
-        Rich Context 效果对比
+        Rich Context A/B Comparison
       </h2>
       <p class="text-gray-600 text-sm">
-        通过 A/B 对比实验，验证 Rich Context 在不同场景下的实际效果。
-        选择一个测试用例，同时运行「有 Context」和「无 Context」两种模式，直观对比差异。
+        Validate the real-world impact of Rich Context through A/B comparison experiments.
+        Select a test case to run both "With Context" and "Without Context" modes side by side.
       </p>
     </div>
 
@@ -72,11 +72,11 @@ function selectCase(c: ComparisonCase) {
     <div v-if="store.selectedCase" class="card p-6">
       <h3 class="font-medium mb-4 flex items-center gap-2">
         <span class="i-lucide-clipboard-check text-blue-500" />
-        测试用例: {{ store.selectedCase.name }}
+        Test Case: {{ store.selectedCase.name }}
       </h3>
       
       <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-        <div class="text-sm text-gray-600 mb-2">自然语言问题:</div>
+        <div class="text-sm text-gray-600 mb-2">Natural Language Question:</div>
         <div class="font-medium">{{ store.selectedCase.question }}</div>
         <div class="text-sm text-gray-500 mt-2">{{ store.selectedCase.description }}</div>
       </div>
@@ -84,7 +84,7 @@ function selectCase(c: ComparisonCase) {
       <!-- Loading -->
       <div v-if="store.isComparing" class="flex-center py-12">
         <div class="animate-spin i-lucide-loader-2 text-3xl text-blue-500" />
-        <span class="ml-3 text-gray-600">正在执行对比测试...</span>
+        <span class="ml-3 text-gray-600">Running comparison test...</span>
       </div>
 
       <!-- Results -->
@@ -92,11 +92,11 @@ function selectCase(c: ComparisonCase) {
         <!-- Without Context -->
         <div class="border rounded-xl overflow-hidden">
           <div class="bg-red-50 px-4 py-3 border-b flex-between">
-            <span class="font-medium text-red-700">❌ 无 Rich Context</span>
+            <span class="font-medium text-red-700">❌ Without Rich Context</span>
             <span class="text-sm text-gray-500">{{ store.comparisonResult.withoutContext.duration }}ms</span>
           </div>
           <div class="p-4">
-            <div class="text-sm text-gray-600 mb-2">生成的 SQL:</div>
+            <div class="text-sm text-gray-600 mb-2">Generated SQL:</div>
             <pre class="bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">{{ store.comparisonResult.withoutContext.sql }}</pre>
             <div class="mt-3 flex items-center gap-2">
               <span 
@@ -105,7 +105,7 @@ function selectCase(c: ComparisonCase) {
                   ? 'bg-green-100 text-green-700' 
                   : 'bg-red-100 text-red-700'"
               >
-                {{ store.comparisonResult.withoutContext.isCorrect ? '✓ 正确' : '✗ 错误' }}
+                {{ store.comparisonResult.withoutContext.isCorrect ? '✓ Correct' : '✗ Incorrect' }}
               </span>
             </div>
           </div>
@@ -114,11 +114,11 @@ function selectCase(c: ComparisonCase) {
         <!-- With Context -->
         <div class="border rounded-xl overflow-hidden border-green-200">
           <div class="bg-green-50 px-4 py-3 border-b flex-between">
-            <span class="font-medium text-green-700">✓ 使用 Rich Context</span>
+            <span class="font-medium text-green-700">✓ With Rich Context</span>
             <span class="text-sm text-gray-500">{{ store.comparisonResult.withContext.duration }}ms</span>
           </div>
           <div class="p-4">
-            <div class="text-sm text-gray-600 mb-2">生成的 SQL:</div>
+            <div class="text-sm text-gray-600 mb-2">Generated SQL:</div>
             <pre class="bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">{{ store.comparisonResult.withContext.sql }}</pre>
             <div class="mt-3 flex items-center gap-2">
               <span 
@@ -127,13 +127,13 @@ function selectCase(c: ComparisonCase) {
                   ? 'bg-green-100 text-green-700' 
                   : 'bg-red-100 text-red-700'"
               >
-                {{ store.comparisonResult.withContext.isCorrect ? '✓ 正确' : '✗ 错误' }}
+                {{ store.comparisonResult.withContext.isCorrect ? '✓ Correct' : '✗ Incorrect' }}
               </span>
             </div>
 
             <!-- Used Contexts -->
             <div v-if="store.comparisonResult.withContext.usedContexts.length" class="mt-4">
-              <div class="text-sm text-gray-600 mb-2">使用的 Context:</div>
+              <div class="text-sm text-gray-600 mb-2">Used Contexts:</div>
               <div class="space-y-2">
                 <div 
                   v-for="ctx in store.comparisonResult.withContext.usedContexts"
@@ -151,14 +151,14 @@ function selectCase(c: ComparisonCase) {
 
       <!-- Placeholder -->
       <div v-else class="text-center py-12 text-gray-500">
-        点击上方测试用例开始对比
+        Click a test case above to start comparison
       </div>
     </div>
 
     <!-- No case selected -->
     <div v-else class="card p-12 text-center text-gray-500">
       <span class="i-lucide-pointer text-4xl mb-3 block" />
-      请选择一个测试用例开始对比
+      Select a test case to begin comparison
     </div>
   </div>
 </template>

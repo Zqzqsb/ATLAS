@@ -181,11 +181,11 @@ const exampleQuestions = computed(() => {
   // TPC-H Enterprise (38-table large-scale demo)
   if (dbName.includes('tpch') || dbName.includes('enterprise')) {
     return [
-      '利润最高的供应商是哪家？',
-      '华东地区仓库中库存不足的零件有哪些？',
-      '评分最低的产品有哪些？',
-      '发货延迟超过3天的订单有哪些？',
-      '哪些零件的价格上涨超过了10%？',
+      'Which supplier has the highest profit?',
+      'Which parts in the East warehouse are low on stock?',
+      'What are the lowest-rated products?',
+      'Which orders have shipping delays over 3 days?',
+      'Which parts have a price increase over 10%?',
     ]
   }
 

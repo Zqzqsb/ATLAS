@@ -4,9 +4,9 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 type ScenarioKey = 'benchmark' | 'comparison' | 'selfmaintain'
 
 const scenarios: { key: ScenarioKey; label: string; icon: string; badge: string }[] = [
-  { key: 'comparison', label: 'Context 效果对比', icon: 'i-lucide-columns-2', badge: '核心' },
-  { key: 'selfmaintain', label: '自维持演示', icon: 'i-lucide-refresh-cw', badge: 'NEW' },
-  { key: 'benchmark', label: '基准测试', icon: 'i-lucide-trending-up', badge: '' }
+  { key: 'comparison', label: 'Context Comparison', icon: 'i-lucide-columns-2', badge: 'Core' },
+  { key: 'selfmaintain', label: 'Self-Maintenance', icon: 'i-lucide-refresh-cw', badge: 'NEW' },
+  { key: 'benchmark', label: 'Benchmark', icon: 'i-lucide-trending-up', badge: '' }
 ]
 
 const model = defineModel<ScenarioKey>()
@@ -56,7 +56,7 @@ onMounted(() => nextTick(updateIndicator))
       <span 
         v-if="s.badge"
         class="px-1.5 py-0.5 text-xs font-medium rounded"
-        :class="s.badge === '核心' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'"
+        :class="s.badge === 'Core' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'"
       >
         {{ s.badge }}
       </span>

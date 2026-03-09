@@ -209,11 +209,15 @@ func (r *MySQLVectorRepository) searchEmbeddings(ctx context.Context, query stri
 	var results []*EmbeddingWithDistance
 	for rows.Next() {
 		ewd := &EmbeddingWithDistance{}
+		var updatedAt sql.NullTime
 		err := rows.Scan(
 			&ewd.ID, &ewd.DatasourceID, &ewd.EntityType, &ewd.EntityID, &ewd.EntityText,
-			&ewd.EmbeddingModel, &ewd.CreatedAt, &ewd.UpdatedAt, &ewd.Distance)
+			&ewd.EmbeddingModel, &ewd.CreatedAt, &updatedAt, &ewd.Distance)
 		if err != nil {
 			return nil, fmt.Errorf("lakebase: failed to scan embedding result: %w", err)
+		}
+		if updatedAt.Valid {
+			ewd.UpdatedAt = updatedAt.Time
 		}
 		results = append(results, ewd)
 	}
@@ -307,9 +311,13 @@ func (r *MySQLVectorRepository) GetStaleEmbeddings(ctx context.Context, dsID int
 	var embeddings []*Embedding
 	for rows.Next() {
 		e := &Embedding{}
+		var updatedAt sql.NullTime
 		if err := rows.Scan(&e.ID, &e.DatasourceID, &e.EntityType, &e.EntityID, &e.EntityText,
-			&e.EmbeddingModel, &e.IsStale, &e.IsDeleted, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			&e.EmbeddingModel, &e.IsStale, &e.IsDeleted, &e.CreatedAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("lakebase: failed to scan stale embedding: %w", err)
+		}
+		if updatedAt.Valid {
+			e.UpdatedAt = updatedAt.Time
 		}
 		embeddings = append(embeddings, e)
 	}

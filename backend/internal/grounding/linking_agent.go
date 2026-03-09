@@ -57,9 +57,11 @@ type LinkingRequest struct {
 
 // LinkingResult represents the linking agent's output
 type LinkingResult struct {
-	SelectedTables []SelectedTable
-	Reasoning      string
-	Duration       time.Duration
+	SelectedTables   []SelectedTable
+	Reasoning        string
+	Duration         time.Duration // T0 → T2 (total wall-clock)
+	RetrievalLatency time.Duration // T0 → T1 (vector retrieval; 0 for SmallScale)
+	ReasoningLatency time.Duration // T1.1 → T2 (LLM reasoning after schema delivered)
 }
 
 // SelectedTable represents a table selected by the linking agent
@@ -93,212 +95,42 @@ func NewLinkingAgent(llm llms.Model, config LinkingAgentConfig) *LinkingAgent {
 	}
 }
 
-// Link performs schema linking given full schema information
-func (a *LinkingAgent) Link(ctx context.Context, req *LinkingRequest) (*LinkingResult, error) {
-	start := time.Now()
-	log := logger.With("component", "linking_agent")
-
-	log.Debug("[Link] Starting schema linking",
-		"query", req.Query,
-		"table_count", len(req.Schemas),
-		"has_vector_signals", len(req.VectorSignals) > 0,
-	)
-
-	indexed := a.buildIndexedLinkingPrompt(req)
-	log.Debug("[Link] Built prompt",
-		"prompt_length", len(indexed.Prompt),
-		"prompt_preview", truncateLinking(indexed.Prompt, 500),
-		"table_labels", len(indexed.TableIndex),
-		"column_labels", len(indexed.ColumnIndex),
-	)
-
-	messages := []llms.MessageContent{
-		{Role: llms.ChatMessageTypeSystem, Parts: []llms.ContentPart{llms.TextContent{Text: linkingAgentSystemPrompt}}},
-		{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: indexed.Prompt}}},
-	}
-
-	resp, err := a.llm.GenerateContent(ctx, messages,
-		llms.WithTemperature(0.1),
-		llms.WithMaxTokens(1500),
-	)
-	if err != nil {
-		log.Error("[Link] LLM call failed", "error", err, "duration", time.Since(start))
-		return nil, fmt.Errorf("linking agent LLM call failed: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		log.Error("[Link] LLM returned no choices")
-		return nil, fmt.Errorf("linking agent returned no choices")
-	}
-
-	rawResponse := resp.Choices[0].Content
-	log.Info("[Link] LLM response received",
-		"response_length", len(rawResponse),
-	)
-	log.Debug("[Link] LLM raw response",
-		"response", truncateLinking(rawResponse, 1000),
-	)
-
-	selected, reasoning, err := a.parseLinkingResponse(rawResponse, &indexed)
-	if err != nil {
-		log.Error("[Link] Failed to parse response", "error", err, "raw", truncateLinking(rawResponse, 300))
-		return nil, fmt.Errorf("failed to parse linking response: %w", err)
-	}
-
-	// Filter by confidence threshold
-	var filtered []SelectedTable
-	for _, t := range selected {
-		if t.Confidence >= a.config.ConfidenceThreshold {
-			filtered = append(filtered, t)
-		} else {
-			log.Debug("[Link] Table filtered out (low confidence)",
-				"table", t.Name,
-				"confidence", fmt.Sprintf("%.2f", t.Confidence),
-				"threshold", fmt.Sprintf("%.2f", a.config.ConfidenceThreshold),
-			)
-		}
-	}
-
-	// Log final result
-	selectedNames := make([]string, len(filtered))
-	for i, t := range filtered {
-		selectedNames[i] = t.Name
-		log.Debug("[Link] Selected table",
-			"table", t.Name,
-			"confidence", fmt.Sprintf("%.2f", t.Confidence),
-			"reason", t.Reason,
-			"relevant_columns", len(t.RelevantColumns),
-		)
-	}
-	log.Info("[Link] Schema linking completed",
-		"selected_tables", strings.Join(selectedNames, ", "),
-		"reasoning", truncateLinking(reasoning, 200),
-		"duration", time.Since(start).Round(time.Millisecond),
-	)
-
-	return &LinkingResult{
-		SelectedTables: filtered,
-		Reasoning:      reasoning,
-		Duration:       time.Since(start),
-	}, nil
-}
-
-// ReactLink performs multi-step ReAct schema linking using execute_sql tool.
-// This allows the linking agent to explore the database (sample data, verify joins, check distributions)
-// before making its final selection, producing higher quality linking for complex queries.
-func (a *LinkingAgent) ReactLink(ctx context.Context, req *LinkingRequest, dbAdapter adapter.DBAdapter, stepCB func(step interface{}, eventType string)) (*LinkingResult, error) {
-	start := time.Now()
-	log := logger.With("component", "linking_agent_react")
-
-	log.Info("[ReactLink] Starting ReAct schema linking",
-		"query", req.Query,
-		"table_count", len(req.Schemas),
-		"has_vector_signals", len(req.VectorSignals) > 0,
-	)
-
-	// Build schema description text (reuse existing prompt builder)
-	indexed := a.buildIndexedLinkingPrompt(req)
-	schemaDesc := indexed.Prompt
-
-	// Build the ReAct step callback that wraps react.Step into the generic step callback
-	var reactStepCallback react.StepCallback
-	if stepCB != nil {
-		reactStepCallback = func(step react.Step, eventType string) {
-			stepCB(step, eventType)
-		}
-	}
-
-	// Create execute_sql tool
-	sqlTool := reacttools.NewExecuteSQL(dbAdapter)
-
-	// Build ReAct engine config with custom linking prompt
-	engineConfig := &react.EngineConfig{
-		MaxIterations:     5,
-		ActualMaxOverride: 15,
-		SystemPrompt:      reactLinkingSystemPrompt,
-		Tools:             []lctools.Tool{sqlTool},
-		StepCallback:      reactStepCallback,
-		LogMode:           "simple",
-	}
-
-	engine := react.New(a.llm, engineConfig)
-
-	// Execute with the schema as input
-	input := fmt.Sprintf("## User Query\n%s\n\n## Database Schema\n%s\n\nAnalyze the schema and select relevant tables. Use execute_sql to explore data when uncertain. Respond with your Final Answer in the required JSON format.", req.Query, schemaDesc)
-
-	result, err := engine.Execute(ctx, input)
-	if err != nil {
-		log.Error("[ReactLink] ReAct execution failed", "error", err, "duration", time.Since(start))
-		// Fallback to one-shot linking
-		log.Warn("[ReactLink] Falling back to one-shot linking")
-		return a.Link(ctx, req)
-	}
-
-	log.Info("[ReactLink] ReAct execution completed",
-		"iterations", result.Iterations,
-		"duration", result.Duration.Round(time.Millisecond),
-		"output_length", len(result.Output),
-	)
-
-	// Parse the Final Answer as JSON (same format as one-shot)
-	selected, reasoning, err := a.parseLinkingResponse(result.Output, &indexed)
-	if err != nil {
-		log.Error("[ReactLink] Failed to parse ReAct output, falling back to one-shot",
-			"error", err,
-			"output", truncateLinking(result.Output, 300),
-		)
-		return a.Link(ctx, req)
-	}
-
-	// Filter by confidence threshold
-	var filtered []SelectedTable
-	for _, t := range selected {
-		if t.Confidence >= a.config.ConfidenceThreshold {
-			filtered = append(filtered, t)
-		} else {
-			log.Debug("[ReactLink] Table filtered (low confidence)",
-				"table", t.Name,
-				"confidence", fmt.Sprintf("%.2f", t.Confidence),
-			)
-		}
-	}
-
-	selectedNames := make([]string, len(filtered))
-	for i, t := range filtered {
-		selectedNames[i] = t.Name
-	}
-	log.Info("[ReactLink] Schema linking completed",
-		"selected_tables", strings.Join(selectedNames, ", "),
-		"reasoning", truncateLinking(reasoning, 200),
-		"iterations", result.Iterations,
-		"duration", time.Since(start).Round(time.Millisecond),
-	)
-
-	return &LinkingResult{
-		SelectedTables: filtered,
-		Reasoning:      reasoning,
-		Duration:       time.Since(start),
-	}, nil
-}
-
-// ReactLinkAsync performs ReAct schema linking concurrently with vector retrieval.
-// Instead of waiting for schemas upfront, the LLM starts immediately and uses
-// the get_candidate_schema tool to poll for schema data from a shared memory slot.
+// LinkAsync performs schema linking concurrently with schema retrieval.
+// The LLM starts at T0 with system prompt + user query; schema data arrives
+// later via schemaSlot (written by the caller when vector retrieval completes).
 //
-// Cold-start acceleration: LLM prefills KV cache with system prompt + query while
-// vector retrieval runs in parallel. When retrieval completes, the caller writes
-// schema data into schemaSlot, and the next tool call picks it up.
-func (a *LinkingAgent) ReactLinkAsync(
+// Timeline:
+//   T0    — Agent starts, system prompt injected
+//   T0.1  — Caller starts vector retrieval concurrently
+//   T1    — Retrieval completes, caller writes schema to schemaSlot
+//   T1.1  — Agent's get_candidate_schema tool returns non-empty → reasoning starts
+//   T2    — Agent outputs Final Answer
+//
+// Latency metrics:
+//   retrieval_latency = T0 → T1 (measured by caller, passed via retrievalDone channel)
+//   reasoning_latency = T1.1 → T2 (measured internally via schemaTool.FirstDataTime)
+//
+// Parameters:
+//   - linkingMode: "one-shot" (get_schema → immediate Final Answer) or "react" (get_schema → explore → Final Answer)
+//   - schemaSlot: atomic pointer; caller writes schema text when retrieval completes
+//   - indexSlot: optional atomic pointer to IndexedPromptResult for resolving [T1]/[C3] labels back to real names
+//   - dbAdapter: required for "react" mode (execute_sql tool); nil for "one-shot"
+//   - stepCB: optional callback for SSE streaming of ReAct steps
+func (a *LinkingAgent) LinkAsync(
 	ctx context.Context,
 	query string,
+	linkingMode string,
 	schemaSlot *atomic.Pointer[string],
+	indexSlot *atomic.Pointer[IndexedPromptResult],
 	dbAdapter adapter.DBAdapter,
 	stepCB func(step interface{}, eventType string),
 ) (*LinkingResult, error) {
 	start := time.Now()
-	log := logger.With("component", "linking_agent_react_async")
+	log := logger.With("component", "linking_agent_async")
 
-	log.Info("[ReactLinkAsync] Starting async ReAct schema linking (cold-start acceleration)",
+	log.Info("[LinkAsync] Starting concurrent schema linking",
 		"query", query,
+		"linking_mode", linkingMode,
 	)
 
 	// Build step callback
@@ -309,40 +141,75 @@ func (a *LinkingAgent) ReactLinkAsync(
 		}
 	}
 
-	// Tools: get_candidate_schema (reads shared slot) + execute_sql
+	// Tools: always get_candidate_schema; add execute_sql only for react mode
 	schemaTool := reacttools.NewGetCandidateSchema(schemaSlot)
-	sqlTool := reacttools.NewExecuteSQL(dbAdapter)
+	toolSet := []lctools.Tool{schemaTool}
+
+	var systemPrompt string
+	var maxIter, actualMax int
+
+	switch linkingMode {
+	case "react":
+		// React mode: can explore via execute_sql after getting schema
+		if dbAdapter != nil {
+			sqlTool := reacttools.NewExecuteSQL(dbAdapter)
+			toolSet = append(toolSet, sqlTool)
+		}
+		systemPrompt = reactLinkingAsyncSystemPrompt
+		maxIter = 7
+		actualMax = 20
+	default: // "one-shot"
+		// One-shot mode: must give Final Answer immediately after get_schema
+		systemPrompt = oneShotAsyncSystemPrompt
+		maxIter = 3  // 1 get_schema + 1 Final Answer + 1 余量
+		actualMax = 8
+	}
 
 	engineConfig := &react.EngineConfig{
-		MaxIterations:     7,  // extra room for polling iterations
-		ActualMaxOverride: 20,
-		SystemPrompt:      reactLinkingAsyncSystemPrompt,
-		Tools:             []lctools.Tool{schemaTool, sqlTool},
+		MaxIterations:     maxIter,
+		ActualMaxOverride: actualMax,
+		SystemPrompt:      systemPrompt,
+		Tools:             toolSet,
 		StepCallback:      reactStepCallback,
 		LogMode:           "simple",
 	}
 
 	engine := react.New(a.llm, engineConfig)
 
-	input := fmt.Sprintf("## User Query\n%s\n\nStart by calling get_candidate_schema to retrieve the database schema. If it returns empty, the data is still loading — call it again. Once you have the schema, analyze it and select relevant tables. Use execute_sql to explore data when uncertain. Respond with your Final Answer in the required JSON format.", query)
+	input := fmt.Sprintf("## User Query\n%s\n\nStart by calling get_candidate_schema to retrieve the database schema. If it returns empty, the data is still loading — call it again.", query)
 
 	result, err := engine.Execute(ctx, input)
 	if err != nil {
-		log.Error("[ReactLinkAsync] ReAct execution failed", "error", err, "duration", time.Since(start))
-		return nil, fmt.Errorf("async react linking failed: %w", err)
+		log.Error("[LinkAsync] ReAct execution failed", "error", err, "duration", time.Since(start))
+		return nil, fmt.Errorf("async linking failed (mode=%s): %w", linkingMode, err)
 	}
 
-	log.Info("[ReactLinkAsync] ReAct execution completed",
+	// Calculate latency metrics
+	endTime := time.Now()
+	totalDuration := endTime.Sub(start)
+	var reasoningLatency time.Duration
+	fdt := schemaTool.FirstDataTime()
+	if !fdt.IsZero() {
+		reasoningLatency = endTime.Sub(fdt)
+	}
+
+	log.Info("[LinkAsync] Execution completed",
+		"linking_mode", linkingMode,
 		"iterations", result.Iterations,
 		"schema_polls", schemaTool.CallCount(),
-		"sql_calls", sqlTool.CallCount(),
-		"duration", result.Duration.Round(time.Millisecond),
+		"total_duration", totalDuration.Round(time.Millisecond),
+		"reasoning_latency", reasoningLatency.Round(time.Millisecond),
+		"schema_delivered", !fdt.IsZero(),
 	)
 
-	// Parse final answer
-	selected, reasoning, err := a.parseLinkingResponse(result.Output, nil)
+	// Parse final answer — use index maps if available for resolving [T1]/[C3] labels
+	var indexed *IndexedPromptResult
+	if indexSlot != nil {
+		indexed = indexSlot.Load()
+	}
+	selected, reasoning, err := a.parseLinkingResponse(result.Output, indexed)
 	if err != nil {
-		log.Error("[ReactLinkAsync] Failed to parse output", "error", err,
+		log.Error("[LinkAsync] Failed to parse output", "error", err,
 			"output", truncateLinking(result.Output, 300))
 		return nil, fmt.Errorf("failed to parse async linking response: %w", err)
 	}
@@ -359,76 +226,43 @@ func (a *LinkingAgent) ReactLinkAsync(
 	for i, t := range filtered {
 		selectedNames[i] = t.Name
 	}
-	log.Info("[ReactLinkAsync] Schema linking completed",
+	log.Info("[LinkAsync] Schema linking completed",
 		"selected_tables", strings.Join(selectedNames, ", "),
 		"schema_polls", schemaTool.CallCount(),
-		"duration", time.Since(start).Round(time.Millisecond),
+		"total_duration", totalDuration.Round(time.Millisecond),
+		"reasoning_latency", reasoningLatency.Round(time.Millisecond),
 	)
 
 	return &LinkingResult{
-		SelectedTables: filtered,
-		Reasoning:      reasoning,
-		Duration:       time.Since(start),
+		SelectedTables:   filtered,
+		Reasoning:        reasoning,
+		Duration:         totalDuration,
+		ReasoningLatency: reasoningLatency,
 	}, nil
 }
 
-const linkingAgentSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
+// oneShotAsyncSystemPrompt is used for one-shot mode in the concurrent architecture.
+// The LLM calls get_candidate_schema to obtain the schema, then MUST immediately
+// produce Final Answer — no exploration via execute_sql is allowed.
+const oneShotAsyncSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
 
-The schema below uses index labels: tables are tagged [T1], [T2], ...; columns are tagged [C1], [C2], ... These labels are stable references — use them in your response for efficient selection.
+Your task: Given a natural language query, retrieve the database schema and identify which tables and columns are needed to answer the query.
 
-Your task:
-1. SELECT tables and columns by their index labels — no need to repeat names or descriptions already visible in the schema.
-2. For **key columns only** (WHERE/JOIN/ORDER BY/GROUP BY targets), generate a short query-specific hint telling the SQL generator how to use that column for THIS query.
-3. Skip hints for columns whose role is obvious from the query (e.g. SELECT output columns, PK join keys).
+## Workflow
+1. Call get_candidate_schema to retrieve the database schema. If it returns empty, the data is still loading — call it again.
+2. Once you have the schema, analyze it and IMMEDIATELY produce your Final Answer. Do NOT call any other tools.
 
-Decision criteria:
-- Which tables contain the queried data?
-- Which tables are needed for JOINs?
-- Rich Context clues: descriptions, synonyms, sample values
-
-Respond in JSON:
-{
-  "tables": ["T1", "T3"],
-  "columns": ["C2", "C5", "C8"],
-  "hints": {
-    "C5": "COUNT + GROUP BY for most-played",
-    "C8": "WHERE this = 'value' based on sample data"
-  },
-  "reasoning": "Brief overall explanation"
-}
-
-Rules:
-- "tables": list of table index labels (e.g. ["T1","T2"]). Include ALL tables needed for JOINs.
-- "columns": list of column index labels. Include relevant columns only, not every column.
-- "hints": object mapping column index → short actionable hint. Only for key columns; omit obvious ones.
-- "reasoning": one or two sentences.
-- Be thorough: missing a table is worse than including an extra one.`
-
-const reactLinkingSystemPrompt = `You are an expert database schema analyst performing ReAct Schema Linking.
-
-The schema uses index labels: [T1], [T2] for tables; [C1], [C2] for columns. Use these labels in your Final Answer for efficient selection.
-
-Your task: Given a natural language query and a database schema, identify which tables and columns are needed to answer the query. You can use the execute_sql tool to explore the database before making your decision.
-
-## Strategy
-1. Review the schema and identify candidate tables
-2. When uncertain about data content, column meanings, or join validity, use execute_sql to explore:
-   - Sample data: SELECT * FROM table LIMIT 3
-   - Value distributions: SELECT DISTINCT column FROM table LIMIT 10
-   - Join verification: SELECT COUNT(*) FROM t1 JOIN t2 ON t1.col = t2.col
-3. Based on your exploration, select the final set of relevant tables and columns
-
-⚠️ ITERATION LIMIT: Maximum 5 iterations. Be efficient — only explore when truly uncertain.
+The schema uses index labels: [T1], [T2] for tables; [C1], [C2] for columns. Use these labels in your Final Answer.
 
 ## Output Format
 
-When exploring, use:
-Thought: [your reasoning]
-Action: execute_sql
-Action Input: [SQL query]
+When retrieving schema:
+Thought: I need to retrieve the database schema first.
+Action: get_candidate_schema
+Action Input: retrieve
 
-When ready to give your final answer:
-Thought: [summary of findings]
+When ready (MUST be your very next response after receiving schema):
+Thought: [your analysis]
 Final Answer: [JSON object]
 
 The Final Answer MUST be a valid JSON object:
@@ -442,14 +276,18 @@ The Final Answer MUST be a valid JSON object:
   "reasoning": "Brief explanation"
 }
 
-IMPORTANT:
-- Use index labels ([T1], [C3]) from the schema, not raw table/column names
-- Include ALL tables needed for JOINs
-- Only include relevant columns, not every column
-- Generate hints only for key columns (WHERE/JOIN/ORDER BY/GROUP BY targets)
-- Reference actual data values from your exploration in hints when possible
-- Be thorough: missing a table is worse than including an extra one`
+Note: If the schema does not contain index labels, use real table/column names in the same format.
 
+Rules:
+- "tables": list of table index labels. Include ALL tables needed for JOINs.
+- "columns": list of column index labels. Include relevant columns only.
+- "hints": only for key columns (WHERE/JOIN/ORDER BY/GROUP BY targets). Omit obvious ones.
+- "reasoning": one or two sentences.
+- Be thorough: missing a table is worse than including an extra one.
+- IMPORTANT: You MUST give Final Answer immediately after receiving the schema. Do NOT call execute_sql or any other tool.`
+
+// reactLinkingAsyncSystemPrompt is used for react mode in the concurrent architecture.
+// The LLM calls get_candidate_schema first, then can explore via execute_sql.
 const reactLinkingAsyncSystemPrompt = `You are an expert database schema analyst performing ReAct Schema Linking.
 
 Your task: Given a natural language query, retrieve the database schema and identify which tables and columns are needed to answer the query.

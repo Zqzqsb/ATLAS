@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"sync/atomic"
+	"time"
 )
 
 // GetCandidateSchema is a ReAct tool that reads candidate schema from a shared
@@ -15,6 +16,9 @@ import (
 type GetCandidateSchema struct {
 	slot      *atomic.Pointer[string]
 	callCount int
+	// firstDataTime records the timestamp when non-empty data was first returned (T1.1).
+	// Zero value means data has not been delivered yet.
+	firstDataTime time.Time
 }
 
 // NewGetCandidateSchema creates a new tool backed by a shared atomic slot.
@@ -37,7 +41,15 @@ func (t *GetCandidateSchema) Call(_ context.Context, _ string) (string, error) {
 	if data == nil {
 		return "", nil
 	}
+	// Record T1.1: first time we deliver non-empty schema data to the LLM
+	if t.firstDataTime.IsZero() {
+		t.firstDataTime = time.Now()
+	}
 	return *data, nil
 }
 
 func (t *GetCandidateSchema) CallCount() int { return t.callCount }
+
+// FirstDataTime returns the timestamp when non-empty data was first returned (T1.1).
+// Returns zero time if data has never been delivered.
+func (t *GetCandidateSchema) FirstDataTime() time.Time { return t.firstDataTime }

@@ -473,13 +473,21 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 									Mode:      "large_scale",
 								})
 								if partialInfo != nil {
-									SendSSE(c.Writer, "linking_complete", map[string]interface{}{
+									sseData := map[string]interface{}{
 										"tables":         partialInfo.Tables,
 										"columns":        partialInfo.Columns,
 										"join_paths":     partialInfo.JoinPaths,
 										"reasoning":      data["reasoning"],
 										"duration_ms":    data["duration_ms"],
-									})
+									}
+									// Add latency breakdown if available
+									if rl, ok := data["retrieval_latency"]; ok {
+										sseData["retrieval_latency_ms"] = rl
+									}
+									if rl, ok := data["reasoning_latency"]; ok {
+										sseData["reasoning_latency_ms"] = rl
+									}
+									SendSSE(c.Writer, "linking_complete", sseData)
 									flusher.Flush()
 
 									if len(partialInfo.SuggestedFields) > 0 {

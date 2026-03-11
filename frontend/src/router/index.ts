@@ -11,28 +11,20 @@ const router = createRouter({
       meta: { title: 'LUCID - My Databases' }
     },
 
+    // Feature Showcase
+    {
+      path: '/features',
+      name: 'Features',
+      component: () => import('@/features/showcase/index.vue'),
+      meta: { title: 'LUCID - Feature Showcase' }
+    },
+
     // Workspace - Database specific
     {
       path: '/workspace/:databaseId',
       name: 'Workspace',
       component: () => import('@/features/workspace/index.vue'),
       meta: { title: 'Workspace' }
-    },
-
-    // Demo Showcase
-    {
-      path: '/demo',
-      name: 'Demo',
-      component: () => import('@/features/demo/index.vue'),
-      meta: { title: 'Demo Showcase' }
-    },
-
-    // Settings (placeholder)
-    {
-      path: '/settings',
-      name: 'Settings',
-      component: () => import('@/features/landing/index.vue'), // Placeholder
-      meta: { title: 'Settings' }
     },
 
     // Catch all - redirect to landing

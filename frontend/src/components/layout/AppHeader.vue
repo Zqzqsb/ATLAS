@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NButton } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
+import lucidLogo from '@/assets/lucid-logo.svg'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,10 +16,6 @@ const isInWorkspace = computed(() => route.name?.toString().startsWith('Workspac
 function goHome() {
   router.push('/')
 }
-
-function goToDemo() {
-  router.push('/demo')
-}
 </script>
 
 <template>
@@ -31,9 +27,7 @@ function goToDemo() {
         class="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
         @click="goHome"
       >
-        <div class="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-          <span class="text-white font-semibold text-base">L</span>
-        </div>
+        <img :src="lucidLogo" alt="LUCID" class="w-8 h-8 rounded-lg" />
         <div class="flex flex-col leading-none">
           <span class="font-semibold text-lg text-gray-900 tracking-tight">LUCID</span>
         </div>
@@ -54,20 +48,16 @@ function goToDemo() {
       </div>
     </div>
 
-    <!-- Right: Actions -->
+    <!-- Right: Navigation -->
     <div class="flex items-center gap-3">
-      <!-- Demo Link -->
-      <NButton 
-        v-if="!route.path.startsWith('/demo')"
-        secondary
-        size="small"
-        @click="goToDemo"
+      <button
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+        :class="route.name === 'Features' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+        @click="router.push('/features')"
       >
-        <template #icon>
-          <div class="i-lucide-play" />
-        </template>
-        Demo
-      </NButton>
+        <div class="i-lucide-sparkles text-sm" />
+        Features
+      </button>
     </div>
   </header>
 </template>

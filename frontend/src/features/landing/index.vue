@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { NButton, NSpin, useMessage } from 'naive-ui'
 import { useDatabaseStore } from '@/stores/database'
+import lucidLogo from '@/assets/lucid-logo.svg'
 import DatabaseCard from './DatabaseCard.vue'
 import SpiderDatasetCard from './SpiderDatasetCard.vue'
 import TpchEnterpriseCard from './TpchEnterpriseCard.vue'
@@ -85,9 +86,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
         <!-- Header -->
         <div class="text-center mb-14">
           <div class="flex items-center justify-center gap-3 mb-6">
-            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-500 via-blue-500 to-indigo-600 flex items-center justify-center shadow-2xl shadow-primary-500/30 ring-4 ring-white/50">
-              <span class="text-white font-serif font-bold text-4xl drop-shadow-lg">L</span>
-            </div>
+            <img :src="lucidLogo" alt="LUCID" class="w-20 h-20 rounded-2xl shadow-2xl shadow-primary-500/30 ring-4 ring-white/50" />
           </div>
           <h1 class="text-5xl font-extrabold text-gray-900 tracking-tight mb-4 drop-shadow-sm">
             LUCID
@@ -181,18 +180,18 @@ async function handleAddDatabase(config: DatabaseConfig) {
           </div>
         </div>
 
-        <!-- Quick Links - Steam style cards -->
+        <!-- Quick Links -->
         <div class="flex items-center justify-center gap-5">
           <RouterLink 
-            to="/demo"
+            to="/features"
             class="group flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-white/80 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:bg-white/90 hover:-translate-y-1 transition-all duration-300"
           >
-            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-primary-500/30 group-hover:scale-105 transition-transform">
-              <div class="i-lucide-play-filled text-xl" />
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-primary-500/30 group-hover:scale-105 transition-transform">
+              <div class="i-lucide-sparkles text-xl" />
             </div>
             <div>
-              <span class="font-bold text-gray-800 group-hover:text-primary-600 transition-colors block">Live Demo</span>
-              <span class="text-sm text-gray-500">Interactive playground</span>
+              <span class="font-bold text-gray-800 group-hover:text-primary-600 transition-colors block">Feature Showcase</span>
+              <span class="text-sm text-gray-500">Explore 4 innovations</span>
             </div>
           </RouterLink>
 

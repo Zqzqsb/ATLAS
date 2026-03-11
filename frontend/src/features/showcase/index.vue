@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import lucidLogo from '@/assets/lucid-logo.svg'
 import LakebaseViz from './LakebaseViz.vue'
@@ -9,54 +9,110 @@ import AgentSelfMaintainViz from './AgentSelfMaintainViz.vue'
 
 const router = useRouter()
 
-// Scroll progress tracking
-const scrollProgress = ref(0)
-const showBackToTop = ref(false)
+const sections = [
+  { id: 'hero', label: 'LUCID' },
+  { id: 'lakebase', label: 'Lakebase' },
+  { id: 'linking', label: 'Linking' },
+  { id: 'lifecycle', label: 'Context' },
+  { id: 'selfmaintain', label: 'Agent' },
+  { id: 'cta', label: 'Explore' },
+]
 
-function handleScroll() {
-  const scrollTop = window.scrollY
-  const docHeight = document.documentElement.scrollHeight - window.innerHeight
-  scrollProgress.value = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0
-  showBackToTop.value = scrollTop > 400
+const currentSection = ref(0)
+const containerRef = ref<HTMLElement>()
+
+// Track current section via IntersectionObserver
+let observers: IntersectionObserver[] = []
+
+function setupObservers() {
+  observers.forEach(o => o.disconnect())
+  observers = []
+
+  const sectionEls = containerRef.value?.querySelectorAll<HTMLElement>('.snap-section')
+  if (!sectionEls) return
+
+  sectionEls.forEach((el, idx) => {
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry && entry.isIntersecting) {
+          currentSection.value = idx
+        }
+      },
+      {
+        root: containerRef.value,
+        threshold: 0.6,
+      }
+    )
+    obs.observe(el)
+    observers.push(obs)
+  })
 }
 
-function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+function scrollToSection(idx: number) {
+  const sectionEls = containerRef.value?.querySelectorAll<HTMLElement>('.snap-section')
+  if (!sectionEls || !sectionEls[idx]) return
+  sectionEls[idx]!.scrollIntoView({ behavior: 'smooth' })
 }
 
 function goHome() {
   router.push('/')
 }
 
-onMounted(() => {
-  window.addEventListener('scroll', handleScroll, { passive: true })
+onMounted(async () => {
+  // Lock body scroll while showcase is active
+  document.documentElement.classList.add('showcase-active')
+  document.body.classList.add('showcase-active')
+  await nextTick()
+  setupObservers()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
+  observers.forEach(o => o.disconnect())
+  // Restore body scroll
+  document.documentElement.classList.remove('showcase-active')
+  document.body.classList.remove('showcase-active')
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
-    <!-- Scroll progress bar -->
-    <div class="fixed top-14 left-0 right-0 z-40 h-0.5 bg-gray-100">
-      <div
-        class="h-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500 transition-all duration-100"
-        :style="{ width: `${scrollProgress}%` }"
-      />
+  <div
+    ref="containerRef"
+    class="snap-container"
+  >
+    <!-- ====== Side navigation dots ====== -->
+    <div class="fixed right-5 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-3">
+      <button
+        v-for="(sec, idx) in sections"
+        :key="sec.id"
+        class="group relative flex items-center"
+        @click="scrollToSection(idx)"
+      >
+        <!-- Dot -->
+        <div
+          class="w-2.5 h-2.5 rounded-full border-2 transition-all duration-300"
+          :class="currentSection === idx
+            ? 'bg-gray-800 border-gray-800 scale-125'
+            : 'bg-transparent border-gray-300 hover:border-gray-500 hover:scale-110'"
+        />
+        <!-- Label tooltip -->
+        <span
+          class="absolute right-6 whitespace-nowrap text-xs font-medium px-2 py-1 rounded-md bg-gray-800 text-white opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200"
+        >
+          {{ sec.label }}
+        </span>
+      </button>
     </div>
 
-    <!-- Hero section -->
-    <div class="relative overflow-hidden">
+    <!-- ====== Slide 0: Hero ====== -->
+    <section class="snap-section relative flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/40">
       <!-- Background blobs -->
       <div class="absolute inset-0 overflow-hidden pointer-events-none">
         <div class="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full bg-gradient-to-br from-blue-100/50 to-violet-100/40 blur-3xl" />
         <div class="absolute -bottom-40 -left-40 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-emerald-100/40 to-cyan-100/30 blur-3xl" />
       </div>
 
-      <div class="relative max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
-        <!-- Logo -->
+      <div class="relative max-w-4xl mx-auto px-6 text-center">
         <div class="flex items-center justify-center mb-6">
           <img :src="lucidLogo" alt="LUCID" class="w-16 h-16 rounded-xl shadow-xl shadow-primary-500/20" />
         </div>
@@ -69,59 +125,69 @@ onUnmounted(() => {
           <span class="text-gray-800 text-3xl md:text-4xl font-bold">that Power LUCID</span>
         </h1>
 
-        <p class="text-lg text-gray-500 max-w-2xl mx-auto mb-8">
-          A Lakebase-Unified Context-aware Intelligence system for Text-to-SQL, 
-          built entirely inside MariaDB 12 with native VECTOR + HNSW support.
+        <p class="text-lg text-gray-500 max-w-2xl mx-auto mb-10">
+          A Lakebase-Unified Context-aware Intelligence system for Text-to-SQL,
+          built entirely inside MariaDB with native VECTOR + HNSW support.
         </p>
 
-        <!-- Quick nav pills -->
-        <div class="inline-flex flex-wrap items-center justify-center gap-3">
-          <a
+        <!-- Nav pills -->
+        <div class="inline-flex flex-wrap items-center justify-center gap-3 mb-12">
+          <button
             v-for="(item, idx) in [
-              { label: 'Lakebase Storage', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200', hash: '#lakebase' },
-              { label: 'Schema Linking', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200', hash: '#linking' },
-              { label: 'Context Lifecycle', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200', hash: '#lifecycle' },
-              { label: 'Self-Maintaining', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200', hash: '#selfmaintain' },
+              { label: 'Lakebase Storage', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200', section: 1 },
+              { label: 'Schema Linking', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200', section: 2 },
+              { label: 'Context Lifecycle', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200', section: 3 },
+              { label: 'Self-Maintaining', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200', section: 4 },
             ]"
             :key="idx"
-            :href="item.hash"
             class="px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200"
             :class="item.color"
+            @click="scrollToSection(item.section)"
           >
             {{ item.label }}
-          </a>
+          </button>
+        </div>
+
+        <!-- Scroll hint -->
+        <div class="animate-bounce text-gray-400">
+          <div class="i-lucide-chevrons-down text-2xl mx-auto" />
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Feature Sections -->
-    <div class="max-w-6xl mx-auto px-6 space-y-32 pb-24">
-      <!-- Section 1: Lakebase -->
-      <section id="lakebase">
+    <!-- ====== Slide 1: Lakebase — warm blue tint ====== -->
+    <section class="snap-section relative flex items-center bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40">
+      <div class="max-w-6xl mx-auto px-6 py-12 w-full">
         <LakebaseViz />
-      </section>
+      </div>
+    </section>
 
-      <!-- Section 2: Schema Linking -->
-      <section id="linking">
+    <!-- ====== Slide 2: Schema Linking — soft violet tint ====== -->
+    <section class="snap-section relative flex items-center bg-gradient-to-br from-violet-50/60 via-white to-purple-50/30">
+      <div class="max-w-6xl mx-auto px-6 py-12 w-full">
         <SchemaLinkingViz />
-      </section>
+      </div>
+    </section>
 
-      <!-- Section 3: Context Lifecycle -->
-      <section id="lifecycle">
+    <!-- ====== Slide 3: Context Lifecycle — subtle green tint ====== -->
+    <section class="snap-section relative flex items-center bg-gradient-to-br from-emerald-50/50 via-white to-teal-50/30">
+      <div class="max-w-6xl mx-auto px-6 py-12 w-full">
         <ContextLifecycleViz />
-      </section>
+      </div>
+    </section>
 
-      <!-- Section 4: Self-Maintaining -->
-      <section id="selfmaintain">
+    <!-- ====== Slide 4: Agent Self-Maintain — warm amber tint ====== -->
+    <section class="snap-section relative flex items-center bg-gradient-to-br from-amber-50/50 via-white to-orange-50/30">
+      <div class="max-w-6xl mx-auto px-6 py-12 w-full">
         <AgentSelfMaintainViz />
-      </section>
-    </div>
+      </div>
+    </section>
 
-    <!-- Footer CTA -->
-    <div class="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 py-16">
+    <!-- ====== Slide 5: CTA Footer ====== -->
+    <section class="snap-section relative flex items-center justify-center bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900">
       <div class="max-w-4xl mx-auto px-6 text-center">
-        <h2 class="text-3xl font-bold text-white mb-4">Ready to Explore?</h2>
-        <p class="text-gray-400 mb-8 text-lg">
+        <h2 class="text-4xl font-bold text-white mb-4">Ready to Explore?</h2>
+        <p class="text-gray-400 mb-10 text-lg">
           Connect your database and experience LUCID's intelligent Text-to-SQL pipeline
         </p>
         <div class="flex items-center justify-center gap-4">
@@ -146,35 +212,31 @@ onUnmounted(() => {
           </a>
         </div>
       </div>
-    </div>
-
-    <!-- Back to top -->
-    <Transition name="fade">
-      <button
-        v-if="showBackToTop"
-        class="fixed bottom-8 right-8 w-12 h-12 rounded-xl bg-white border border-gray-200 shadow-xl flex-center text-gray-600 hover:text-primary-600 hover:-translate-y-1 transition-all z-50"
-        @click="scrollToTop"
-      >
-        <div class="i-lucide-chevron-up text-xl" />
-      </button>
-    </Transition>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+.snap-container {
+  height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
 }
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+
+.snap-section {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: calc(100vh - 56px);
+  min-height: calc(100dvh - 56px);
 }
 </style>
 
 <style>
-/* Smooth scroll for anchor navigation (global) */
-html {
-  scroll-behavior: smooth;
+/* Applied dynamically via JS classList */
+html.showcase-active,
+html.showcase-active body {
+  overflow: hidden !important;
 }
 </style>

@@ -11,7 +11,7 @@ import QueryChat from './QueryChat/index.vue'
 import SchemaBrowser from './SchemaBrowser/index.vue'
 import ContextManager from './ContextManager/index.vue'
 import Monitor from './Monitor/index.vue'
-import SelfMaintainDemo from '@/components/demo/SelfMaintainDemo.vue'
+import EvolutionPanel from './EvolutionPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -279,7 +279,7 @@ function goBack() {
         <SchemaBrowser v-else-if="workspaceStore.activeTab === 'schema'" />
         <ContextManager v-else-if="workspaceStore.activeTab === 'context'" />
         <Monitor v-else-if="workspaceStore.activeTab === 'monitor'" />
-        <SelfMaintainDemo v-else-if="workspaceStore.activeTab === 'evolution' && isEvolutionDb" />
+        <EvolutionPanel v-else-if="workspaceStore.activeTab === 'evolution' && isEvolutionDb" />
       </div>
     </template>
   </div>

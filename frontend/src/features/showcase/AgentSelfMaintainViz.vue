@@ -4,7 +4,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const isVisible = ref(false)
 const currentStep = ref(-1) // -1=idle, 0-4=steps
 const containerRef = ref<HTMLElement>()
-const showReplay = ref(false)
 
 const steps = [
   {
@@ -81,7 +80,6 @@ let observer: IntersectionObserver | null = null
 let animTimer: number | null = null
 
 function startAnimation() {
-  showReplay.value = false
   changeLogs.value = []
   currentStep.value = 0
   const times = ['10:30:01', '10:30:02', '10:30:05', '10:30:07', '10:30:09']
@@ -104,14 +102,8 @@ function startAnimation() {
       currentStep.value = step
     } else {
       if (animTimer) clearInterval(animTimer)
-      showReplay.value = true
     }
   }, 1800)
-}
-
-function replay() {
-  currentStep.value = -1
-  setTimeout(startAnimation, 400)
 }
 
 onMounted(() => {
@@ -137,21 +129,21 @@ onUnmounted(() => {
 <template>
   <div ref="containerRef" class="relative">
     <!-- Section header -->
-    <div class="text-center mb-12">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 mb-4">
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 mb-3">
         <div class="i-lucide-bot text-amber-600" />
         <span class="text-sm font-semibold text-amber-700">Innovation #4</span>
       </div>
-      <h3 class="text-3xl font-bold text-gray-900 mb-3">Agent Self-Maintaining</h3>
+      <h3 class="text-3xl font-bold text-gray-900 mb-2">Agent Self-Maintaining</h3>
       <p class="text-lg text-gray-500 max-w-2xl mx-auto">
         Schema changes? The agent detects, repairs, and verifies — all autonomously, zero human intervention
       </p>
     </div>
 
-    <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Left: DDL trigger -->
       <div class="lg:col-span-1">
-        <div class="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-5 mb-4">
+        <div class="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4 mb-3">
           <div class="flex items-center gap-2 mb-3">
             <div class="i-lucide-terminal text-amber-600" />
             <span class="font-semibold text-gray-800 text-sm">DDL Change Event</span>
@@ -171,7 +163,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Change Log panel -->
-        <div class="rounded-2xl border-2 border-gray-200 bg-white p-5">
+        <div class="rounded-2xl border-2 border-gray-200 bg-white p-4">
           <div class="flex items-center gap-2 mb-3">
             <div class="i-lucide-scroll-text text-gray-500" />
             <span class="font-semibold text-gray-800 text-sm">Change Log</span>
@@ -197,7 +189,7 @@ onUnmounted(() => {
 
       <!-- Right: 5-step pipeline -->
       <div class="lg:col-span-2">
-        <div class="space-y-4">
+        <div class="space-y-2">
           <div
             v-for="(step, idx) in steps"
             :key="step.id"
@@ -205,7 +197,7 @@ onUnmounted(() => {
           >
             <!-- Step card -->
             <div
-              class="flex items-start gap-4 px-5 py-4 rounded-2xl border-2 transition-all duration-500"
+              class="flex items-start gap-3 px-4 py-2.5 rounded-2xl border-2 transition-all duration-500"
               :class="[
                 currentStep === idx
                   ? `${step.borderColor} ${step.bgColor} shadow-lg scale-[1.02]`
@@ -215,9 +207,9 @@ onUnmounted(() => {
               ]"
             >
               <!-- Step number + icon -->
-              <div class="flex flex-col items-center gap-1 shrink-0">
+              <div class="flex flex-col items-center gap-0.5 shrink-0">
                 <div
-                  class="w-10 h-10 rounded-xl bg-gradient-to-br flex-center text-white transition-all duration-300"
+                  class="w-9 h-9 rounded-xl bg-gradient-to-br flex-center text-white transition-all duration-300"
                   :class="[
                     currentStep >= idx
                       ? `${step.gradientFrom} ${step.gradientTo}`
@@ -249,7 +241,7 @@ onUnmounted(() => {
                     Done
                   </span>
                 </div>
-                <p class="text-sm text-gray-500 mb-2">{{ step.desc }}</p>
+                <p class="text-sm text-gray-500 mb-1">{{ step.desc }}</p>
 
                 <!-- Detail text (visible when active or completed) -->
                 <div
@@ -265,21 +257,10 @@ onUnmounted(() => {
             <!-- Connector line -->
             <div
               v-if="idx < steps.length - 1"
-              class="absolute left-[29px] -bottom-4 w-0.5 h-4 transition-all duration-300"
+              class="absolute left-[26px] -bottom-2 w-0.5 h-2 transition-all duration-300"
               :class="currentStep > idx ? 'bg-emerald-300' : 'bg-gray-200'"
             />
           </div>
-        </div>
-
-        <!-- Replay button -->
-        <div v-if="showReplay" class="flex justify-center mt-6">
-          <button
-            class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-lg shadow-amber-200/50 hover:shadow-xl hover:-translate-y-0.5 transition-all"
-            @click="replay"
-          >
-            <div class="i-lucide-rotate-ccw" />
-            Replay Animation
-          </button>
         </div>
       </div>
     </div>

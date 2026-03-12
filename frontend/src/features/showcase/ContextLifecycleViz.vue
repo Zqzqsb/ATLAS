@@ -92,7 +92,7 @@ function startAutoPlay() {
   autoPlayTimer = window.setInterval(() => {
     phase = (phase + 1) % 3
     activePhase.value = phase
-  }, 4000)
+  }, 2500)
 }
 
 function selectPhase(idx: number) {
@@ -112,7 +112,7 @@ onMounted(() => {
       const entry = entries[0]
       if (entry && entry.isIntersecting && !isVisible.value) {
         isVisible.value = true
-        setTimeout(startAutoPlay, 800)
+        setTimeout(startAutoPlay, 400)
       }
     },
     { threshold: 0.2 }
@@ -219,9 +219,9 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
               <div
                 v-for="(step, idx) in currentPhase.steps"
                 :key="idx"
-                class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/70 border border-white/90 shadow-sm transition-all duration-500"
+                class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/70 border border-white/90 shadow-sm transition-all duration-300"
                 :class="isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'"
-                :style="{ transitionDelay: `${idx * 150}ms` }"
+                :style="{ transitionDelay: `${idx * 80}ms` }"
               >
                 <div class="w-6 h-6 rounded-lg bg-white flex-center shadow-sm shrink-0">
                   <div :class="step.icon" class="text-xs" :style="{ color: `var(--un-color-${currentPhase.color}-600, #6366f1)` }" />
@@ -269,14 +269,14 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
 <style scoped>
 .phase-fade-enter-active,
 .phase-fade-leave-active {
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 .phase-fade-enter-from {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(8px);
 }
 .phase-fade-leave-to {
   opacity: 0;
-  transform: translateY(-12px);
+  transform: translateY(-8px);
 }
 </style>

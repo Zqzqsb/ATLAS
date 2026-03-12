@@ -720,8 +720,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Execution Pipeline</span>
         </div>
 
-    <!-- Real-time Execution Cards (vertical stack with pipeline connector) -->
-    <div class="execution-pipeline pipeline-connector space-y-4 mb-6">
+    <!-- Real-time Execution Cards (vertical stack) -->
+    <div class="execution-pipeline space-y-2 mb-6">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
@@ -729,9 +729,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
         :active="vectorSearchStage.active"
         :pending="isExecuting && !vectorSearchStage.active && !vectorSearchStage.completed"
-        :stage="workspaceStore.groundingStage"
         :completed="vectorSearchStage.completed"
         :duration="vectorSearchStage.duration"
+        :step-number="1"
         color="blue"
       >
         <template #content>
@@ -855,12 +855,13 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs text-gray-400">Waiting for pipeline to start</span>
             </div>
           </div>
-          <div v-else class="flex items-center gap-3 py-4 text-gray-400">
-            <div class="i-lucide-search text-lg opacity-40" />
-            <span class="text-sm">Waiting for query...</span>
-          </div>
         </template>
       </RealtimeCard>
+
+      <!-- Step connector 1→2 -->
+      <div class="step-connector flex items-center justify-center py-0.5">
+        <div class="w-px h-3 bg-gray-200" />
+      </div>
 
       <!-- Stage 2: Schema Linking -->
       <RealtimeCard
@@ -870,6 +871,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"
         :completed="schemaLinkingStage.completed"
         :duration="schemaLinkingStage.duration"
+        :step-number="2"
         color="cyan"
       >
         <template #content>
@@ -1157,6 +1159,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </template>
       </RealtimeCard>
 
+      <!-- Step connector 2→3 -->
+      <div class="step-connector flex items-center justify-center py-0.5">
+        <div class="w-px h-3 bg-gray-200" />
+      </div>
+
       <!-- Stage 3: SQL Generation -->
       <RealtimeCard
         title="ReAct SQL Generation"
@@ -1165,6 +1172,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :pending="isExecuting && !sqlGenerationStage.active && !sqlGenerationStage.completed"
         :completed="sqlGenerationStage.completed"
         :duration="sqlGenerationStage.duration"
+        :step-number="3"
         color="purple"
       >
         <template #content>
@@ -1319,10 +1327,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <span class="text-xs text-gray-400">Will start after schema linking completes</span>
                 </div>
               </div>
-              <div v-else class="flex items-center gap-3 py-4 text-gray-400">
-            <div class="i-lucide-code-2 text-lg opacity-40" />
-                <span class="text-sm">Waiting for SQL generation...</span>
-              </div>
             </div>
           </div>
         </template>
@@ -1381,26 +1385,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 .execution-area {
   max-height: calc(100vh - 130px);
   overflow-y: auto;
-}
-
-/* Pipeline connector: vertical line between cards */
-.pipeline-connector {
-  position: relative;
-}
-.pipeline-connector > :not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 23px;
-  width: 2px;
-  height: 16px;
-  background: linear-gradient(to bottom, #e5e7eb, #d1d5db);
-  transform: translateY(100%);
-  bottom: 0;
-  z-index: 1;
-}
-/* Use relative positioning on children for the connector */
-.pipeline-connector > * {
-  position: relative;
 }
 
 .query-input :deep(.n-input__textarea-el) {

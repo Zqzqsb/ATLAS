@@ -11,33 +11,43 @@ const props = defineProps<{
   color?: 'blue' | 'cyan' | 'purple'
   duration?: number // Duration in ms
   completed?: boolean
+  stepNumber?: number // 1, 2, 3 — shown in idle/pending state
 }>()
+
+// Whether this card is in idle state (not active, not completed, not pending)
+const isIdle = computed(() => !props.active && !props.completed && !props.pending)
+
+// Show content only when there's something meaningful to display
+const showContent = computed(() => props.active || props.completed)
 
 const colorClasses = computed(() => {
   const colors = {
     blue: {
-      gradient: 'from-blue-50 to-blue-100/50',
+      gradient: 'from-blue-50/80 to-white',
       border: 'border-blue-200',
       glow: 'shadow-blue-500/10',
       icon: 'text-blue-600',
       iconBg: 'bg-blue-100',
-      pulse: 'bg-blue-500'
+      pulse: 'bg-blue-500',
+      step: 'text-blue-400 bg-blue-50 border-blue-100',
     },
     cyan: {
-      gradient: 'from-cyan-50 to-cyan-100/50',
+      gradient: 'from-cyan-50/80 to-white',
       border: 'border-cyan-200',
       glow: 'shadow-cyan-500/10',
       icon: 'text-cyan-600',
       iconBg: 'bg-cyan-100',
-      pulse: 'bg-cyan-500'
+      pulse: 'bg-cyan-500',
+      step: 'text-cyan-400 bg-cyan-50 border-cyan-100',
     },
     purple: {
-      gradient: 'from-purple-50 to-purple-100/50',
+      gradient: 'from-purple-50/80 to-white',
       border: 'border-purple-200',
       glow: 'shadow-purple-500/10',
       icon: 'text-purple-600',
       iconBg: 'bg-purple-100',
-      pulse: 'bg-purple-500'
+      pulse: 'bg-purple-500',
+      step: 'text-purple-400 bg-purple-50 border-purple-100',
     }
   }
   return colors[props.color || 'blue']
@@ -53,24 +63,35 @@ const colorClasses = computed(() => {
         : completed
           ? 'bg-white border border-emerald-200 shadow-sm'
           : pending
-            ? `bg-white border border-dashed ${colorClasses.border} opacity-90`
-            : 'bg-white border border-gray-200/80 opacity-60'
+            ? `bg-white border border-dashed ${colorClasses.border}`
+            : 'bg-white border border-gray-200/60'
     ]"
   >
     <!-- Header -->
     <div 
-      class="card-header px-4 py-3 border-b transition-colors duration-200" 
-      :class="active 
-        ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient}` 
-        : completed 
-          ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white' 
-          : pending 
-            ? 'border-gray-200 bg-gray-50/30' 
-            : 'border-gray-100'"
+      class="card-header px-4 transition-colors duration-200" 
+      :class="[
+        active 
+          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-3 border-b` 
+          : completed 
+            ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-3 border-b' 
+            : pending 
+              ? 'bg-gray-50/30 py-2.5' 
+              : 'py-2.5'
+      ]"
     >
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
+          <!-- Step number badge for idle/pending; icon for active/completed -->
           <div 
+            v-if="isIdle && stepNumber"
+            class="w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold"
+            :class="colorClasses.step"
+          >
+            {{ stepNumber }}
+          </div>
+          <div 
+            v-else
             class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm"
             :class="active ? `${colorClasses.iconBg} ring-1 ring-${props.color || 'blue'}-200` : completed ? 'bg-emerald-50 ring-1 ring-emerald-200' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-50 border border-gray-100'"
           >
@@ -84,15 +105,14 @@ const colorClasses = computed(() => {
           </div>
           <div>
             <h3 
-              class="font-medium text-sm transition-colors duration-200" 
-              :class="active || completed ? 'text-gray-900' : pending ? 'text-gray-600' : 'text-gray-400'"
+              class="font-medium transition-colors duration-200" 
+              :class="[
+                active || completed ? 'text-gray-900 text-sm' : pending ? 'text-gray-500 text-sm' : 'text-gray-400 text-[13px]'
+              ]"
             >
               {{ title }}
             </h3>
-            <p v-if="stage" class="text-xs text-gray-400 mt-0.5">
-              {{ stage }}
-            </p>
-            <p v-else-if="subtitle && completed" class="text-xs text-gray-400 mt-0.5">
+            <p v-if="subtitle && completed" class="text-xs text-gray-400 mt-0.5">
               {{ subtitle }}
             </p>
           </div>
@@ -116,19 +136,18 @@ const colorClasses = computed(() => {
             </div>
           </template>
           <template v-else-if="pending">
-            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 ring-1 ring-gray-200/60">
+            <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 ring-1 ring-gray-200/60">
               <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" />
               <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" style="animation-delay: 0.3s" />
               <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" style="animation-delay: 0.6s" />
-              <span class="text-[10px] text-gray-400 font-medium ml-0.5">Queued</span>
             </div>
           </template>
         </div>
       </div>
     </div>
 
-    <!-- Content -->
-    <div class="card-content p-4 max-h-[560px] overflow-y-auto custom-scrollbar">
+    <!-- Content: only shown when active or completed -->
+    <div v-if="showContent" class="card-content p-4 max-h-[560px] overflow-y-auto custom-scrollbar">
       <slot name="content" />
     </div>
   </div>

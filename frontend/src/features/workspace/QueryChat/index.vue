@@ -566,14 +566,16 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
     <!-- Two-Column Layout: Left = Config, Right = Execution -->
     <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-0 min-h-full">
       <!-- LEFT: Configuration Panel -->
-      <div class="config-panel p-5 border-r border-gray-100 bg-gray-50/50">
+      <div class="config-panel p-5 border-r border-gray-200/80 bg-gradient-to-b from-slate-50/80 to-white">
         <!-- Section: Parameters -->
         <div class="mb-5">
           <div class="flex items-center gap-2 mb-3">
-            <div class="i-lucide-settings text-sm text-gray-400" />
-            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Parameters</span>
+            <div class="w-5 h-5 rounded-md bg-primary-50 flex items-center justify-center">
+              <div class="i-lucide-settings text-xs text-primary-500" />
+            </div>
+            <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Parameters</span>
           </div>
-          <div class="space-y-3">
+          <div class="space-y-3 p-3.5 rounded-lg bg-white border border-gray-100 shadow-sm">
             <!-- Model Selection -->
             <div class="param-item">
               <label class="text-xs font-medium text-gray-500 mb-1.5 block">Model</label>
@@ -622,15 +624,18 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
         </div>
+        </div>
 
         <!-- Divider -->
-        <div class="border-t border-gray-100 my-4" />
+        <div class="border-t border-gray-150 my-4" />
 
         <!-- Section: Question Input -->
         <div class="mb-4">
           <div class="flex items-center gap-2 mb-3">
-            <div class="i-lucide-message-square text-sm text-gray-400" />
-            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Question</span>
+            <div class="w-5 h-5 rounded-md bg-indigo-50 flex items-center justify-center">
+              <div class="i-lucide-message-square text-xs text-indigo-500" />
+            </div>
+            <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Question</span>
           </div>
           <div class="relative">
             <NInput
@@ -676,9 +681,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         <div class="flex items-center gap-2">
           <button
             :disabled="!question.trim() || isExecuting"
-            class="execute-btn flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="execute-btn flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary-500/20 hover:shadow-lg hover:shadow-primary-500/30"
             :class="isExecuting 
-              ? 'bg-amber-500 hover:bg-amber-600' 
+              ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20 hover:shadow-amber-500/30' 
               : 'bg-primary-600 hover:bg-primary-700'"
             @click="handleExecute"
           >
@@ -710,12 +715,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- RIGHT: Execution Pipeline -->
       <div class="execution-area p-5 overflow-y-auto">
         <div class="flex items-center gap-2 mb-4">
-          <div class="i-lucide-workflow text-sm text-gray-400" />
-          <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Pipeline</span>
+          <div class="w-5 h-5 rounded-md bg-emerald-50 flex items-center justify-center">
+            <div class="i-lucide-workflow text-xs text-emerald-500" />
+          </div>
+          <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Execution Pipeline</span>
         </div>
 
-    <!-- Real-time Execution Cards (vertical stack) -->
-    <div class="execution-pipeline space-y-4 mb-6">
+    <!-- Real-time Execution Cards (vertical stack with pipeline connector) -->
+    <div class="execution-pipeline pipeline-connector space-y-4 mb-6">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
@@ -749,10 +756,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
           </div>
-          <div v-else-if="vectorSearchStage.empty" class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-lucide-folder-open text-3xl mb-2 opacity-40" />
-            <span class="text-sm font-medium">No context available</span>
-            <span class="text-xs mt-1 opacity-70">Generate Rich Context to enable vector retrieval</span>
+          <div v-else-if="vectorSearchStage.empty" class="flex items-center gap-3 py-4 text-gray-400">
+            <div class="i-lucide-folder-open text-lg opacity-40" />
+            <div>
+              <span class="text-sm block">No context available</span>
+              <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
+            </div>
           </div>
           <div v-else-if="workspaceStore.groundingResult" class="space-y-4 content-fade">
             <!-- Tables with confidence -->
@@ -847,9 +856,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs text-gray-400">Waiting for pipeline to start</span>
             </div>
           </div>
-          <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-lucide-search text-3xl mb-2 opacity-30" />
-            <span class="text-sm font-medium">Waiting for query...</span>
+          <div v-else class="flex items-center gap-3 py-4 text-gray-400">
+            <div class="i-lucide-search text-lg opacity-40" />
+            <span class="text-sm">Waiting for query...</span>
           </div>
         </template>
       </RealtimeCard>
@@ -1141,9 +1150,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <span class="text-xs text-gray-400">Will start after vector retrieval completes</span>
               </div>
             </div>
-            <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-lucide-link text-3xl mb-2 opacity-30" />
-              <span class="text-sm font-medium">Waiting for schema linking...</span>
+            <div v-else class="flex items-center gap-3 py-4 text-gray-400">
+            <div class="i-lucide-link text-lg opacity-40" />
+              <span class="text-sm">Waiting for schema linking...</span>
             </div>
           </div>
         </template>
@@ -1311,9 +1320,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <span class="text-xs text-gray-400">Will start after schema linking completes</span>
                 </div>
               </div>
-              <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
-            <div class="i-lucide-code-2 text-3xl mb-2 opacity-30" />
-                <span class="text-sm font-medium">Waiting for SQL generation...</span>
+              <div v-else class="flex items-center gap-3 py-4 text-gray-400">
+            <div class="i-lucide-code-2 text-lg opacity-40" />
+                <span class="text-sm">Waiting for SQL generation...</span>
               </div>
             </div>
           </div>
@@ -1373,6 +1382,26 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 .execution-area {
   max-height: calc(100vh - 130px);
   overflow-y: auto;
+}
+
+/* Pipeline connector: vertical line between cards */
+.pipeline-connector {
+  position: relative;
+}
+.pipeline-connector > :not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 23px;
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(to bottom, #e5e7eb, #d1d5db);
+  transform: translateY(100%);
+  bottom: 0;
+  z-index: 1;
+}
+/* Use relative positioning on children for the connector */
+.pipeline-connector > * {
+  position: relative;
 }
 
 .query-input :deep(.n-input__textarea-el) {

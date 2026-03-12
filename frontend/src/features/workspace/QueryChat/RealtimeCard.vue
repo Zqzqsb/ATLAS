@@ -46,27 +46,33 @@ const colorClasses = computed(() => {
 
 <template>
   <div 
-    class="realtime-card rounded-lg overflow-hidden transition-all duration-300"
+    class="realtime-card rounded-xl overflow-hidden transition-all duration-300"
     :class="[
       active 
-        ? `bg-white border-2 ${colorClasses.border} shadow-sm`
+        ? `bg-white border-2 ${colorClasses.border} shadow-md ${colorClasses.glow}`
         : completed
-          ? 'bg-white border border-emerald-200'
+          ? 'bg-white border border-emerald-200 shadow-sm'
           : pending
             ? `bg-white border border-dashed ${colorClasses.border} opacity-90`
-            : 'bg-white border border-gray-200 opacity-70'
+            : 'bg-white border border-gray-200/80 opacity-60'
     ]"
   >
     <!-- Header -->
     <div 
       class="card-header px-4 py-3 border-b transition-colors duration-200" 
-      :class="active ? colorClasses.border : completed ? 'border-emerald-100' : pending ? 'border-gray-200' : 'border-gray-100'"
+      :class="active 
+        ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient}` 
+        : completed 
+          ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white' 
+          : pending 
+            ? 'border-gray-200 bg-gray-50/30' 
+            : 'border-gray-100'"
     >
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <div 
-            class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-200"
-            :class="active ? `${colorClasses.iconBg}` : completed ? 'bg-emerald-50' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-100'"
+            class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm"
+            :class="active ? `${colorClasses.iconBg} ring-1 ring-${props.color || 'blue'}-200` : completed ? 'bg-emerald-50 ring-1 ring-emerald-200' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-50 border border-gray-100'"
           >
             <div 
               :class="[
@@ -103,19 +109,19 @@ const colorClasses = computed(() => {
             <span class="text-xs text-gray-400 ml-1">Processing</span>
           </template>
           <template v-else-if="completed">
-            <div class="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
               <div class="i-lucide-check text-xs" />
-              <span v-if="duration" class="text-xs font-medium">{{ (duration / 1000).toFixed(2) }}s</span>
-              <span v-else class="text-xs font-medium">Done</span>
+              <span v-if="duration" class="text-xs font-semibold">{{ (duration / 1000).toFixed(2) }}s</span>
+              <span v-else class="text-xs font-semibold">Done</span>
             </div>
           </template>
           <template v-else-if="pending">
-            <div class="flex items-center gap-1.5">
-              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" />
-              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" style="animation-delay: 0.3s" />
-              <span class="pending-dot w-1.5 h-1.5 rounded-full bg-gray-300" style="animation-delay: 0.6s" />
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 ring-1 ring-gray-200/60">
+              <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" />
+              <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" style="animation-delay: 0.3s" />
+              <span class="pending-dot w-1 h-1 rounded-full bg-gray-300" style="animation-delay: 0.6s" />
+              <span class="text-[10px] text-gray-400 font-medium ml-0.5">Queued</span>
             </div>
-            <span class="text-xs text-gray-400 ml-1">Queued</span>
           </template>
         </div>
       </div>
@@ -129,10 +135,6 @@ const colorClasses = computed(() => {
 </template>
 
 <style scoped>
-.realtime-card {
-  min-height: 120px;
-}
-
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

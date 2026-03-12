@@ -715,6 +715,31 @@ func (p *AdaptivePipeline) buildGroundedContext(query string, linkResult *Linkin
 	}
 
 	ctx.SignalsSelected = len(ctx.Tables)
+
+	// Populate Relationships from foreign keys of selected tables
+	selectedSet := make(map[string]bool)
+	for _, t := range ctx.Tables {
+		selectedSet[t.Name] = true
+	}
+	for _, schema := range schemas {
+		if !selectedSet[schema.TableName] {
+			continue
+		}
+		for _, fk := range schema.ForeignKeys {
+			// Only include relationships where both sides are selected
+			if selectedSet[fk.ReferencedTable] {
+				ctx.Relationships = append(ctx.Relationships, RelationshipContext{
+					FromTable:  schema.TableName,
+					FromColumn: fk.Column,
+					ToTable:    fk.ReferencedTable,
+					ToColumn:   fk.ReferencedColumn,
+					Type:       "foreign_key",
+					Confidence: 1.0,
+				})
+			}
+		}
+	}
+
 	return ctx
 }
 

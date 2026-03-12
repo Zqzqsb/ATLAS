@@ -3,6 +3,7 @@ package grounding
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +12,18 @@ import (
 	"lucid/internal/lakebase"
 	"lucid/internal/logger"
 )
+
+// columnEntityRe parses "Column <table>.<column> (<type>)..." from entity_text
+var columnEntityRe = regexp.MustCompile(`^Column\s+(\S+)\.(\S+)\s+\(([^)]+)\)`)
+
+// parseColumnEntity extracts (table, column, dataType) from a column embedding text.
+func parseColumnEntity(entityText string) (table, column, dataType string, ok bool) {
+	m := columnEntityRe.FindStringSubmatch(entityText)
+	if len(m) < 4 {
+		return "", "", "", false
+	}
+	return m[1], m[2], m[3], true
+}
 
 // CoarseRetriever performs parallel vector search across multiple signal types
 type CoarseRetriever struct {
@@ -224,7 +237,7 @@ func (r *CoarseRetriever) retrieveByType(
 			continue
 		}
 
-		signals = append(signals, &RetrievalSignal{
+		sig := &RetrievalSignal{
 			ID:           result.ID,
 			SignalType:   signalType,
 			DatasourceID: dsID,
@@ -232,10 +245,52 @@ func (r *CoarseRetriever) retrieveByType(
 			Content:      result.EntityText,
 			Distance:     float32(result.Distance),
 			Score:        score,
-		})
+		}
+
+		// For column signals, parse "Column table.col (type): ..." to populate SourceTable/SourceColumn
+		if signalType == SignalTypeColumn {
+			if tbl, col, dataType, ok := parseColumnEntity(result.EntityText); ok {
+				sig.SourceTable = tbl
+				sig.SourceColumn = col
+				sig.Metadata = dataType // store parsed data type
+				sig.EntityName = tbl + "." + col // normalise to "table.column"
+			}
+		}
+
+		signals = append(signals, sig)
+	}
+
+	// Deduplicate column signals by table.column — keep highest score
+	if signalType == SignalTypeColumn {
+		signals = deduplicateColumnSignals(signals)
 	}
 
 	return signals, nil
+}
+
+// deduplicateColumnSignals keeps only the highest-score signal per table.column pair.
+func deduplicateColumnSignals(signals []*RetrievalSignal) []*RetrievalSignal {
+	best := make(map[string]*RetrievalSignal) // key = "table.column"
+	for _, sig := range signals {
+		key := sig.SourceTable + "." + sig.SourceColumn
+		if key == "." {
+			// Cannot parse — keep as-is via a unique key
+			key = fmt.Sprintf("__unparsed_%d", sig.ID)
+		}
+		if existing, ok := best[key]; !ok || sig.Score > existing.Score {
+			best[key] = sig
+		}
+	}
+
+	deduped := make([]*RetrievalSignal, 0, len(best))
+	for _, sig := range best {
+		deduped = append(deduped, sig)
+	}
+	// Sort by score descending so results are deterministic
+	sort.Slice(deduped, func(i, j int) bool {
+		return deduped[i].Score > deduped[j].Score
+	})
+	return deduped
 }
 
 // mapSignalToEntityType maps signal type to lakebase entity type

@@ -126,11 +126,17 @@ func (r *MySQLVectorRepository) SaveEmbeddingBatch(ctx context.Context, embeddin
 		}
 	}
 
-	// Use REPLACE INTO to handle duplicate keys (upsert behavior)
+	// Use INSERT ... ON DUPLICATE KEY UPDATE for proper upsert on (datasource_id, entity_type, entity_id)
 	query := `
-		REPLACE INTO rc_embeddings
+		INSERT INTO rc_embeddings
 		(datasource_id, entity_type, entity_id, entity_text, embedding, embedding_model)
 		VALUES (?, ?, ?, ?, VEC_FromText(?), ?)
+		ON DUPLICATE KEY UPDATE
+		entity_text = VALUES(entity_text),
+		embedding = VALUES(embedding),
+		embedding_model = VALUES(embedding_model),
+		is_stale = 0,
+		updated_at = NOW()
 	`
 
 	return r.pool.WithTransaction(ctx, func(tx *sql.Tx) error {

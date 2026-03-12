@@ -146,6 +146,11 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 		}
 	}
 
+	// 4. Ensure UNIQUE KEY uq_entity on rc_embeddings (datasource_id, entity_type, entity_id)
+	if err := ensureUniqueEmbeddingIndex(ctx, db, &applied); err != nil {
+		logger.L().Warn("AutoMigrate: failed to ensure unique embedding index", "error", err)
+	}
+
 	if applied > 0 {
 		logger.L().Info("AutoMigrate: schema changes applied", "count", applied)
 	} else {
@@ -363,4 +368,56 @@ func normalizeType(t string) string {
 		return baseType + "(" + size + ")"
 	}
 	return baseType
+}
+
+// ensureUniqueEmbeddingIndex adds a UNIQUE KEY on rc_embeddings(datasource_id, entity_type, entity_id)
+// if it doesn't already exist. Before adding, it cleans up any existing duplicate rows (keeping
+// the latest one per group).
+func ensureUniqueEmbeddingIndex(ctx context.Context, db *sql.DB, applied *int) error {
+	// Check if the unique key already exists
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rc_embeddings' AND INDEX_NAME = 'uq_entity'
+	`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("check uq_entity index: %w", err)
+	}
+	if count > 0 {
+		return nil // already exists
+	}
+
+	// Check if the table exists at all
+	exists, err := tableExists(ctx, db, "rc_embeddings")
+	if err != nil || !exists {
+		return nil // table doesn't exist yet
+	}
+
+	// Delete duplicate rows — keep only the one with the highest id per (datasource_id, entity_type, entity_id)
+	logger.L().Info("AutoMigrate: cleaning duplicate embeddings before adding unique constraint")
+	res, err := db.ExecContext(ctx, `
+		DELETE e1 FROM rc_embeddings e1
+		INNER JOIN rc_embeddings e2
+		ON e1.datasource_id = e2.datasource_id
+		   AND e1.entity_type = e2.entity_type
+		   AND e1.entity_id = e2.entity_id
+		   AND e1.id < e2.id
+	`)
+	if err != nil {
+		return fmt.Errorf("delete duplicate embeddings: %w", err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		logger.L().Info("AutoMigrate: removed duplicate embeddings", "count", affected)
+	}
+
+	// Now add the unique key
+	logger.L().Info("AutoMigrate: adding UNIQUE KEY uq_entity on rc_embeddings")
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE rc_embeddings ADD UNIQUE KEY uq_entity (datasource_id, entity_type, entity_id)
+	`)
+	if err != nil {
+		return fmt.Errorf("add unique key uq_entity: %w", err)
+	}
+	*applied++
+	return nil
 }

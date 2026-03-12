@@ -410,6 +410,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 							var columns []GroundedColumnInfo
 							if rawSignals, ok := data["signals"].([]*grounding.RetrievalSignal); ok {
 								tableSet := make(map[string]bool)
+								colSet := make(map[string]bool)
 								for _, sig := range rawSignals {
 									switch sig.SignalType {
 									case grounding.SignalTypeTable:
@@ -420,12 +421,26 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 												Confidence: float64(sig.Score),
 											})
 										}
-									case grounding.SignalTypeColumn:
-										columns = append(columns, GroundedColumnInfo{
-											TableName:  sig.SourceTable,
-											ColumnName: sig.EntityName,
-											Confidence: float64(sig.Score),
-										})
+								case grounding.SignalTypeColumn:
+									colKey := sig.SourceTable + "." + sig.SourceColumn
+									if colKey == "." {
+										colKey = sig.EntityName // fallback for unparsed signals
+									}
+									// Dedup: skip if we already have a higher-confidence entry
+									if _, exists := colSet[colKey]; exists {
+										continue
+									}
+									colSet[colKey] = true
+									columnName := sig.SourceColumn
+									if columnName == "" {
+										columnName = sig.EntityName // fallback
+									}
+									columns = append(columns, GroundedColumnInfo{
+										TableName:  sig.SourceTable,
+										ColumnName: columnName,
+										DataType:   sig.Metadata, // data type parsed by coarse_retriever
+										Confidence: float64(sig.Score),
+									})
 									}
 								}
 							}
@@ -910,7 +925,13 @@ func convertGroundingResult(result *grounding.GroundingResult) *GroundingInfo {
 			Hint:        t.Hint,
 		})
 	}
+	colSeen := make(map[string]bool)
 	for _, col := range result.Context.Columns {
+		key := col.TableName + "." + col.ColumnName
+		if colSeen[key] {
+			continue
+		}
+		colSeen[key] = true
 		info.Columns = append(info.Columns, GroundedColumnInfo{
 			TableName:   col.TableName,
 			ColumnName:  col.ColumnName,

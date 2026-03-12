@@ -859,9 +859,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         <template #skeleton>
           <!-- Skeleton: simulated table rows -->
           <div class="space-y-2">
-            <div v-for="i in 3" :key="'sk1-'+i" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-50/80 border border-gray-100/80">
+            <div v-for="i in 3" :key="'sk1-'+i" class="skeleton-item flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-50/80 border border-gray-100/80">
               <div class="w-3.5 h-3.5 rounded bg-blue-100/60 shrink-0" />
-              <div class="h-2 rounded-full bg-gray-200/60" :style="{ width: [72, 56, 64][i-1] + '%' }" />
+              <div class="h-2 rounded-full skeleton-bar" :style="{ width: [72, 56, 64][i-1] + '%' }" />
             </div>
           </div>
         </template>
@@ -1170,11 +1170,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <!-- Skeleton: simulated column tags -->
           <div class="space-y-2.5">
             <div class="flex flex-wrap gap-1.5">
-              <div v-for="i in 5" :key="'sk2-'+i" class="px-2.5 py-1.5 rounded bg-cyan-50/60 border border-cyan-100/60">
-                <div class="h-2 rounded-full bg-cyan-200/40" :style="{ width: [48, 60, 36, 52, 44][i-1] + 'px' }" />
+              <div v-for="i in 5" :key="'sk2-'+i" class="skeleton-item px-2.5 py-1.5 rounded bg-cyan-50/60 border border-cyan-100/60">
+                <div class="h-2 rounded-full skeleton-bar" :style="{ width: [48, 60, 36, 52, 44][i-1] + 'px' }" />
               </div>
             </div>
-            <div class="h-2 rounded-full bg-gray-100 w-2/3" />
+            <div class="h-2 rounded-full skeleton-bar w-2/3" />
           </div>
         </template>
       </RealtimeCard>
@@ -1352,14 +1352,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </template>
         <template #skeleton>
           <!-- Skeleton: simulated SQL code block -->
-          <div class="rounded-lg bg-gray-900/5 border border-gray-100 p-3 space-y-2">
+          <div class="skeleton-item rounded-lg bg-gray-900/5 border border-gray-100 p-3 space-y-2">
             <div class="flex items-center gap-1.5 mb-1">
               <div class="w-2 h-2 rounded-full bg-purple-200/60" />
-              <div class="h-1.5 rounded-full bg-gray-200/50 w-10" />
+              <div class="h-1.5 rounded-full skeleton-bar w-10" />
             </div>
-            <div class="h-2 rounded-full bg-purple-100/40 w-3/4" />
-            <div class="h-2 rounded-full bg-purple-100/30 w-full" />
-            <div class="h-2 rounded-full bg-purple-100/20 w-1/2" />
+            <div class="h-2 rounded-full skeleton-bar w-3/4" />
+            <div class="h-2 rounded-full skeleton-bar w-full" />
+            <div class="h-2 rounded-full skeleton-bar w-1/2" />
           </div>
         </template>
       </RealtimeCard>

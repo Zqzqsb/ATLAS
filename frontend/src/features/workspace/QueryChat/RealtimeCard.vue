@@ -152,14 +152,14 @@ const colorClasses = computed(() => {
       <slot name="content" />
     </div>
 
-    <!-- Skeleton placeholder: shown in idle state -->
-    <div v-if="showSkeleton" class="px-4 pb-3 pt-1">
+    <!-- Skeleton placeholder: shown in idle state with shimmer animation -->
+    <div v-if="showSkeleton" class="skeleton-shimmer px-4 pb-3.5 pt-1.5">
       <slot name="skeleton">
         <!-- Default skeleton: 3 shimmer bars -->
         <div class="space-y-2">
-          <div class="h-2 rounded-full bg-gray-100 w-4/5" />
-          <div class="h-2 rounded-full bg-gray-100 w-3/5" />
-          <div class="h-2 rounded-full bg-gray-50 w-2/5" />
+          <div class="h-2 rounded-full skeleton-bar w-4/5" />
+          <div class="h-2 rounded-full skeleton-bar w-3/5" />
+          <div class="h-2 rounded-full skeleton-bar w-2/5" />
         </div>
       </slot>
     </div>
@@ -229,6 +229,65 @@ const colorClasses = computed(() => {
   to {
     opacity: 1;
     transform: scale(1) translateX(0);
+  }
+}
+
+/* Skeleton shimmer animation — sweeping highlight from left to right */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-bar {
+  background: linear-gradient(90deg, #f0f0f0 0%, #f0f0f0 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 100%
+  );
+  animation: shimmerSweep 2s ease-in-out infinite;
+}
+
+/* Shimmer for skeleton items that are NOT .skeleton-bar (tags, blocks etc) */
+.skeleton-shimmer :deep(.skeleton-item) {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer :deep(.skeleton-item)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+  animation: shimmerSweep 2s ease-in-out infinite;
+}
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
   }
 }
 </style>

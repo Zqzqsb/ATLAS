@@ -5,7 +5,7 @@ export { databaseApi } from './database'
 export { contextApi } from './context'
 export { queryApi } from './query'
 export { agentApi } from './agent'
-export type { AgentStatus, MaintenanceResult, ChangeLog, ChangeLogSummary, SchemaChange } from './agent'
+export type { ChangeLog } from './agent'
 export { evolutionApi } from './evolution'
 export type { EvolutionStatus, EvolutionStage, StageExecution, ContextAction, EvolutionEvent } from './evolution'
 

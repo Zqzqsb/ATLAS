@@ -10,7 +10,6 @@ import type { WorkspaceTab } from '@/types'
 import QueryChat from './QueryChat/index.vue'
 import SchemaBrowser from './SchemaBrowser/index.vue'
 import ContextManager from './ContextManager/index.vue'
-import Monitor from './Monitor/index.vue'
 import EvolutionPanel from './EvolutionPanel.vue'
 
 const route = useRoute()
@@ -21,8 +20,7 @@ const databaseStore = useDatabaseStore()
 const baseTabs: { key: WorkspaceTab; label: string; icon: string }[] = [
   { key: 'query', label: 'Query', icon: 'i-lucide-message-square' },
   { key: 'schema', label: 'Schema', icon: 'i-lucide-table-2' },
-  { key: 'context', label: 'Context', icon: 'i-lucide-file-text' },
-  { key: 'monitor', label: 'Monitor', icon: 'i-lucide-bar-chart-3' }
+  { key: 'context', label: 'Context', icon: 'i-lucide-file-text' }
 ]
 
 // Whether current database is the evolution demo DB
@@ -278,7 +276,6 @@ function goBack() {
         <QueryChat v-if="workspaceStore.activeTab === 'query'" />
         <SchemaBrowser v-else-if="workspaceStore.activeTab === 'schema'" />
         <ContextManager v-else-if="workspaceStore.activeTab === 'context'" />
-        <Monitor v-else-if="workspaceStore.activeTab === 'monitor'" />
         <EvolutionPanel v-else-if="workspaceStore.activeTab === 'evolution' && isEvolutionDb" />
       </div>
     </template>

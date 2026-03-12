@@ -624,7 +624,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
         </div>
-        </div>
 
         <!-- Divider -->
         <div class="border-t border-gray-150 my-4" />

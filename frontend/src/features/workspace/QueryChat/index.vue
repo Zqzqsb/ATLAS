@@ -747,16 +747,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   :key="table.name"
                   class="grounding-item px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
                 >
-                  <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <div class="i-lucide-table-2 text-xs text-blue-400 shrink-0" />
                     <span class="text-sm text-blue-800 font-medium">{{ table.name }}</span>
-                    <span 
-                      class="text-xs font-medium px-1.5 py-0.5 rounded"
-                      :class="table.confidence >= 0.8 
-                        ? 'bg-emerald-50 text-emerald-600' 
-                        : table.confidence >= 0.5 
-                          ? 'bg-blue-50 text-blue-600' 
-                          : 'bg-gray-100 text-gray-500'"
-                    >{{ table.confidence >= 0.8 ? 'High' : table.confidence >= 0.5 ? 'Medium' : 'Low' }}</span>
                   </div>
                   <div v-if="table.description" class="text-xs text-gray-500 mt-1 leading-relaxed truncate" :title="table.description">
                     {{ table.description }}

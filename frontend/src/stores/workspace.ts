@@ -703,10 +703,24 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function addContext(context: Omit<RichContext, 'id' | 'createdAt' | 'usageCount'>) {
+    if (!currentDatabase.value) return null
+
     try {
-      const newContext = await contextApi.create(context)
-      contexts.value.push(newContext)
-      return newContext
+      const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
+      if (!lakebaseId) throw new Error('No lakebase ID')
+
+      await contextApi.create(lakebaseId, {
+        tableName: context.tableName,
+        columnName: context.columnName,
+        type: context.type,
+        content: context.content
+      })
+
+      // Refresh contexts from server to get the canonical list
+      await fetchContexts()
+      // Also refresh schema since descriptions may have changed
+      await fetchSchema()
+      return true
     } catch (e: any) {
       console.error('Failed to add context:', e)
       return null
@@ -714,15 +728,28 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function updateContext(contextId: string, updates: Partial<RichContext>) {
-    if (!currentDatabaseId.value) return null
+    if (!currentDatabase.value) return null
 
     try {
-      const updated = await contextApi.update(currentDatabaseId.value, contextId, updates)
-      const index = contexts.value.findIndex(c => c.id === contextId)
-      if (index >= 0) {
-        contexts.value[index] = updated
-      }
-      return updated
+      // For update, we need the full context info to call the lakebase API
+      const existing = contexts.value.find(c => c.id === contextId)
+      if (!existing) throw new Error('Context not found')
+
+      const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
+      if (!lakebaseId) throw new Error('No lakebase ID')
+
+      // Use the same create/upsert endpoint (backend is idempotent)
+      await contextApi.create(lakebaseId, {
+        tableName: updates.tableName || existing.tableName,
+        columnName: updates.columnName ?? existing.columnName,
+        type: updates.type || existing.type,
+        content: updates.content || existing.content
+      })
+
+      // Refresh from server
+      await fetchContexts()
+      await fetchSchema()
+      return true
     } catch (e: any) {
       console.error('Failed to update context:', e)
       return null
@@ -730,14 +757,24 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function deleteContext(contextId: string) {
-    if (!currentDatabaseId.value) return false
+    if (!currentDatabase.value) return false
 
     try {
-      await contextApi.delete(currentDatabaseId.value, contextId)
-      const index = contexts.value.findIndex(c => c.id === contextId)
-      if (index >= 0) {
-        contexts.value.splice(index, 1)
-      }
+      const existing = contexts.value.find(c => c.id === contextId)
+      if (!existing) throw new Error('Context not found')
+
+      const lakebaseId = currentDatabase.value.metadata?.lakebaseId || currentDatabaseId.value
+      if (!lakebaseId) throw new Error('No lakebase ID')
+
+      await contextApi.delete(lakebaseId, {
+        tableName: existing.tableName,
+        columnName: existing.columnName,
+        type: existing.type
+      })
+
+      // Refresh from server
+      await fetchContexts()
+      await fetchSchema()
       return true
     } catch (e: any) {
       console.error('Failed to delete context:', e)

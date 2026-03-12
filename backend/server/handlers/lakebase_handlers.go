@@ -1083,3 +1083,177 @@ func (h *Handler) DeleteDatasource(c *gin.Context) {
 		"datasource": ds.Name,
 	})
 }
+
+// ===========================================
+// Manual Context CRUD API
+// ===========================================
+
+// addContextRequest represents the request body for adding a manual context
+type addContextRequest struct {
+	TableName  string `json:"table_name" binding:"required"`
+	ColumnName string `json:"column_name"`                        // empty = table-level
+	Type       string `json:"type" binding:"required"`            // description, example, synonym, value_mapping, business_rule, constraint, calculation
+	Content    string `json:"content" binding:"required"`
+}
+
+// AddContext manually adds a Rich Context entry for a datasource
+// POST /api/v1/lakebase/datasources/:id/context
+func (h *Handler) AddContext(c *gin.Context) {
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Lake-base service not available"})
+		return
+	}
+
+	_, dsID, ok := h.resolveDatasource(c)
+	if !ok {
+		return
+	}
+
+	var req addContextRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	log := logger.With("component", "add_context", "dsID", dsID, "table", req.TableName, "column", req.ColumnName, "type", req.Type)
+	log.Info("manually adding context")
+
+	var contextType string // for embedding callback
+	var writeErr error
+
+	switch req.Type {
+	case "description":
+		if req.ColumnName == "" {
+			// Table-level description → rc_tables.description
+			writeErr = h.lakebaseService.UpdateTableDescription(ctx, dsID, req.TableName, req.Content, "manual", 1.0)
+			contextType = "table_description"
+		} else {
+			// Column-level description → rc_columns.description
+			writeErr = h.lakebaseService.UpdateColumnDescription(ctx, dsID, req.TableName, req.ColumnName, req.Content, "manual", 1.0)
+			contextType = "column_description"
+		}
+	case "example":
+		if req.ColumnName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Example context requires a column name"})
+			return
+		}
+		writeErr = h.lakebaseService.UpdateColumnSampleValues(ctx, dsID, req.TableName, req.ColumnName, req.Content)
+		contextType = "column_sample_values"
+	case "synonym":
+		if req.ColumnName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Synonym context requires a column name"})
+			return
+		}
+		writeErr = h.lakebaseService.UpdateColumnSynonyms(ctx, dsID, req.TableName, req.ColumnName, req.Content)
+		contextType = "column_synonyms"
+	case "business_rule", "constraint", "calculation", "value_mapping":
+		// Store as a business term in rc_terms
+		term := req.TableName
+		if req.ColumnName != "" {
+			term = req.TableName + "." + req.ColumnName
+		}
+		writeErr = h.lakebaseService.UpsertTerm(ctx, dsID, term, req.Content, "", "", req.Type)
+		contextType = "business_term"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported context type: " + req.Type})
+		return
+	}
+
+	if writeErr != nil {
+		log.Error("failed to write context", "error", writeErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save context: " + writeErr.Error()})
+		return
+	}
+
+	log.Info("context saved, triggering embedding")
+
+	// Trigger embedding asynchronously
+	go func() {
+		embCtx, embCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer embCancel()
+		if embErr := h.lakebaseService.EmbedEntityByName(embCtx, dsID, contextType, req.TableName, req.ColumnName); embErr != nil {
+			logger.With("component", "add_context").Warn("embedding after manual add failed", "error", embErr)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":      true,
+		"message":      fmt.Sprintf("Context added for %s", req.TableName),
+		"table_name":   req.TableName,
+		"column_name":  req.ColumnName,
+		"context_type": req.Type,
+	})
+}
+
+// deleteContextRequest represents the request body for deleting a manual context
+type deleteContextRequest struct {
+	TableName  string `json:"table_name" binding:"required"`
+	ColumnName string `json:"column_name"`
+	Type       string `json:"type" binding:"required"`
+}
+
+// DeleteContext removes a specific Rich Context entry for a datasource
+// DELETE /api/v1/lakebase/datasources/:id/context
+func (h *Handler) DeleteContext(c *gin.Context) {
+	if h.lakebaseService == nil || !h.lakebaseService.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Lake-base service not available"})
+		return
+	}
+
+	_, dsID, ok := h.resolveDatasource(c)
+	if !ok {
+		return
+	}
+
+	var req deleteContextRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	log := logger.With("component", "delete_context", "dsID", dsID, "table", req.TableName, "column", req.ColumnName, "type", req.Type)
+	log.Info("manually deleting context")
+
+	var writeErr error
+
+	switch req.Type {
+	case "description":
+		if req.ColumnName == "" {
+			writeErr = h.lakebaseService.UpdateTableDescription(ctx, dsID, req.TableName, "", "manual", 0)
+		} else {
+			writeErr = h.lakebaseService.UpdateColumnDescription(ctx, dsID, req.TableName, req.ColumnName, "", "manual", 0)
+		}
+	case "example":
+		writeErr = h.lakebaseService.UpdateColumnSampleValues(ctx, dsID, req.TableName, req.ColumnName, "")
+	case "synonym":
+		writeErr = h.lakebaseService.UpdateColumnSynonyms(ctx, dsID, req.TableName, req.ColumnName, "")
+	case "business_rule", "constraint", "calculation", "value_mapping":
+		// For terms: delete the term from rc_terms by setting content empty
+		// The repo doesn't have a dedicated delete-term-by-name, so we use UpsertTerm with empty content
+		term := req.TableName
+		if req.ColumnName != "" {
+			term = req.TableName + "." + req.ColumnName
+		}
+		writeErr = h.lakebaseService.UpsertTerm(ctx, dsID, term, "", "", "", req.Type)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported context type: " + req.Type})
+		return
+	}
+
+	if writeErr != nil {
+		log.Error("failed to delete context", "error", writeErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete context: " + writeErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("Context deleted for %s", req.TableName),
+	})
+}

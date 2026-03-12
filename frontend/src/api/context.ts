@@ -6,121 +6,15 @@ import type {
   ContextFilter
 } from '@/types'
 
-// Mock Rich Contexts
-const mockContexts: RichContext[] = [
-  {
-    id: 'ctx-1',
-    databaseId: 'ecommerce',
-    tableId: 'customers',
-    tableName: 'customers',
-    columnName: 'cust_lvl',
-    type: 'value_mapping',
-    content: 'cust_lvl customer tier enum: 1=Basic, 2=Silver, 3=Gold, 4=Platinum VIP, 5=Diamond VIP',
-    createdAt: '2024-01-15T10:30:00Z',
-    source: 'manual',
-    confidence: 1.0,
-    usageCount: 45
-  },
-  {
-    id: 'ctx-2',
-    databaseId: 'ecommerce',
-    tableId: 'customers',
-    tableName: 'customers',
-    columnName: 'state',
-    type: 'synonym',
-    content: 'state field uses abbreviations: CA=California, NY=New York, TX=Texas, FL=Florida',
-    createdAt: '2024-01-15T11:00:00Z',
-    source: 'auto',
-    confidence: 0.95,
-    usageCount: 23
-  },
-  {
-    id: 'ctx-3',
-    databaseId: 'ecommerce',
-    tableId: 'customers',
-    tableName: 'customers',
-    columnName: 'phone',
-    type: 'description',
-    content: 'phone number format is inconsistent, may appear as 138-0000-1234, 13800001234, +86-138-0000-1234, etc.',
-    createdAt: '2024-01-14T16:45:00Z',
-    source: 'feedback',
-    confidence: 0.9,
-    usageCount: 12
-  },
-  {
-    id: 'ctx-4',
-    databaseId: 'ecommerce',
-    tableId: 'orders',
-    tableName: 'orders',
-    columnName: 'status',
-    type: 'value_mapping',
-    content: 'status order status enum: 0=Pending, 1=Paid, 2=Shipped, 3=Completed, 4=Cancelled, 5=Refunded',
-    createdAt: '2024-01-15T09:00:00Z',
-    source: 'manual',
-    confidence: 1.0,
-    usageCount: 67
-  },
-  {
-    id: 'ctx-5',
-    databaseId: 'ecommerce',
-    tableId: 'orders',
-    tableName: 'orders',
-    columnName: 'total_amount',
-    type: 'business_rule',
-    content: 'total_amount is stored in cents; divide by 100 when displaying. Actual payment = total_amount * (1 - discount / 100)',
-    createdAt: '2024-01-14T14:20:00Z',
-    source: 'manual',
-    confidence: 1.0,
-    usageCount: 34
-  },
-  {
-    id: 'ctx-6',
-    databaseId: 'ecommerce',
-    tableId: 'orders',
-    tableName: 'orders',
-    type: 'business_rule',
-    content: '"Active orders" means status IN (1, 2, 3) — i.e. Paid, Shipped, Completed',
-    createdAt: '2024-01-16T10:00:00Z',
-    source: 'feedback',
-    confidence: 0.95,
-    usageCount: 28
-  }
-]
-
 export const contextApi = {
   /**
-   * Get all contexts for a database
+   * Get all contexts for a database (via lakebase datasource API)
+   * This is handled by workspace store directly — kept for backward compat
    */
-  list: async (databaseId: string, filter?: ContextFilter): Promise<RichContext[]> => {
-    try {
-      const response = await client.get<RichContext[]>(`/databases/${databaseId}/contexts`, {
-        params: filter
-      })
-      return response.data
-    } catch {
-      // Return filtered mock data
-      let contexts = mockContexts.filter(c => c.databaseId === databaseId)
-
-      if (filter?.tableName) {
-        contexts = contexts.filter(c => c.tableName === filter.tableName)
-      }
-      if (filter?.columnName) {
-        contexts = contexts.filter(c => c.columnName === filter.columnName)
-      }
-      if (filter?.type) {
-        contexts = contexts.filter(c => c.type === filter.type)
-      }
-      if (filter?.search) {
-        const search = filter.search.toLowerCase()
-        contexts = contexts.filter(c =>
-          c.content.toLowerCase().includes(search) ||
-          c.tableName.toLowerCase().includes(search) ||
-          c.columnName?.toLowerCase().includes(search)
-        )
-      }
-
-      return contexts
-    }
+  list: async (databaseId: string, _filter?: ContextFilter): Promise<RichContext[]> => {
+    // Contexts are fetched via lakebase datasource API in workspace store
+    // This is kept as a stub for backward compatibility
+    return []
   },
 
   /**
@@ -131,117 +25,36 @@ export const contextApi = {
   },
 
   /**
-   * Get a single context by ID
+   * Create a new context via lakebase API
+   * Writes to rc_tables/rc_columns/rc_terms depending on type, and triggers embedding
    */
-  get: async (databaseId: string, contextId: string): Promise<RichContext | null> => {
-    try {
-      const response = await client.get<RichContext>(`/databases/${databaseId}/contexts/${contextId}`)
-      return response.data
-    } catch {
-      return mockContexts.find(c => c.id === contextId) || null
-    }
-  },
-
-  /**
-   * Create a new context
-   */
-  create: async (context: Omit<RichContext, 'id' | 'createdAt' | 'usageCount'>): Promise<RichContext> => {
-    try {
-      const response = await client.post<RichContext>(`/databases/${context.databaseId}/contexts`, context)
-      return response.data
-    } catch {
-      // Mock creation
-      const newContext: RichContext = {
-        ...context,
-        id: `ctx-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        usageCount: 0
-      }
-      mockContexts.push(newContext)
-      return newContext
-    }
-  },
-
-  /**
-   * Update an existing context
-   */
-  update: async (databaseId: string, contextId: string, updates: Partial<RichContext>): Promise<RichContext> => {
-    try {
-      const response = await client.put<RichContext>(`/databases/${databaseId}/contexts/${contextId}`, updates)
-      return response.data
-    } catch {
-      // Mock update
-      const index = mockContexts.findIndex(c => c.id === contextId)
-      if (index >= 0) {
-        mockContexts[index] = { ...mockContexts[index], ...updates, updatedAt: new Date().toISOString() } as RichContext
-        return mockContexts[index]!
-      }
-      throw new Error('Context not found')
-    }
-  },
-
-  /**
-   * Delete a context
-   */
-  delete: async (databaseId: string, contextId: string): Promise<void> => {
-    try {
-      await client.delete(`/databases/${databaseId}/contexts/${contextId}`)
-    } catch {
-      // Mock deletion
-      const index = mockContexts.findIndex(c => c.id === contextId)
-      if (index >= 0) {
-        mockContexts.splice(index, 1)
-      }
-    }
-  },
-
-  /**
-   * Auto-generate contexts from schema analysis
-   */
-  generateFromSchema: async (databaseId: string, tableName?: string): Promise<RichContext[]> => {
-    try {
-      const response = await client.post<RichContext[]>(`/databases/${databaseId}/contexts/generate`, {
-        tableName
-      })
-      return response.data
-    } catch {
-      // Mock generation - return sample generated contexts
-      await new Promise(r => setTimeout(r, 1500))
-      return [
-        {
-          id: `ctx-gen-${Date.now()}`,
-          databaseId,
-          tableId: tableName || 'unknown',
-          tableName: tableName || 'unknown',
-          type: 'description',
-          content: 'Auto-generated schema description from analysis',
-          createdAt: new Date().toISOString(),
-          source: 'auto',
-          confidence: 0.8,
-          usageCount: 0
-        }
-      ]
-    }
-  },
-
-  /**
-   * Import contexts from file
-   */
-  import: async (databaseId: string, file: File): Promise<{ imported: number; errors: string[] }> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    const response = await client.post(`/databases/${databaseId}/contexts/import`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  create: async (
+    lakebaseId: string | number,
+    context: { tableName: string; columnName?: string; type: ContextType; content: string }
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await client.post(`/lakebase/datasources/${lakebaseId}/context`, {
+      table_name: context.tableName,
+      column_name: context.columnName || '',
+      type: context.type,
+      content: context.content
     })
     return response.data
   },
 
   /**
-   * Export contexts to JSON
+   * Delete a context via lakebase API
+   * Clears the corresponding field in rc_tables/rc_columns or removes from rc_terms
    */
-  export: async (databaseId: string): Promise<Blob> => {
-    const response = await client.get(`/databases/${databaseId}/contexts/export`, {
-      responseType: 'blob'
+  delete: async (
+    lakebaseId: string | number,
+    context: { tableName: string; columnName?: string; type: string }
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await client.delete(`/lakebase/datasources/${lakebaseId}/context`, {
+      data: {
+        table_name: context.tableName,
+        column_name: context.columnName || '',
+        type: context.type
+      }
     })
     return response.data
   }

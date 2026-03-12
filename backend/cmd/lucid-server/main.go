@@ -254,6 +254,8 @@ func main() {
 		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContextStream)
 		api.DELETE("/lakebase/datasources/:id", h.DeleteDatasource)
 		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
+		api.POST("/lakebase/datasources/:id/context", h.AddContext)
+		api.DELETE("/lakebase/datasources/:id/context", h.DeleteContext)
 
 		// Evolution Demo routes
 		api.GET("/evolution/status", h.GetEvolutionStatus)

@@ -275,51 +275,51 @@ function submitFeedback() {
       </div>
 
       <!-- SQL Code -->
-      <div v-if="sql" class="bg-gray-50 border-b border-gray-100 p-4">
+      <div v-if="sql" class="bg-slate-50/50 border-b border-gray-150 p-5">
         <NScrollbar style="max-height: 300px">
-          <NCode :code="sql" language="sql" class="text-sm font-mono text-gray-800" />
+          <NCode :code="sql" language="sql" class="text-[13px] leading-relaxed font-mono text-gray-800 bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm" />
         </NScrollbar>
       </div>
 
       <!-- Auto-execute loading -->
-      <div v-if="autoExecuting" class="px-6 py-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
-        <div class="i-lucide-loader-2 animate-spin text-blue-500" />
-        <span class="text-sm text-blue-700 font-medium">Executing SQL to preview results...</span>
+      <div v-if="autoExecuting" class="px-6 py-3.5 bg-blue-50/50 border-b border-blue-100 flex items-center gap-2.5">
+        <div class="i-lucide-loader-2 animate-spin text-blue-500 text-lg" />
+        <span class="text-[13px] text-blue-700 font-bold tracking-wide">Executing SQL to preview results...</span>
       </div>
 
       <!-- Auto-execute error -->
-      <div v-if="autoExecuteError && !hasResult" class="px-6 py-3 bg-red-50 border-b border-red-100 flex items-center gap-2">
-        <div class="i-lucide-x-circle text-red-500" />
-        <span class="text-sm text-red-700 font-medium">Execution failed</span>
-        <span class="text-xs text-red-500">{{ autoExecuteError }}</span>
+      <div v-if="autoExecuteError && !hasResult" class="px-6 py-3.5 bg-red-50/80 border-b border-red-100 flex items-center gap-2.5">
+        <div class="i-lucide-x-circle text-red-500 text-lg" />
+        <span class="text-[13px] text-red-700 font-bold tracking-wide">Execution failed</span>
+        <span class="text-xs text-red-500 font-medium ml-2">{{ autoExecuteError }}</span>
       </div>
 
       <!-- Execution success: 0 rows -->
-      <div v-if="sql && !loading && !autoExecuting && !error && !autoExecuteError && autoExecuteResult !== null && autoExecuteResult.length === 0 && (!result || result.length === 0)" class="px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-        <div class="i-lucide-inbox text-amber-500" />
-        <span class="text-sm text-amber-700 font-medium">Query returned 0 rows</span>
-        <span class="text-xs text-amber-500">The query executed successfully but no matching data was found.</span>
+      <div v-if="sql && !loading && !autoExecuting && !error && !autoExecuteError && autoExecuteResult !== null && autoExecuteResult.length === 0 && (!result || result.length === 0)" class="px-6 py-3.5 bg-amber-50/80 border-b border-amber-100 flex items-center gap-2.5">
+        <div class="i-lucide-inbox text-amber-500 text-lg" />
+        <span class="text-[13px] text-amber-700 font-bold tracking-wide">Query returned 0 rows</span>
+        <span class="text-xs text-amber-600 font-medium ml-2">The query executed successfully but no matching data was found.</span>
       </div>
     </div>
 
     <!-- Execution Status Bar -->
-    <div v-if="sql && !loading && !autoExecuting && !error && hasResult" class="px-6 py-2 bg-green-50 border-b border-green-100 flex items-center gap-2">
-      <div class="i-lucide-check-circle text-green-500" />
-      <span class="text-sm text-green-700 font-medium">Query executed successfully</span>
-      <span class="text-xs text-green-500">{{ totalRows }} rows returned</span>
+    <div v-if="sql && !loading && !autoExecuting && !error && hasResult" class="px-6 py-2.5 bg-emerald-50/80 border-b border-emerald-100 flex items-center gap-2.5">
+      <div class="i-lucide-check-circle text-emerald-500 text-[15px]" />
+      <span class="text-[13px] text-emerald-700 font-bold tracking-wide">Query executed successfully</span>
+      <span class="text-[11px] text-emerald-600 font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-emerald-100/50 border border-emerald-200/60">{{ totalRows }} rows returned</span>
     </div>
 
     <!-- Execution Result -->
     <div v-if="hasResult" class="result-section">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
-            <div class="i-lucide-table-2 text-xl text-blue-600" />
+      <div class="flex items-center justify-between px-6 py-5 border-b border-gray-150 bg-slate-50/30">
+        <div class="flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/60 shadow-sm">
+            <div class="i-lucide-table-2 text-[20px] text-blue-600" />
           </div>
           <div>
-            <h3 class="font-bold text-gray-900">Query Result</h3>
-            <p class="text-xs text-gray-500 mt-0.5 font-medium">
-              {{ totalRows }} rows × {{ resultColumns.length }} columns
+            <h3 class="font-extrabold text-[15px] text-gray-900 tracking-tight">Query Result</h3>
+            <p class="text-[12px] text-gray-500 mt-0.5 font-semibold tracking-wide uppercase">
+              {{ totalRows }} rows <span class="mx-1 text-gray-300">|</span> {{ resultColumns.length }} columns
             </p>
           </div>
         </div>
@@ -329,21 +329,19 @@ function submitFeedback() {
           :options="exportOptions"
           @select="handleExport"
         >
-          <NButton quaternary size="small">
-            <template #icon>
-              <div class="i-lucide-download" />
-            </template>
+          <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-semibold text-[13px] shadow-sm transition-all">
+            <div class="i-lucide-download text-sm" />
             Export
-          </NButton>
+          </button>
         </NDropdown>
       </div>
 
-      <div class="p-6">
+      <div class="p-6 bg-white rounded-b-2xl">
         <NScrollbar x-scrollable style="max-height: 400px;">
           <table class="result-table w-full">
             <thead>
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 bg-gray-50 border-b border-gray-200 w-12 uppercase tracking-wider">
+                <th class="px-4 py-3 text-left text-[11px] font-bold text-gray-500 bg-slate-50/80 border-b border-gray-200 w-12 uppercase tracking-widest">
                   #
                 </th>
                 <th

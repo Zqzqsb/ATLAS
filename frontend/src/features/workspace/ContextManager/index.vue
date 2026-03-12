@@ -296,108 +296,109 @@ async function handlePruneAll() {
 </script>
 
 <template>
-  <div class="context-manager p-6">
+  <div class="context-manager max-w-[1800px] mx-auto p-8">
     <!-- Toolbar -->
-    <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center gap-3">
+    <div class="flex items-center justify-between mb-8 bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm">
+      <div class="flex items-center gap-4">
         <NInput
           v-model:value="searchKeyword"
-          placeholder="Search context..."
+          placeholder="Search context content..."
           clearable
-          style="width: 240px"
+          class="w-64"
         >
           <template #prefix>
             <div class="i-lucide-search text-gray-400" />
           </template>
         </NInput>
 
+        <div class="w-px h-6 bg-gray-200"></div>
+
         <NSelect
           v-model:value="filterTable"
           :options="tableOptions"
-          placeholder="Filter table"
+          placeholder="All Tables"
           clearable
-          style="width: 160px"
+          class="w-48"
         />
 
         <NSelect
           v-model:value="filterType"
           :options="typeOptions"
-          placeholder="Filter type"
+          placeholder="All Types"
           clearable
-          style="width: 140px"
+          class="w-40"
         />
       </div>
 
-      <div class="flex items-center gap-2">
-        <NButton @click="workspaceStore.fetchContexts">
-          <template #icon>
-            <div class="i-lucide-refresh-cw" />
-          </template>
+      <div class="flex items-center gap-3">
+        <button
+          class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
+          @click="workspaceStore.fetchContexts"
+        >
+          <div class="i-lucide-refresh-cw text-sm" />
           Refresh
-        </NButton>
+        </button>
         <NPopconfirm
           @positive-click="handlePruneAll"
           positive-text="Confirm"
           negative-text="Cancel"
         >
           <template #trigger>
-            <NButton 
-              type="error" 
-              :loading="isPruning"
-              :disabled="filteredContexts.length === 0"
+            <button 
+              class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="filteredContexts.length === 0 ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300'"
+              :disabled="filteredContexts.length === 0 || isPruning"
             >
-              <template #icon>
-                <div class="i-lucide-trash-2" />
-              </template>
+              <div v-if="isPruning" class="i-lucide-loader-2 animate-spin text-sm" />
+              <div v-else class="i-lucide-trash-2 text-sm" />
               Clear All
-            </NButton>
+            </button>
           </template>
-          <div class="max-w-xs">
-            <p class="font-semibold mb-2">Clear all Rich Context?</p>
-            <p class="text-sm text-gray-500">This will delete all table descriptions, column descriptions, business terms and their vector embeddings. This action cannot be undone.</p>
+          <div class="max-w-xs p-1">
+            <p class="font-bold text-gray-800 mb-2">Clear all Rich Context?</p>
+            <p class="text-[13px] text-gray-500 leading-relaxed">This will delete all table descriptions, column descriptions, business terms and their vector embeddings. This action cannot be undone.</p>
           </div>
         </NPopconfirm>
-        <NButton 
-          type="info" 
+        <button 
+          class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 border border-indigo-600 shadow-sm shadow-indigo-500/20 transition-all"
           @click="openGenerateConsole"
         >
-          <template #icon>
-            <div class="i-lucide-brain" />
-          </template>
+          <div class="i-lucide-brain text-sm" />
           AI Generate
-        </NButton>
-        <NButton type="primary" @click="openCreateDialog">
-          <template #icon>
-            <div class="i-lucide-plus" />
-          </template>
+        </button>
+        <button 
+          class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 border border-primary-700 shadow-sm shadow-primary-500/20 transition-all"
+          @click="openCreateDialog"
+        >
+          <div class="i-lucide-plus text-sm" />
           Add Context
-        </NButton>
+        </button>
       </div>
     </div>
 
     <!-- Context Type Legend -->
-    <div class="mb-5">
+    <div class="mb-6 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
       <NCollapse :default-expanded-names="[]" arrow-placement="left">
         <NCollapseItem name="legend">
           <template #header>
-            <div class="flex items-center gap-2">
-              <div class="i-lucide-book-open text-sm text-gray-500" />
-              <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Context Type Guide</span>
+            <div class="flex items-center gap-3 py-2.5 px-2">
+              <div class="i-lucide-book-open text-[18px] text-primary-500" />
+              <span class="text-[15px] font-extrabold text-gray-800 tracking-wide">Context Type Guide</span>
             </div>
           </template>
-          <div class="grid grid-cols-2 gap-3 mt-2">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-6 bg-slate-50/50 border-t border-gray-100">
             <div
               v-for="item in typeLegend"
               :key="item.type"
-              class="flex items-start gap-3 p-3 rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-colors"
+              class="flex flex-col gap-3 p-5 rounded-xl bg-white border border-gray-200/80 hover:border-primary-300 transition-all shadow-sm hover:shadow-md"
             >
-              <div class="flex-shrink-0 mt-0.5">
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold" :class="getTypeBadgeClasses(item.type)">
+              <div class="flex items-center">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold tracking-widest uppercase shadow-sm" :class="getTypeBadgeClasses(item.type)">
                   <div :class="item.icon" class="text-sm" />
                   {{ item.label }}
                 </span>
               </div>
-              <p class="text-xs text-gray-500 leading-relaxed">{{ item.desc }}</p>
+              <p class="text-[13px] text-gray-600 leading-relaxed font-medium">{{ item.desc }}</p>
             </div>
           </div>
         </NCollapseItem>
@@ -405,138 +406,180 @@ async function handlePruneAll() {
     </div>
 
     <!-- Loading -->
-    <div v-if="workspaceStore.loadingContexts" class="flex justify-center py-16">
+    <div v-if="workspaceStore.loadingContexts" class="flex flex-col items-center justify-center py-24 gap-4">
       <NSpin size="large" />
+      <span class="text-sm font-medium text-gray-500">Loading rich contexts...</span>
     </div>
 
     <!-- Empty -->
-    <NEmpty 
-      v-else-if="filteredContexts.length === 0" 
-      description="No context yet"
-      class="py-16"
-    >
-      <template #extra>
-        <NButton type="primary" @click="openCreateDialog">
-          Add First Context
-        </NButton>
-      </template>
-    </NEmpty>
+    <div v-else-if="filteredContexts.length === 0" class="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-gray-200/60 border-dashed">
+      <div class="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-6 shadow-sm">
+        <div class="i-lucide-lightbulb text-4xl text-gray-300" />
+      </div>
+      <h3 class="text-xl font-bold text-gray-800 tracking-tight mb-2">No Context Found</h3>
+      <p class="text-sm text-gray-500 max-w-md text-center mb-6">
+        Rich Context helps the LLM understand your schema better. You can manually add context or use AI to generate it automatically.
+      </p>
+      <div class="flex items-center gap-3">
+        <button 
+          class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 shadow-sm shadow-indigo-500/20 transition-all"
+          @click="openGenerateConsole"
+        >
+          <div class="i-lucide-brain text-base" />
+          Auto Generate
+        </button>
+        <button 
+          class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 shadow-sm transition-all"
+          @click="openCreateDialog"
+        >
+          <div class="i-lucide-plus text-base" />
+          Manual Add
+        </button>
+      </div>
+    </div>
 
     <!-- Structured Context List -->
     <div v-else class="context-tree">
       <!-- Expand/Collapse All -->
-      <div class="flex gap-2 mb-4">
-        <NButton size="small" quaternary @click="expandAll">
-          <template #icon><div class="i-lucide-unfold-vertical" /></template>
+      <div class="flex items-center gap-2 mb-6 bg-white px-4 py-3 rounded-xl border border-gray-200/60 shadow-sm">
+        <button 
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          @click="expandAll"
+        >
+          <div class="i-lucide-unfold-vertical text-gray-500" />
           Expand All
-        </NButton>
-        <NButton size="small" quaternary @click="collapseAll">
-          <template #icon><div class="i-lucide-fold-vertical" /></template>
+        </button>
+        <button 
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          @click="collapseAll"
+        >
+          <div class="i-lucide-fold-vertical text-gray-500" />
           Collapse All
-        </NButton>
-        <span class="text-sm text-gray-500 ml-auto">
-          {{ groupedContexts.length }} tables, {{ filteredContexts.length }} contexts
-        </span>
+        </button>
+        <div class="ml-auto flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 text-[13px] font-bold border border-indigo-100">
+            {{ groupedContexts.length }} Tables
+          </span>
+          <span class="px-2.5 py-1 rounded-md bg-primary-50 text-primary-700 text-[13px] font-bold border border-primary-100">
+            {{ filteredContexts.length }} Contexts
+          </span>
+        </div>
       </div>
 
       <!-- Table Groups -->
-      <div 
-        v-for="group in groupedContexts" 
-        :key="group.tableName"
-        class="table-group mb-3"
-      >
-        <!-- Table Header - Modern Collapsible -->
+      <div class="space-y-4">
         <div 
-          class="table-header flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 cursor-pointer hover:bg-gray-50 transition-all"
-          :class="expandedTables.has(group.tableName) ? 'rounded-t-lg border-b-0' : 'rounded-lg'"
-          @click="toggleTable(group.tableName)"
+          v-for="group in groupedContexts" 
+          :key="group.tableName"
+          class="table-group bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-300"
         >
-          <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <div class="i-lucide-table-2 text-lg text-blue-600" />
-          </div>
-          
-          <span class="font-semibold text-gray-900">{{ group.tableName }}</span>
-          
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {{ group.columnContexts.length + (group.tableContext ? 1 : 0) }} contexts
-          </span>
-
-          <div class="ml-auto flex items-center gap-3">
-            <button 
-              class="w-7 h-7 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-              @click.stop="openCreateDialogForTable(group.tableName)"
-            >
-              <div class="i-lucide-plus text-sm text-gray-600" />
-            </button>
+          <!-- Table Header - Modern Collapsible -->
+          <div 
+            class="table-header flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50/80 transition-all select-none"
+            :class="{ 'border-b border-gray-100 bg-slate-50/50': expandedTables.has(group.tableName) }"
+            @click="toggleTable(group.tableName)"
+          >
+            <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100/50 shadow-sm">
+              <div class="i-lucide-table-2 text-xl text-blue-600" />
+            </div>
             
-            <!-- Modern expand/collapse indicator -->
+            <span class="font-extrabold text-[17px] text-gray-800 tracking-tight">{{ group.tableName }}</span>
+            
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-500 border border-gray-200/80 uppercase tracking-widest">
+              {{ group.columnContexts.length + (group.tableContext ? 1 : 0) }} contexts
+            </span>
+
+            <div class="ml-auto flex items-center gap-3">
+              <button 
+                class="w-8 h-8 rounded-lg bg-white border border-gray-200 hover:border-primary-300 hover:text-primary-600 flex items-center justify-center transition-all shadow-sm"
+                @click.stop="openCreateDialogForTable(group.tableName)"
+                title="Add Context to Table"
+              >
+                <div class="i-lucide-plus text-sm" />
+              </button>
+              
+              <!-- Modern expand/collapse indicator -->
+              <div 
+                class="w-8 h-8 rounded-lg bg-gray-100/80 flex items-center justify-center transition-transform duration-300"
+                :class="{ 'rotate-180 bg-blue-50 text-blue-600': expandedTables.has(group.tableName) }"
+              >
+                <div class="i-lucide-chevron-down text-sm" :class="{ 'text-gray-500': !expandedTables.has(group.tableName) }" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Expanded Content - Modern Panel -->
+          <div 
+            v-if="expandedTables.has(group.tableName)"
+            class="table-content bg-slate-50/50 p-5 space-y-4"
+          >
+            <!-- Table-level Context -->
             <div 
-              class="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center transition-transform duration-200"
-              :class="{ 'rotate-180': expandedTables.has(group.tableName) }"
+              v-if="group.tableContext" 
+              class="context-item p-5 rounded-xl bg-white border border-amber-200/60 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
             >
-              <div class="i-lucide-chevron-down text-sm text-gray-500" />
+              <div class="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-100/50">
+                    <div class="i-lucide-file-text text-amber-600 text-sm" />
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Table Level</span>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/60 w-fit">{{ group.tableContext.type }}</span>
+                  </div>
+                </div>
+                <div class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors" @click="openEditDialog(group.tableContext!)" title="Edit">
+                    <div class="i-lucide-pencil text-xs text-gray-500" />
+                  </button>
+                  <button class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center transition-colors" @click="handleDelete(group.tableContext!)" title="Delete">
+                    <div class="i-lucide-trash-2 text-xs text-red-500" />
+                  </button>
+                </div>
+              </div>
+              <p class="text-[14px] text-gray-600 leading-relaxed font-medium pl-11">{{ group.tableContext.content }}</p>
             </div>
-          </div>
-        </div>
 
-        <!-- Expanded Content - Modern Panel -->
-        <div 
-          v-if="expandedTables.has(group.tableName)"
-          class="table-content bg-gray-50 border border-t-0 border-gray-200 rounded-b-lg p-4"
-        >
-          <!-- Table-level Context -->
-          <div 
-            v-if="group.tableContext" 
-            class="context-item p-4 mb-3 rounded-lg bg-white border border-amber-200"
-          >
-            <div class="flex items-center gap-2 mb-2">
-              <div class="w-6 h-6 rounded bg-amber-100 flex items-center justify-center">
-                <div class="i-lucide-file-text text-amber-600 text-sm" />
+            <!-- Column Contexts -->
+            <div 
+              v-for="colCtx in group.columnContexts" 
+              :key="colCtx.id"
+              class="context-item p-5 rounded-xl bg-white border border-emerald-200/60 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
+            >
+              <div class="absolute top-0 left-0 w-1 h-full bg-emerald-400"></div>
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center border border-emerald-100/50">
+                    <div class="i-lucide-columns-3 text-emerald-600 text-sm" />
+                  </div>
+                  <div class="flex flex-col">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-[13px] font-bold text-gray-400 uppercase tracking-widest">Column Level</span>
+                      <span class="text-[14px] font-black text-gray-800 tracking-tight">{{ colCtx.columnName }}</span>
+                    </div>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 w-fit">{{ colCtx.type }}</span>
+                  </div>
+                </div>
+                <div class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="w-8 h-8 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center transition-colors" @click="openEditDialog(colCtx)" title="Edit">
+                    <div class="i-lucide-pencil text-xs text-gray-500" />
+                  </button>
+                  <button class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center transition-colors" @click="handleDelete(colCtx)" title="Delete">
+                    <div class="i-lucide-trash-2 text-xs text-red-500" />
+                  </button>
+                </div>
               </div>
-              <span class="text-sm font-semibold text-gray-900">Table Description</span>
-              <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(group.tableContext.type)">{{ group.tableContext.type }}</span>
-              <div class="ml-auto flex gap-1">
-                <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(group.tableContext!)">
-                  <div class="i-lucide-pencil text-sm text-gray-500" />
-                </button>
-                <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(group.tableContext!)">
-                  <div class="i-lucide-trash-2 text-sm text-red-500" />
-                </button>
-              </div>
+              <p class="text-[14px] text-gray-600 leading-relaxed font-medium pl-11">{{ colCtx.content }}</p>
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed">{{ group.tableContext.content }}</p>
-          </div>
 
-          <!-- Column Contexts -->
-          <div 
-            v-for="colCtx in group.columnContexts" 
-            :key="colCtx.id"
-            class="context-item p-4 mb-3 rounded-lg bg-white border border-emerald-200"
-          >
-            <div class="flex items-center gap-2 mb-2">
-              <div class="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center">
-                <div class="i-lucide-columns-3 text-emerald-600 text-sm" />
-              </div>
-              <span class="text-sm font-semibold text-gray-900">{{ colCtx.columnName }}</span>
-              <span class="px-2 py-0.5 rounded text-xs font-medium" :class="getTypeBadgeClasses(colCtx.type)">{{ colCtx.type }}</span>
-              <div class="ml-auto flex gap-1">
-                <button class="w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center transition-colors" @click="openEditDialog(colCtx)">
-                  <div class="i-lucide-pencil text-sm text-gray-500" />
-                </button>
-                <button class="w-7 h-7 rounded hover:bg-red-50 flex items-center justify-center transition-colors" @click="handleDelete(colCtx)">
-                  <div class="i-lucide-trash-2 text-sm text-red-500" />
-                </button>
-              </div>
+            <!-- Empty columns hint -->
+            <div 
+              v-if="group.columnContexts.length === 0 && !group.tableContext"
+              class="text-[13px] font-medium text-gray-400 py-6 text-center border border-dashed border-gray-200 rounded-xl bg-white"
+            >
+              No context yet. Click the + button above to add.
             </div>
-            <p class="text-sm text-gray-600 leading-relaxed">{{ colCtx.content }}</p>
-          </div>
-
-          <!-- Empty columns hint -->
-          <div 
-            v-if="group.columnContexts.length === 0 && !group.tableContext"
-            class="text-sm text-gray-400 py-4 text-center"
-          >
-            No context yet. Click the + button above to add.
           </div>
         </div>
       </div>

@@ -130,7 +130,7 @@ const colorClasses = computed(() => {
 
 <style scoped>
 .realtime-card {
-  min-height: 280px;
+  min-height: 120px;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

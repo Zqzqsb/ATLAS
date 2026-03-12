@@ -562,93 +562,107 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 </script>
 
 <template>
-  <div class="query-chat min-h-full bg-gray-50 p-6">
-    <!-- Control Panel -->
-    <div class="control-panel mb-6 p-5 rounded-lg bg-white border border-gray-200">
-      <!-- Parameters (at top) -->
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100 mb-5">
-        <!-- Model Selection -->
-        <div class="param-item">
-          <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Model</label>
-          <NSelect
-            v-model:value="selectedModel"
-            :options="modelOptions"
-            :disabled="isExecuting"
-            size="small"
-          />
-        </div>
+  <div class="query-chat min-h-full bg-white">
+    <!-- Two-Column Layout: Left = Config, Right = Execution -->
+    <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-0 min-h-full">
+      <!-- LEFT: Configuration Panel -->
+      <div class="config-panel p-5 border-r border-gray-100 bg-gray-50/50">
+        <!-- Section: Parameters -->
+        <div class="mb-5">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="i-lucide-settings text-sm text-gray-400" />
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Parameters</span>
+          </div>
+          <div class="space-y-3">
+            <!-- Model Selection -->
+            <div class="param-item">
+              <label class="text-xs font-medium text-gray-500 mb-1.5 block">Model</label>
+              <NSelect
+                v-model:value="selectedModel"
+                :options="modelOptions"
+                :disabled="isExecuting"
+                size="small"
+              />
+            </div>
 
-        <!-- Max Iterations -->
-        <div class="param-item">
-          <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Max Iterations</label>
-          <NInputNumber
-            v-model:value="maxIterations"
-            :min="1"
-            :max="10"
-            :disabled="isExecuting"
-            size="small"
-            class="w-full"
-          />
-        </div>
+            <!-- Row: Max Iterations + Linking Mode -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="param-item">
+                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Max Iterations</label>
+                <NInputNumber
+                  v-model:value="maxIterations"
+                  :min="1"
+                  :max="10"
+                  :disabled="isExecuting"
+                  size="small"
+                  class="w-full"
+                />
+              </div>
+              <div class="param-item">
+                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Linking Mode</label>
+                <NSelect
+                  v-model:value="linkingMode"
+                  :options="linkingModeOptions"
+                  :disabled="isExecuting"
+                  size="small"
+                />
+              </div>
+            </div>
 
-        <!-- Switches -->
-        <div class="param-item flex items-end">
-          <div class="flex items-center gap-3 h-8">
-            <NSwitch v-model:value="useRichContext" :disabled="isExecuting" size="small" />
-            <span class="text-sm font-medium text-gray-700">Rich Context</span>
+            <!-- Switches Row -->
+            <div class="flex items-center gap-5 py-1">
+              <div class="flex items-center gap-2">
+                <NSwitch v-model:value="useRichContext" :disabled="isExecuting" size="small" />
+                <span class="text-xs font-medium text-gray-600">Rich Context</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
+                <span class="text-xs font-medium text-gray-600">Field Alignment</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="param-item flex items-end">
-          <div class="flex items-center gap-3 h-8">
-            <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
-            <span class="text-sm font-medium text-gray-700">Field Alignment</span>
+        <!-- Divider -->
+        <div class="border-t border-gray-100 my-4" />
+
+        <!-- Section: Question Input -->
+        <div class="mb-4">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="i-lucide-message-square text-sm text-gray-400" />
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Question</span>
           </div>
-        </div>
-
-        <div class="param-item">
-          <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Linking Mode</label>
-          <NSelect
-            v-model:value="linkingMode"
-            :options="linkingModeOptions"
-            :disabled="isExecuting"
-            size="small"
-          />
-        </div>
-      </div>
-
-      <!-- Question Input -->
-      <div class="mb-5">
-        <div class="relative">
-          <NInput
-            v-model:value="question"
-            type="textarea"
-            :autosize="{ minRows: 3, maxRows: 6 }"
-            placeholder="e.g. List all TV channels with their countries..."
-            :disabled="isExecuting"
-            class="query-input !text-lg !font-medium !p-4"
-            @keydown.ctrl.enter="handleExecute"
-          />
-          <div class="absolute right-4 bottom-4 text-xs text-gray-400 font-medium">
-            Ctrl + Enter to execute
+          <div class="relative">
+            <NInput
+              v-model:value="question"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 8 }"
+              placeholder="e.g. Which supplier has the highest profit?"
+              :disabled="isExecuting"
+              class="query-input"
+              @keydown.ctrl.enter="handleExecute"
+            />
+            <div class="absolute right-3 bottom-3 text-[10px] text-gray-300 font-medium">
+              Ctrl + Enter
+            </div>
           </div>
         </div>
 
         <!-- Example questions - Collapsible -->
-        <div class="mt-4 example-collapse">
-          <NCollapse :default-expanded-names="['examples']" arrow-placement="left">
+        <div class="mb-4 example-collapse">
+          <NCollapse arrow-placement="left">
             <NCollapseItem name="examples">
               <template #header>
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-gray-600">Example Questions</span>
-                  <span class="text-xs text-gray-400">(Spider Benchmark)</span>
+                  <span class="text-xs font-medium text-gray-500">Examples</span>
+                  <span class="text-[10px] text-gray-400">(Spider Benchmark)</span>
                 </div>
               </template>
-              <div class="flex flex-wrap gap-3 pt-2">
+              <div class="flex flex-wrap gap-2 pt-1">
                 <button
                   v-for="example in exampleQuestions"
                   :key="example"
-                  class="text-sm px-3 py-2 rounded-md bg-gray-100 text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors font-medium border border-gray-200 hover:border-primary-200"
+                  class="text-xs px-2.5 py-1.5 rounded-md bg-white text-gray-500 hover:bg-primary-50 hover:text-primary-600 transition-colors font-medium border border-gray-150 hover:border-primary-200"
                   @click="useExample(example)"
                 >
                   {{ example }}
@@ -657,45 +671,51 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </NCollapseItem>
           </NCollapse>
         </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+          <button
+            :disabled="!question.trim() || isExecuting"
+            class="execute-btn flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="isExecuting 
+              ? 'bg-amber-500 hover:bg-amber-600' 
+              : 'bg-primary-600 hover:bg-primary-700'"
+            @click="handleExecute"
+          >
+            <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin text-sm" />
+            <div v-else class="i-lucide-play text-sm" />
+            {{ isExecuting ? 'Executing...' : 'Execute' }}
+          </button>
+
+          <button
+            v-if="isExecuting"
+            class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors"
+            @click="handleStop"
+          >
+            <div class="i-lucide-square text-xs" />
+            Stop
+          </button>
+
+          <button
+            :disabled="isExecuting"
+            class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-gray-500 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            @click="handleClear"
+          >
+            <div class="i-lucide-eraser text-xs" />
+            Clear
+          </button>
+        </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-3 mt-5">
-        <button
-          :disabled="!question.trim() || isExecuting"
-          class="execute-btn flex items-center gap-2 px-5 py-2.5 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="isExecuting 
-            ? 'bg-amber-500 hover:bg-amber-600' 
-            : 'bg-primary-600 hover:bg-primary-700'"
-          @click="handleExecute"
-        >
-          <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin" />
-          <div v-else class="i-lucide-play" />
-          {{ isExecuting ? 'Executing...' : 'Execute Query' }}
-        </button>
+      <!-- RIGHT: Execution Pipeline -->
+      <div class="execution-area p-5 overflow-y-auto">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="i-lucide-workflow text-sm text-gray-400" />
+          <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Pipeline</span>
+        </div>
 
-        <button
-          v-if="isExecuting"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors"
-          @click="handleStop"
-        >
-          <div class="i-lucide-square" />
-          Stop
-        </button>
-
-        <button
-          :disabled="isExecuting"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white text-gray-600 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          @click="handleClear"
-        >
-          <div class="i-lucide-eraser" />
-          Clear
-        </button>
-      </div>
-    </div>
-
-    <!-- Real-time Execution Cards -->
-    <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+    <!-- Real-time Execution Cards (vertical stack) -->
+    <div class="execution-pipeline space-y-4 mb-6">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
@@ -1303,7 +1323,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
     <!-- Grounding Error (shown in-place, NOT in Generated SQL area) -->
     <div v-if="workspaceStore.groundingError" class="rounded-xl overflow-hidden bg-white border border-red-200 shadow-sm">
-      <div class="p-6 bg-red-50 border-l-4 border-red-500">
+      <div class="p-5 bg-red-50 border-l-4 border-red-500">
         <div class="flex items-start justify-between">
           <div class="flex items-start gap-3">
             <div class="i-lucide-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
@@ -1338,13 +1358,26 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       @retry="handleExecute"
       @feedback="handleFeedback"
     />
+      </div><!-- end execution-area -->
+    </div><!-- end grid -->
   </div>
 </template>
 
 <style scoped>
+/* Config panel styling */
+.config-panel {
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+}
+
+.execution-area {
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+}
+
 .query-input :deep(.n-input__textarea-el) {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
 }
 
 .example-collapse :deep(.n-collapse-item__header) {

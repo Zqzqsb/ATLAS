@@ -575,10 +575,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
             <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Parameters</span>
           </div>
-          <div class="space-y-3 p-3.5 rounded-lg bg-white border border-gray-100 shadow-sm">
+          <div class="space-y-4 p-4 rounded-xl bg-white border border-gray-150 shadow-sm">
             <!-- Model Selection -->
             <div class="param-item">
-              <label class="text-xs font-medium text-gray-500 mb-1.5 block">Model</label>
+              <label class="text-xs font-semibold text-gray-500 mb-2 block tracking-wide">Model</label>
               <NSelect
                 v-model:value="selectedModel"
                 :options="modelOptions"
@@ -588,9 +588,9 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
 
             <!-- Row: Max Iterations + Linking Mode -->
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-4">
               <div class="param-item">
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Max Iterations</label>
+                <label class="text-xs font-semibold text-gray-500 mb-2 block tracking-wide">Max Iterations</label>
                 <NInputNumber
                   v-model:value="maxIterations"
                   :min="1"
@@ -601,7 +601,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 />
               </div>
               <div class="param-item">
-                <label class="text-xs font-medium text-gray-500 mb-1.5 block">Linking Mode</label>
+                <label class="text-xs font-semibold text-gray-500 mb-2 block tracking-wide">Linking Mode</label>
                 <NSelect
                   v-model:value="linkingMode"
                   :options="linkingModeOptions"
@@ -612,14 +612,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
 
             <!-- Switches Row -->
-            <div class="flex items-center gap-5 py-1">
+            <div class="flex items-center justify-between pt-2 border-t border-gray-50">
               <div class="flex items-center gap-2">
                 <NSwitch v-model:value="useRichContext" :disabled="isExecuting" size="small" />
-                <span class="text-xs font-medium text-gray-600">Rich Context</span>
+                <span class="text-xs font-semibold text-gray-600">Rich Context</span>
               </div>
               <div class="flex items-center gap-2">
                 <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
-                <span class="text-xs font-medium text-gray-600">Field Alignment</span>
+                <span class="text-xs font-semibold text-gray-600">Field Alignment</span>
               </div>
             </div>
           </div>
@@ -677,7 +677,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3 mt-5">
           <button
             :disabled="!question.trim() || isExecuting"
             class="execute-btn flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary-500/20 hover:shadow-lg hover:shadow-primary-500/30"
@@ -686,42 +686,45 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               : 'bg-primary-600 hover:bg-primary-700'"
             @click="handleExecute"
           >
-            <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin text-sm" />
-            <div v-else class="i-lucide-play text-sm" />
-            {{ isExecuting ? 'Executing...' : 'Execute' }}
+            <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin text-base" />
+            <div v-else class="i-lucide-play text-base" />
+            <span>{{ isExecuting ? 'Executing...' : 'Execute' }}</span>
           </button>
 
           <button
             v-if="isExecuting"
-            class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-red-500 text-white font-medium text-sm hover:bg-red-600 transition-colors"
+            class="flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-medium text-sm transition-colors"
             @click="handleStop"
           >
-            <div class="i-lucide-square text-xs" />
-            Stop
+            <div class="i-lucide-square text-sm" />
+            <span>Stop</span>
           </button>
 
           <button
             :disabled="isExecuting"
-            class="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-gray-500 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-gray-600 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
             @click="handleClear"
           >
-            <div class="i-lucide-eraser text-xs" />
-            Clear
+            <div class="i-lucide-eraser text-sm" />
+            <span>Clear</span>
           </button>
         </div>
       </div>
 
       <!-- RIGHT: Execution Pipeline -->
-      <div class="execution-area p-5 overflow-y-auto">
-        <div class="flex items-center gap-2 mb-4">
-          <div class="w-5 h-5 rounded-md bg-emerald-50 flex items-center justify-center">
-            <div class="i-lucide-workflow text-xs text-emerald-500" />
+      <div class="execution-area p-6 xl:p-8 overflow-y-auto bg-slate-50/30">
+        <div class="flex flex-col mb-8">
+          <div class="flex items-center gap-2 mb-1.5">
+            <div class="w-6 h-6 rounded-md bg-emerald-100/80 flex items-center justify-center border border-emerald-200/50 shadow-sm">
+              <div class="i-lucide-workflow text-[13px] text-emerald-600" />
+            </div>
+            <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest">Execution Pipeline</h2>
           </div>
-          <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Execution Pipeline</span>
+          <p class="text-[13px] text-gray-400 pl-8">Real-time trace of adaptive schema linking and query generation</p>
         </div>
 
     <!-- Real-time Execution Cards (vertical stack) -->
-    <div class="execution-pipeline space-y-2 mb-6">
+    <div class="execution-pipeline space-y-4 mb-8">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"

@@ -28,6 +28,14 @@ const isEvolutionDb = computed(() => {
   return workspaceStore.currentDatabase?.name === 'lucid_evolution'
 })
 
+// Database description for the banner
+const dbDescription = computed(() => {
+  const db = workspaceStore.currentDatabase
+  if (db?.description) return db.description
+  if (isSpiderMode.value) return 'Spider benchmark dataset — standardized Text-to-SQL evaluation with curated query scenarios'
+  return ''
+})
+
 // Tabs — include Evolution tab only for evolution demo DB
 const tabs = computed(() => {
   if (isEvolutionDb.value) {
@@ -160,52 +168,64 @@ function goBack() {
 
     <!-- Workspace content -->
     <template v-else>
-      <!-- Database header -->
-      <div class="database-header bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-20">
+      <!-- Database header banner -->
+      <div class="database-header bg-white border-b border-gray-200 px-6 py-5 sticky top-[56px] z-20">
         <div class="max-w-[1800px] mx-auto">
-          <div class="flex items-center gap-4">
-            <button 
-              class="group w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-primary-50 transition-colors"
-              @click="goBack"
-            >
-              <div class="i-lucide-arrow-left text-lg text-gray-500 group-hover:text-primary-600 transition-colors" />
-            </button>
-            
-            <div class="flex items-center gap-3 flex-1">
-              <!-- Spider mode: special icon -->
-              <div 
-                class="w-10 h-10 rounded-lg flex items-center justify-center"
-                :class="isSpiderMode 
-                  ? 'bg-violet-100 text-violet-600' 
-                  : isEvolutionDb 
-                    ? 'bg-amber-100 text-amber-600'
-                    : 'bg-primary-50 text-primary-600'"
+          <div class="flex items-start justify-between">
+            <div class="flex items-start gap-4">
+              <!-- Back button -->
+              <button 
+                class="group w-9 h-9 mt-0.5 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-primary-50 transition-colors shrink-0"
+                @click="goBack"
               >
-                <span v-if="isSpiderMode" class="text-xl">🕷️</span>
-                <span v-else-if="isEvolutionDb" class="text-xl">🧬</span>
-                <div v-else class="i-lucide-database text-xl" />
+                <div class="i-lucide-arrow-left text-lg text-gray-500 group-hover:text-primary-600 transition-colors" />
+              </button>
+              
+              <!-- Icon -->
+              <div 
+                class="w-11 h-11 mt-px rounded-xl flex items-center justify-center shrink-0 shadow-sm border"
+                :class="isSpiderMode 
+                  ? 'bg-violet-50 text-violet-600 border-violet-100' 
+                  : isEvolutionDb 
+                    ? 'bg-amber-50 text-amber-600 border-amber-100'
+                    : 'bg-primary-50 text-primary-600 border-primary-100'"
+              >
+                <span v-if="isSpiderMode" class="text-2xl">🕷️</span>
+                <span v-else-if="isEvolutionDb" class="text-2xl">🧬</span>
+                <div v-else class="i-lucide-database text-2xl" />
               </div>
 
-              <div class="flex-1">
-                <div class="flex items-center gap-3">
-                  <h1 class="text-lg font-semibold text-gray-900">
-                    <template v-if="isSpiderMode">
-                      Spider Dataset
-                    </template>
-                    <template v-else>
-                      {{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}
-                    </template>
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3 flex-wrap">
+                  <h1 class="text-xl font-bold text-gray-900 tracking-tight">
+                    <template v-if="isSpiderMode">Spider Dataset</template>
+                    <template v-else>{{ workspaceStore.currentDatabase.displayName || workspaceStore.currentDatabase.name }}</template>
                   </h1>
                   
+                  <span 
+                    class="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider"
+                    :class="isSpiderMode 
+                      ? 'bg-violet-50 text-violet-600 border border-violet-100' 
+                      : 'bg-gray-50 text-gray-500 border border-gray-200'"
+                  >
+                    {{ isSpiderMode ? 'Benchmark' : workspaceStore.currentDatabase.type }}
+                  </span>
+                  
+                  <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-xs font-medium text-gray-400 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                    <div class="i-lucide-server text-gray-400 text-[11px]" />
+                    {{ workspaceStore.currentDatabase.host }}
+                  </span>
+
                   <!-- Spider scenario switcher -->
-                  <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-1.5">
+                  <div v-if="isSpiderMode && spiderScenarios.length > 1" class="flex items-center gap-1.5 ml-2">
                     <button
                       v-for="scenario in spiderScenarios"
                       :key="scenario.id"
-                      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                      class="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all"
                       :class="scenario.id === currentScenarioId 
-                        ? 'bg-violet-100 text-violet-700' 
-                        : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-600'"
+                        ? 'bg-violet-500 text-white shadow-sm ring-1 ring-violet-500/50 ring-offset-1' 
+                        : 'bg-white text-gray-500 border border-gray-200 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/50'"
                       @click="switchSpiderScenario(scenario.id)"
                     >
                       <span>{{ scenario.icon }}</span>
@@ -214,39 +234,40 @@ function goBack() {
                   </div>
                 </div>
                 
-                <div class="flex items-center gap-2.5 mt-1">
-                  <span 
-                    class="px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide"
-                    :class="isSpiderMode 
-                      ? 'bg-violet-50 text-violet-600' 
-                      : 'bg-gray-100 text-gray-600'"
-                  >
-                    {{ isSpiderMode ? 'Text-to-SQL Benchmark' : workspaceStore.currentDatabase.type }}
-                  </span>
-                  <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-sm text-gray-400 flex items-center gap-1">
-                    <div class="i-lucide-server text-gray-400 text-xs" />
-                    {{ workspaceStore.currentDatabase.host }}
-                  </span>
-                  <div class="w-1 h-1 rounded-full bg-gray-300"></div>
-                  <span class="text-sm text-gray-500">
-                    {{ workspaceStore.currentDatabase.tableCount }} tables
-                  </span>
-                  <template v-if="workspaceStore.hasRichContext">
-                    <div class="w-1 h-1 rounded-full bg-primary-400"></div>
-                    <span class="text-sm text-primary-600 flex items-center gap-1 px-2 py-0.5 rounded bg-primary-50">
-                      <div class="i-lucide-sparkles text-xs" />
-                      {{ workspaceStore.contexts.length }} contexts
-                    </span>
-                  </template>
-                </div>
+                <!-- Database description -->
+                <p v-if="dbDescription" class="text-sm text-gray-500 mt-1.5 leading-relaxed max-w-3xl">
+                  {{ dbDescription }}
+                </p>
               </div>
+            </div>
+
+            <!-- Stats section on the right -->
+            <div class="flex items-center gap-6 pr-2 pl-6 shrink-0 border-l border-gray-100 ml-6">
+              <div class="flex flex-col items-start justify-center">
+                <span class="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Tables</span>
+                <span class="text-xl font-black text-gray-700 tracking-tight flex items-center gap-1.5">
+                  <div class="i-lucide-table text-sm text-gray-300" />
+                  {{ workspaceStore.currentDatabase.tableCount }}
+                </span>
+              </div>
+              
+              <template v-if="workspaceStore.hasRichContext">
+                <div class="w-px h-8 bg-gray-200"></div>
+                <div class="flex flex-col items-start justify-center">
+                  <span class="text-[10px] uppercase tracking-widest font-bold text-primary-500 mb-0.5">Rich Contexts</span>
+                  <span class="text-xl font-black text-primary-600 tracking-tight flex items-center gap-1.5">
+                    <div class="i-lucide-sparkles text-sm text-primary-400" />
+                    {{ workspaceStore.contexts.length }}
+                  </span>
+                </div>
+              </template>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Tab navigation -->
-      <div class="tab-navigation bg-white border-b border-gray-200 px-6 sticky top-[73px] z-10">
+      <div class="tab-navigation bg-white border-b border-gray-200 px-6 sticky top-[56px] z-10">
         <div class="max-w-[1800px] mx-auto">
           <NTabs 
             type="line"
@@ -284,6 +305,6 @@ function goBack() {
 
 <style scoped>
 .workspace-content {
-  min-height: calc(100vh - 180px);
+  min-height: calc(100vh - 160px);
 }
 </style>

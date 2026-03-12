@@ -57,43 +57,43 @@ const colorClasses = computed(() => {
 
 <template>
   <div 
-    class="realtime-card rounded-xl overflow-hidden transition-all duration-300"
+    class="realtime-card rounded-2xl overflow-hidden transition-all duration-300"
     :class="[
       active 
-        ? `bg-white border-2 ${colorClasses.border} shadow-md ${colorClasses.glow}`
+        ? `bg-white border-2 ${colorClasses.border} shadow-lg ${colorClasses.glow}`
         : completed
           ? 'bg-white border border-emerald-200 shadow-sm'
           : pending
             ? `bg-white border border-dashed ${colorClasses.border}`
-            : 'bg-white border border-gray-200 shadow-sm'
+            : 'bg-white border border-gray-150 shadow-sm'
     ]"
   >
     <!-- Header -->
     <div 
-      class="card-header px-4 transition-colors duration-200" 
+      class="card-header px-5 transition-colors duration-200" 
       :class="[
         active 
-          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-3 border-b` 
+          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-4 border-b` 
           : completed 
-            ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-3 border-b' 
+            ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-4 border-b' 
             : pending 
-              ? 'bg-gray-50/30 py-2.5' 
-              : 'py-3'
+              ? 'bg-gray-50/30 py-3.5' 
+              : 'py-4'
       ]"
     >
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
+        <div class="flex items-center gap-3.5">
           <!-- Step number badge for idle/pending; icon for active/completed -->
           <div 
             v-if="isIdle && stepNumber"
-            class="w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold"
+            class="w-8 h-8 rounded-full flex items-center justify-center border text-[13px] font-bold shadow-sm"
             :class="colorClasses.step"
           >
             {{ stepNumber }}
           </div>
           <div 
             v-else
-            class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm"
+            class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm"
             :class="active ? `${colorClasses.iconBg} ring-1 ring-${props.color || 'blue'}-200` : completed ? 'bg-emerald-50 ring-1 ring-emerald-200' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-50 border border-gray-100'"
           >
             <div 

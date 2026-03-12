@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, Transition, TransitionGroup } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, Transition, TransitionGroup } from 'vue'
 import { NButton, NInput, NInputNumber, NSwitch, NSelect, NCollapse, NCollapseItem, NCheckbox, NSpin, NTag, useMessage } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { queryApi } from '@/api/query'
@@ -313,6 +313,50 @@ const sqlGenerationStage = computed(() => {
     steps,
     sql: workspaceStore.generatedSql,
     duration: completed && start && end ? end - start : (completed && start ? Date.now() - start : 0)
+  }
+})
+
+// ---- Auto-scroll: scroll the active card into view when stage transitions ----
+const executionAreaRef = ref<HTMLElement | null>(null)
+const vectorSearchRef = ref<HTMLElement | null>(null)
+const schemaLinkingRef = ref<HTMLElement | null>(null)
+const sqlGenerationRef = ref<HTMLElement | null>(null)
+const queryResultRef = ref<HTMLElement | null>(null)
+
+function scrollToElement(el: HTMLElement | null) {
+  if (!el) return
+  nextTick(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+// When vector search becomes active
+watch(() => vectorSearchStage.value.active, (active) => {
+  if (active) scrollToElement(vectorSearchRef.value)
+})
+
+// When schema linking becomes active
+watch(() => schemaLinkingStage.value.active, (active) => {
+  if (active && !schemaLinkingStage.value.completed) scrollToElement(schemaLinkingRef.value)
+})
+
+// When SQL generation becomes active
+watch(() => sqlGenerationStage.value.active, (active) => {
+  if (active) scrollToElement(sqlGenerationRef.value)
+})
+
+// When SQL generation completes, scroll to query result
+watch(() => workspaceStore.generatedSql, (sql) => {
+  if (sql) nextTick(() => scrollToElement(queryResultRef.value))
+})
+
+// When new react steps arrive, keep the active card scrolled
+watch(() => workspaceStore.reactSteps.length, () => {
+  const sqlSteps = workspaceStore.reactSteps.filter(s => s.phase === 'sql_generation')
+  if (sqlSteps.length > 0) {
+    scrollToElement(sqlGenerationRef.value)
+  } else if (workspaceStore.reactSteps.length > 0) {
+    scrollToElement(schemaLinkingRef.value)
   }
 })
 
@@ -712,7 +756,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </div>
 
       <!-- RIGHT: Execution Pipeline -->
-      <div class="execution-area p-6 xl:p-8 overflow-y-auto bg-slate-50/30">
+      <div ref="executionAreaRef" class="execution-area p-6 xl:p-8 overflow-y-auto bg-slate-50/30">
         <div class="flex flex-col mb-8">
           <div class="flex items-center gap-2 mb-1.5">
             <div class="w-6 h-6 rounded-md bg-emerald-100/80 flex items-center justify-center border border-emerald-200/50 shadow-sm">
@@ -726,6 +770,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
     <!-- Real-time Execution Cards (vertical stack) -->
     <div class="execution-pipeline space-y-4 mb-8">
       <!-- Stage 1: Vector Search / Schema Loaded -->
+      <div ref="vectorSearchRef" class="scroll-mt-4">
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
         :subtitle="isSmallScale ? 'Small-scale path · full schema sent to linker' : undefined"
@@ -765,10 +810,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
             </div>
           </div>
-          <div v-else-if="workspaceStore.groundingResult" class="space-y-4 content-fade">
+          <div v-else-if="workspaceStore.groundingResult" class="space-y-5 content-fade">
             <!-- Tables with confidence -->
             <div v-if="workspaceStore.groundingResult.tables?.length">
-              <div class="flex items-center gap-2 mb-2">
+              <div class="flex items-center gap-2 mb-3">
                 <div class="i-lucide-table-2 text-sm text-blue-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Tables ({{ workspaceStore.groundingResult.tables.length }})</span>
               </div>
@@ -776,38 +821,41 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div
                   v-for="table in workspaceStore.groundingResult.tables"
                   :key="table.name"
-                  class="grounding-item px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
+                  class="grounding-item px-3.5 py-2.5 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
                 >
                   <div class="flex items-center gap-1.5">
                     <div class="i-lucide-table-2 text-xs text-blue-400 shrink-0" />
-                    <span class="text-sm text-blue-800 font-medium">{{ table.name }}</span>
+                    <span class="text-sm text-blue-800 font-semibold">{{ table.name }}</span>
                   </div>
-                  <div v-if="table.description" class="text-xs text-gray-500 mt-1 leading-relaxed truncate" :title="table.description">
+                  <div v-if="table.description" class="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-2" :title="table.description">
                     {{ table.description }}
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Columns grouped by table -->
+            <!-- Columns: structured list instead of cramped tags -->
             <div v-if="workspaceStore.groundingResult.columns?.length">
-              <div class="flex items-center gap-2 mb-2">
+              <div class="flex items-center gap-2 mb-3">
                 <div class="i-lucide-columns-3 text-sm text-cyan-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Columns ({{ workspaceStore.groundingResult.columns.length }})</span>
               </div>
-              <div class="flex flex-wrap gap-1.5">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 <div
-                  v-for="col in workspaceStore.groundingResult.columns.slice(0, 10)"
+                  v-for="col in workspaceStore.groundingResult.columns.slice(0, 12)"
                   :key="`${col.table}.${col.column}`"
-                  class="column-tag px-2 py-1 rounded bg-cyan-50 border border-cyan-100 text-xs font-medium hover:bg-cyan-100/80 transition-colors"
+                  class="column-tag flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-50/80 border border-cyan-100 hover:bg-cyan-100/60 transition-colors"
                   :title="[col.dataType, col.description].filter(Boolean).join(' — ')"
                 >
-                  <span class="text-gray-500">{{ col.table }}.</span><span class="text-cyan-700">{{ col.column }}</span>
-                  <span v-if="col.dataType" class="text-gray-400 ml-1">({{ col.dataType }})</span>
+                  <div class="i-lucide-columns-3 text-[10px] text-cyan-400 shrink-0" />
+                  <span class="text-xs font-medium truncate">
+                    <span class="text-gray-400">{{ col.table }}.</span><span class="text-cyan-700 font-semibold">{{ col.column }}</span>
+                  </span>
+                  <span v-if="col.dataType" class="text-[10px] text-gray-400 ml-auto shrink-0 font-mono">{{ col.dataType }}</span>
                 </div>
-                <div v-if="workspaceStore.groundingResult.columns.length > 10" class="column-tag px-2 py-1 text-xs text-gray-400 font-medium">
-                  +{{ workspaceStore.groundingResult.columns.length - 10 }} more
-                </div>
+              </div>
+              <div v-if="workspaceStore.groundingResult.columns.length > 12" class="mt-2 text-xs text-gray-400 font-medium text-center">
+                +{{ workspaceStore.groundingResult.columns.length - 12 }} more columns
               </div>
             </div>
 
@@ -869,13 +917,17 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </template>
       </RealtimeCard>
+      </div>
 
       <!-- Step connector 1→2 -->
-      <div class="step-connector flex items-center justify-center py-0.5">
-        <div class="w-px h-3 bg-gray-200" />
+      <div class="step-connector flex flex-col items-center py-1">
+        <div class="w-px h-4 bg-gradient-to-b from-blue-200 to-cyan-200" />
+        <div class="w-1.5 h-1.5 rounded-full bg-gray-300 my-0.5" />
+        <div class="w-px h-4 bg-gradient-to-b from-cyan-200 to-cyan-100" />
       </div>
 
       <!-- Stage 2: Schema Linking -->
+      <div ref="schemaLinkingRef" class="scroll-mt-4">
       <RealtimeCard
         :title="linkingMode === 'react' ? 'ReAct Schema Linking' : linkingMode === 'off' ? 'Schema Linking (Off)' : 'One-Shot Schema Linking'"
         icon="i-lucide-link"
@@ -1181,13 +1233,17 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </template>
       </RealtimeCard>
+      </div>
 
       <!-- Step connector 2→3 -->
-      <div class="step-connector flex items-center justify-center py-0.5">
-        <div class="w-px h-3 bg-gray-200" />
+      <div class="step-connector flex flex-col items-center py-1">
+        <div class="w-px h-4 bg-gradient-to-b from-cyan-200 to-purple-200" />
+        <div class="w-1.5 h-1.5 rounded-full bg-gray-300 my-0.5" />
+        <div class="w-px h-4 bg-gradient-to-b from-purple-200 to-purple-100" />
       </div>
 
       <!-- Stage 3: SQL Generation -->
+      <div ref="sqlGenerationRef" class="scroll-mt-4">
       <RealtimeCard
         title="ReAct SQL Generation"
         icon="i-lucide-code-2"
@@ -1366,6 +1422,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </template>
       </RealtimeCard>
+      </div>
     </div>
 
     <!-- Grounding Error (shown in-place, NOT in Generated SQL area) -->
@@ -1394,6 +1451,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
     </div>
 
     <!-- Query Result (only for SQL generation / execution errors, NOT grounding errors) -->
+    <div ref="queryResultRef" class="scroll-mt-4">
     <QueryResult
       v-if="workspaceStore.generatedSql || workspaceStore.queryError"
       :sql="workspaceStore.generatedSql"
@@ -1405,6 +1463,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       @retry="handleExecute"
       @feedback="handleFeedback"
     />
+    </div>
       </div><!-- end execution-area -->
     </div><!-- end grid -->
   </div>

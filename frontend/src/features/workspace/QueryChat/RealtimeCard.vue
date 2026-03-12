@@ -148,7 +148,7 @@ const colorClasses = computed(() => {
     </div>
 
     <!-- Content: only shown when active or completed -->
-    <div v-if="showContent" class="card-content p-4 max-h-[560px] overflow-y-auto custom-scrollbar">
+    <div v-if="showContent" class="card-content p-5 max-h-[640px] overflow-y-auto custom-scrollbar">
       <slot name="content" />
     </div>
 

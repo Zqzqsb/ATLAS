@@ -17,8 +17,9 @@ const props = defineProps<{
 // Whether this card is in idle state (not active, not completed, not pending)
 const isIdle = computed(() => !props.active && !props.completed && !props.pending)
 
-// Show content only when there's something meaningful to display
+// Show content when active/completed, or show skeleton in idle
 const showContent = computed(() => props.active || props.completed)
+const showSkeleton = computed(() => isIdle.value)
 
 const colorClasses = computed(() => {
   const colors = {
@@ -64,7 +65,7 @@ const colorClasses = computed(() => {
           ? 'bg-white border border-emerald-200 shadow-sm'
           : pending
             ? `bg-white border border-dashed ${colorClasses.border}`
-            : 'bg-white border border-gray-200/60'
+            : 'bg-white border border-gray-200 shadow-sm'
     ]"
   >
     <!-- Header -->
@@ -77,7 +78,7 @@ const colorClasses = computed(() => {
             ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-3 border-b' 
             : pending 
               ? 'bg-gray-50/30 py-2.5' 
-              : 'py-2.5'
+              : 'py-3'
       ]"
     >
       <div class="flex items-center justify-between">
@@ -149,6 +150,18 @@ const colorClasses = computed(() => {
     <!-- Content: only shown when active or completed -->
     <div v-if="showContent" class="card-content p-4 max-h-[560px] overflow-y-auto custom-scrollbar">
       <slot name="content" />
+    </div>
+
+    <!-- Skeleton placeholder: shown in idle state -->
+    <div v-if="showSkeleton" class="px-4 pb-3 pt-1">
+      <slot name="skeleton">
+        <!-- Default skeleton: 3 shimmer bars -->
+        <div class="space-y-2">
+          <div class="h-2 rounded-full bg-gray-100 w-4/5" />
+          <div class="h-2 rounded-full bg-gray-100 w-3/5" />
+          <div class="h-2 rounded-full bg-gray-50 w-2/5" />
+        </div>
+      </slot>
     </div>
   </div>
 </template>

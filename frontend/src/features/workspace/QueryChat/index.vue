@@ -749,15 +749,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 >
                   <div class="flex items-center justify-between">
                     <span class="text-sm text-blue-800 font-medium">{{ table.name }}</span>
-                    <div class="flex items-center gap-2">
-                      <div class="w-16 h-1.5 rounded-full bg-blue-100 overflow-hidden">
-                        <div 
-                          class="h-full rounded-full bg-blue-500 transition-all duration-500"
-                          :style="{ width: `${(table.confidence * 100)}%` }"
-                        />
-                      </div>
-                      <span class="text-xs text-gray-500 font-bold w-8 text-right">{{ (table.confidence * 100).toFixed(0) }}%</span>
-                    </div>
+                    <span 
+                      class="text-xs font-medium px-1.5 py-0.5 rounded"
+                      :class="table.confidence >= 0.8 
+                        ? 'bg-emerald-50 text-emerald-600' 
+                        : table.confidence >= 0.5 
+                          ? 'bg-blue-50 text-blue-600' 
+                          : 'bg-gray-100 text-gray-500'"
+                    >{{ table.confidence >= 0.8 ? 'High' : table.confidence >= 0.5 ? 'Medium' : 'Low' }}</span>
                   </div>
                   <div v-if="table.description" class="text-xs text-gray-500 mt-1 leading-relaxed truncate" :title="table.description">
                     {{ table.description }}

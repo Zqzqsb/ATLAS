@@ -817,19 +817,16 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div class="i-lucide-table-2 text-sm text-blue-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Tables ({{ workspaceStore.groundingResult.tables.length }})</span>
               </div>
-              <div class="space-y-2">
+              <div class="space-y-1.5">
                 <div
                   v-for="table in workspaceStore.groundingResult.tables"
                   :key="table.name"
-                  class="grounding-item px-3.5 py-2.5 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors"
+                  class="grounding-item px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors flex items-center gap-1.5 min-w-0"
+                  :title="table.description"
                 >
-                  <div class="flex items-center gap-1.5">
-                    <div class="i-lucide-table-2 text-xs text-blue-400 shrink-0" />
-                    <span class="text-sm text-blue-800 font-semibold">{{ table.name }}</span>
-                  </div>
-                  <div v-if="table.description" class="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-2" :title="table.description">
-                    {{ table.description }}
-                  </div>
+                  <div class="i-lucide-table-2 text-xs text-blue-400 shrink-0" />
+                  <span class="text-sm font-semibold text-blue-800 shrink-0">Table {{ table.name }}{{ table.description ? ':' : '' }}</span>
+                  <span v-if="table.description" class="text-xs text-gray-500 truncate min-w-0">{{ table.description }}</span>
                 </div>
               </div>
             </div>
@@ -1009,7 +1006,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
             <!-- Execution Logs -->
             <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="stagger-item" style="--stagger: 2">
-              <NCollapse :default-expanded-names="[]" arrow-placement="left">
+              <NCollapse :default-expanded-names="['logs']" arrow-placement="left">
                 <NCollapseItem name="logs">
                   <template #header>
                     <div class="flex items-center gap-2">

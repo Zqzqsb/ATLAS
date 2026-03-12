@@ -148,7 +148,7 @@ const colorClasses = computed(() => {
     </div>
 
     <!-- Content: only shown when active or completed -->
-    <div v-if="showContent" class="card-content p-5 max-h-[640px] overflow-y-auto custom-scrollbar">
+    <div v-if="showContent" class="card-content p-5">
       <slot name="content" />
     </div>
 
@@ -167,23 +167,6 @@ const colorClasses = computed(() => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e5e7eb;
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #d1d5db;
-}
-
 /* Processing dots animation */
 .processing-dot {
   animation: processingPulse 1.2s ease-in-out infinite;

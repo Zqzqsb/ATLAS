@@ -222,9 +222,13 @@ const vectorSearchStage = computed(() => {
     completed: stageDone && hasGroundingContent.value,
     empty: stageDone && !hasGroundingContent.value,
     data: workspaceStore.groundingResult,
-    duration: backendLatency != null && backendLatency > 0 ? backendLatency
-      : backendDuration != null && backendDuration > 0 ? backendDuration
-      : clientDuration
+    // For small_scale: no vector retrieval → use client-side round-trip time
+    // For large_scale: prefer backend-reported retrieval latency T0→T1
+    duration: workspaceStore.groundingResult?.strategy === 'small_scale'
+      ? clientDuration
+      : backendLatency != null && backendLatency > 0 ? backendLatency
+        : backendDuration != null && backendDuration > 0 ? backendDuration
+        : clientDuration
   }
 })
 
@@ -690,23 +694,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </div>
     </div>
 
-    <!-- DEBUG: duration values -->
-    <div v-if="vectorSearchStage.completed || schemaLinkingStage.completed" class="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs font-mono">
-      VS duration={{ vectorSearchStage.duration }}ms |
-      SL duration={{ schemaLinkingStage.duration }}ms |
-      retrievalLatencyMs={{ workspaceStore.groundingResult?.retrievalLatencyMs }} |
-      retrievalDurationMs={{ workspaceStore.groundingResult?.retrievalDurationMs }} |
-      reasoningLatencyMs={{ workspaceStore.groundingResult?.reasoningLatencyMs }} |
-      linkingDurationMs={{ workspaceStore.groundingResult?.linkingDurationMs }} |
-      VS timing={{ JSON.stringify(stageTimings.vectorSearch) }} |
-      SL timing={{ JSON.stringify(stageTimings.schemaLinking) }} |
-      SL completed={{ schemaLinkingStage.completed }}
-    </div>
     <!-- Real-time Execution Cards -->
     <div class="execution-pipeline grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
+        :subtitle="isSmallScale ? 'Small-scale path · full schema sent to linker' : undefined"
         :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
         :active="vectorSearchStage.active"
         :pending="isExecuting && !vectorSearchStage.active && !vectorSearchStage.completed"

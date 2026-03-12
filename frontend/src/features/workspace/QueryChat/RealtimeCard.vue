@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 const props = defineProps<{
   title: string
+  subtitle?: string // optional subtitle shown below title when completed
   icon: string
   active: boolean
   pending?: boolean // query started but this stage hasn't begun yet
@@ -84,6 +85,9 @@ const colorClasses = computed(() => {
             </h3>
             <p v-if="stage" class="text-xs text-gray-400 mt-0.5">
               {{ stage }}
+            </p>
+            <p v-else-if="subtitle && completed" class="text-xs text-gray-400 mt-0.5">
+              {{ subtitle }}
             </p>
           </div>
         </div>

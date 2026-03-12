@@ -510,57 +510,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             // IMPORTANT: Do NOT overwrite retrieval snapshot (tables/columns/joinPaths).
             // Store linking results separately so left panel stays frozen.
             advanceGroundingStage('stage2')
-            const linkingMeta: any = {}
-            linkingMeta.reasoning = event.data.reasoning || ''
-            linkingMeta.mode = event.data.mode || ''
-            // Preserve backend-reported linking duration (ms)
+
+            // Phase A: Show reasoning + metadata immediately (lightweight, user can start reading)
+            const reasoningMeta: any = {}
+            reasoningMeta.reasoning = event.data.reasoning || ''
+            reasoningMeta.mode = event.data.mode || ''
             if (event.data.duration_ms != null) {
-              linkingMeta.linkingDurationMs = event.data.duration_ms
+              reasoningMeta.linkingDurationMs = event.data.duration_ms
             }
-            // Latency breakdown from concurrent cold-start architecture:
-            // retrieval_latency_ms = T0→T1 (vector search wall-clock time)
-            // reasoning_latency_ms = T1.1→T2 (LLM reasoning after first schema data)
             if (event.data.retrieval_latency_ms != null) {
-              linkingMeta.retrievalLatencyMs = event.data.retrieval_latency_ms
+              reasoningMeta.retrievalLatencyMs = event.data.retrieval_latency_ms
             }
             if (event.data.reasoning_latency_ms != null) {
-              linkingMeta.reasoningLatencyMs = event.data.reasoning_latency_ms
+              reasoningMeta.reasoningLatencyMs = event.data.reasoning_latency_ms
             }
-
-            // Store linking agent's independent selection into dedicated fields
-            if (event.data.tables) {
-              linkingMeta.linkingTables = (event.data.tables || []).map((t: any) => ({
-                name: t.name,
-                description: t.description || '',
-                confidence: t.confidence || 0,
-                matchedTerms: t.reason ? [t.reason] : [],
-                contextUsed: [],
-                hint: t.hint || ''
-              }))
-            }
-            if (event.data.columns) {
-              linkingMeta.linkingColumns = (event.data.columns || []).map((c: any) => ({
-                table: c.table_name || c.table,
-                column: c.column_name || c.column,
-                dataType: c.data_type || c.dataType || '',
-                description: c.description || '',
-                confidence: c.confidence || 0,
-                matchedTerms: c.reason ? [c.reason] : [],
-                contextUsed: [],
-                hint: c.hint || ''
-              }))
-            }
-            if (event.data.join_paths) {
-              linkingMeta.linkingJoinPaths = (event.data.join_paths || []).map((jp: any) => ({
-                from: { table: jp.from_table, column: jp.from_column },
-                to: { table: jp.to_table, column: jp.to_column },
-                confidence: jp.confidence
-              }))
-            }
-
             // Merge execution_logs if provided (legacy format)
             if (event.data.execution_logs) {
-              linkingMeta.executionLogs = (event.data.execution_logs || []).map((log: any) => ({
+              reasoningMeta.executionLogs = (event.data.execution_logs || []).map((log: any) => ({
                 phase: log.phase,
                 sql: log.sql,
                 result_count: log.result_count,
@@ -570,20 +536,54 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
 
             if (groundingResult.value) {
-              groundingResult.value = {
-                ...groundingResult.value,
-                ...linkingMeta,
-              }
+              groundingResult.value = { ...groundingResult.value, ...reasoningMeta }
             } else {
               groundingResult.value = {
-                tables: [],
-                columns: [],
-                joinPaths: [],
-                suggestedFields: [],
-                duration: 0,
-                ...linkingMeta,
+                tables: [], columns: [], joinPaths: [], suggestedFields: [], duration: 0,
+                ...reasoningMeta,
               } as GroundingResult
             }
+
+            // Phase B: After a brief pause, show linked tables/columns (the heavy content).
+            // This creates a natural "reasoning → result" visual rhythm instead of dumping
+            // everything at once.
+            const linkingData = event.data // capture for closure
+            setTimeout(() => {
+              const schemaMeta: any = {}
+              if (linkingData.tables) {
+                schemaMeta.linkingTables = (linkingData.tables || []).map((t: any) => ({
+                  name: t.name,
+                  description: t.description || '',
+                  confidence: t.confidence || 0,
+                  matchedTerms: t.reason ? [t.reason] : [],
+                  contextUsed: [],
+                  hint: t.hint || ''
+                }))
+              }
+              if (linkingData.columns) {
+                schemaMeta.linkingColumns = (linkingData.columns || []).map((c: any) => ({
+                  table: c.table_name || c.table,
+                  column: c.column_name || c.column,
+                  dataType: c.data_type || c.dataType || '',
+                  description: c.description || '',
+                  confidence: c.confidence || 0,
+                  matchedTerms: c.reason ? [c.reason] : [],
+                  contextUsed: [],
+                  hint: c.hint || ''
+                }))
+              }
+              if (linkingData.join_paths) {
+                schemaMeta.linkingJoinPaths = (linkingData.join_paths || []).map((jp: any) => ({
+                  from: { table: jp.from_table, column: jp.from_column },
+                  to: { table: jp.to_table, column: jp.to_column },
+                  confidence: jp.confidence
+                }))
+              }
+
+              if (groundingResult.value) {
+                groundingResult.value = { ...groundingResult.value, ...schemaMeta }
+              }
+            }, 180)
             break
           }
           case 'field_suggestions': {

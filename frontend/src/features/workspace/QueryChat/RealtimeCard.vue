@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, Transition } from 'vue'
 
 const props = defineProps<{
   title: string
@@ -148,9 +148,11 @@ const colorClasses = computed(() => {
     </div>
 
     <!-- Content: only shown when active or completed -->
+    <Transition name="card-content">
     <div v-if="showContent" class="card-content p-5">
       <slot name="content" />
     </div>
+    </Transition>
 
     <!-- Skeleton placeholder: shown in idle state with shimmer animation -->
     <div v-if="showSkeleton" class="skeleton-shimmer px-4 pb-3.5 pt-1.5">
@@ -272,5 +274,14 @@ const colorClasses = computed(() => {
   100% {
     transform: translateX(100%);
   }
+}
+
+/* Card content reveal transition */
+.card-content-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-content-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>

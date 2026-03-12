@@ -104,7 +104,7 @@ function resetTimings() {
 // Query options
 const maxIterations = ref(5)
 const useFieldAlignment = ref(false)
-const selectedModel = ref('deepseek_v3')
+const selectedModel = ref('')
 const useRichContext = ref(true)
 const useReact = ref(true)
 const useGrounding = ref(true)
@@ -118,9 +118,7 @@ const linkingModeOptions = [
 ]
 
 // Model options - loaded from backend /models API
-const modelOptions = ref<{ label: string; value: string }[]>([
-  { label: 'DeepSeek V3', value: 'deepseek_v3' } // fallback
-])
+const modelOptions = ref<{ label: string; value: string }[]>([])
 
 async function loadModels() {
   try {
@@ -128,11 +126,11 @@ async function loadModels() {
     const models = resp.data?.models
     if (models && models.length > 0) {
       modelOptions.value = models.map(m => ({ label: m.name, value: m.id }))
-      // Select the default model if current selection is not in the list
-      const defaultModel = models.find(m => m.is_default)
       const ids = models.map(m => m.id)
-      if (!ids.includes(selectedModel.value) && defaultModel) {
-        selectedModel.value = defaultModel.id
+      // If current selection is empty or not in the list, pick the default (or first)
+      if (!selectedModel.value || !ids.includes(selectedModel.value)) {
+        const defaultModel = models.find(m => m.is_default)
+        selectedModel.value = defaultModel ? defaultModel.id : (ids[0] ?? '')
       }
     }
   } catch (e) {
@@ -316,47 +314,72 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// ---- Auto-scroll: scroll the active card into view when stage transitions ----
+// ---- Auto-scroll: smooth, debounced, non-conflicting ----
 const executionAreaRef = ref<HTMLElement | null>(null)
 const vectorSearchRef = ref<HTMLElement | null>(null)
 const schemaLinkingRef = ref<HTMLElement | null>(null)
 const sqlGenerationRef = ref<HTMLElement | null>(null)
 const queryResultRef = ref<HTMLElement | null>(null)
 
-function scrollToElement(el: HTMLElement | null) {
-  if (!el) return
-  nextTick(() => {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
+// Debounce scroll requests to prevent multiple rapid calls from fighting each other.
+// Only the last target within a 120ms window actually scrolls.
+let scrollTimer: ReturnType<typeof setTimeout> | null = null
+let lastScrollTarget: HTMLElement | null = null
+
+function scrollToElement(el: HTMLElement | null, delay = 80) {
+  if (!el || !executionAreaRef.value) return
+  lastScrollTarget = el
+  if (scrollTimer) clearTimeout(scrollTimer)
+  scrollTimer = setTimeout(() => {
+    if (!executionAreaRef.value || lastScrollTarget !== el) return
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        const container = executionAreaRef.value!
+        // Calculate true offset by traversing offsetParent chain
+        let elTop = 0
+        let node: HTMLElement | null = el
+        while (node && node !== container) {
+          elTop += node.offsetTop
+          node = node.offsetParent as HTMLElement | null
+        }
+        const target = Math.max(0, elTop - 32)
+        const distance = Math.abs(container.scrollTop - target)
+        // Skip tiny scrolls (< 20px) to avoid micro-jitter
+        if (distance < 20) return
+        container.scrollTo({ top: target, behavior: 'smooth' })
+      })
+    })
+  }, delay)
 }
 
-// When vector search becomes active
+// When vector search becomes active — scroll immediately
 watch(() => vectorSearchStage.value.active, (active) => {
-  if (active) scrollToElement(vectorSearchRef.value)
+  if (active) scrollToElement(vectorSearchRef.value, 50)
 })
 
-// When schema linking becomes active
+// When schema linking becomes active — give Vector Search card time to settle
 watch(() => schemaLinkingStage.value.active, (active) => {
-  if (active && !schemaLinkingStage.value.completed) scrollToElement(schemaLinkingRef.value)
+  if (active && !schemaLinkingStage.value.completed) scrollToElement(schemaLinkingRef.value, 200)
 })
 
 // When SQL generation becomes active
 watch(() => sqlGenerationStage.value.active, (active) => {
-  if (active) scrollToElement(sqlGenerationRef.value)
+  if (active) scrollToElement(sqlGenerationRef.value, 200)
 })
 
-// When SQL generation completes, scroll to query result
+// When SQL generation completes, scroll to query result with extra delay for polish
 watch(() => workspaceStore.generatedSql, (sql) => {
-  if (sql) nextTick(() => scrollToElement(queryResultRef.value))
+  if (sql) scrollToElement(queryResultRef.value, 300)
 })
 
-// When new react steps arrive, keep the active card scrolled
+// When new react steps arrive, scroll to the relevant card.
+// Debounce naturally prevents rapid step arrivals from causing scroll fights.
 watch(() => workspaceStore.reactSteps.length, () => {
   const sqlSteps = workspaceStore.reactSteps.filter(s => s.phase === 'sql_generation')
   if (sqlSteps.length > 0) {
-    scrollToElement(sqlGenerationRef.value)
+    scrollToElement(sqlGenerationRef.value, 150)
   } else if (workspaceStore.reactSteps.length > 0) {
-    scrollToElement(schemaLinkingRef.value)
+    scrollToElement(schemaLinkingRef.value, 150)
   }
 })
 
@@ -810,72 +833,64 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
             </div>
           </div>
-          <div v-else-if="workspaceStore.groundingResult" class="space-y-5 content-fade">
-            <!-- Tables with confidence -->
-            <div v-if="workspaceStore.groundingResult.tables?.length">
-              <div class="flex items-center gap-2 mb-3">
-                <div class="i-lucide-table-2 text-sm text-blue-600" />
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Tables ({{ workspaceStore.groundingResult.tables.length }})</span>
+          <div v-else-if="workspaceStore.groundingResult" class="space-y-4">
+            <!-- Summary: what was retrieved -->
+            <div class="flex flex-wrap items-center gap-3 stagger-item" style="--stagger: 0">
+              <div v-if="workspaceStore.groundingResult.tables?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-50 border border-blue-100">
+                <div class="i-lucide-table-2 text-xs text-blue-500" />
+                <span class="text-xs font-semibold text-blue-700">{{ workspaceStore.groundingResult.tables.length }} tables</span>
               </div>
-              <div class="space-y-1.5">
-                <div
-                  v-for="table in workspaceStore.groundingResult.tables"
+              <div v-if="workspaceStore.groundingResult.columns?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-cyan-50 border border-cyan-100">
+                <div class="i-lucide-columns-3 text-xs text-cyan-500" />
+                <span class="text-xs font-semibold text-cyan-700">{{ workspaceStore.groundingResult.columns.length }} columns</span>
+              </div>
+              <div v-if="workspaceStore.groundingResult.joinPaths?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-purple-50 border border-purple-100">
+                <div class="i-lucide-git-merge text-xs text-purple-500" />
+                <span class="text-xs font-semibold text-purple-700">{{ workspaceStore.groundingResult.joinPaths.length }} join paths</span>
+              </div>
+            </div>
+
+            <!-- Candidate tables (compact pills, staggered per-pill) -->
+            <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item" style="--stagger: 1">
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="(table, ti) in workspaceStore.groundingResult.tables"
                   :key="table.name"
-                  class="grounding-item px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100/80 transition-colors flex items-center gap-1.5 min-w-0"
+                  class="table-pill px-2 py-1 rounded-md bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-700"
+                  :style="{ animationDelay: (ti * 40) + 'ms' }"
                   :title="table.description"
-                >
-                  <div class="i-lucide-table-2 text-xs text-blue-400 shrink-0" />
-                  <span class="text-sm font-semibold text-blue-800 shrink-0">Table {{ table.name }}{{ table.description ? ':' : '' }}</span>
-                  <span v-if="table.description" class="text-xs text-gray-500 truncate min-w-0">{{ table.description }}</span>
-                </div>
+                >{{ table.name }}</span>
               </div>
             </div>
 
-            <!-- Columns: structured list instead of cramped tags -->
-            <div v-if="workspaceStore.groundingResult.columns?.length">
-              <div class="flex items-center gap-2 mb-3">
-                <div class="i-lucide-columns-3 text-sm text-cyan-600" />
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Retrieved Columns ({{ workspaceStore.groundingResult.columns.length }})</span>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div
-                  v-for="col in workspaceStore.groundingResult.columns.slice(0, 12)"
-                  :key="`${col.table}.${col.column}`"
-                  class="column-tag flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-50/80 border border-cyan-100 hover:bg-cyan-100/60 transition-colors"
-                  :title="[col.dataType, col.description].filter(Boolean).join(' — ')"
-                >
-                  <div class="i-lucide-columns-3 text-[10px] text-cyan-400 shrink-0" />
-                  <span class="text-xs font-medium truncate">
-                    <span class="text-gray-400">{{ col.table }}.</span><span class="text-cyan-700 font-semibold">{{ col.column }}</span>
-                  </span>
-                  <span v-if="col.dataType" class="text-[10px] text-gray-400 ml-auto shrink-0 font-mono">{{ col.dataType }}</span>
-                </div>
-              </div>
-              <div v-if="workspaceStore.groundingResult.columns.length > 12" class="mt-2 text-xs text-gray-400 font-medium text-center">
-                +{{ workspaceStore.groundingResult.columns.length - 12 }} more columns
-              </div>
+            <!-- Execution Logs (vector search SQL queries — belong to this stage) -->
+            <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="stagger-item" style="--stagger: 2">
+              <NCollapse :default-expanded-names="[]" arrow-placement="left">
+                <NCollapseItem name="logs">
+                  <template #header>
+                    <div class="flex items-center gap-2">
+                      <div class="i-lucide-terminal text-sm text-gray-500" />
+                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Vector Search Queries</span>
+                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }})</span>
+                    </div>
+                  </template>
+                  <div class="space-y-2 mt-2">
+                    <div
+                      v-for="(log, idx) in workspaceStore.groundingResult.executionLogs"
+                      :key="idx"
+                      class="p-3 rounded-lg bg-gray-800 text-xs font-mono"
+                    >
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="text-green-400 font-bold">{{ log.phase }}</span>
+                        <span class="text-gray-400">{{ log.duration_ms }}ms · {{ log.result_count }} results</span>
+                      </div>
+                      <div class="text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
+                      <div v-if="log.summary" class="mt-2 text-gray-500 italic">{{ log.summary }}</div>
+                    </div>
+                  </div>
+                </NCollapseItem>
+              </NCollapse>
             </div>
-
-            <!-- Join paths if any -->
-            <div v-if="workspaceStore.groundingResult.joinPaths?.length">
-              <div class="flex items-center gap-2 mb-2">
-                <div class="i-lucide-git-merge text-sm text-purple-600" />
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Join Paths</span>
-              </div>
-              <div class="space-y-1">
-                <div
-                  v-for="(path, idx) in workspaceStore.groundingResult.joinPaths.slice(0, 3)"
-                  :key="idx"
-                  class="grounding-item flex items-center gap-2 text-xs text-gray-500 font-medium"
-                >
-                  <span class="text-purple-700">{{ path.from?.table }}.{{ path.from?.column }}</span>
-                  <div class="i-lucide-arrow-right text-gray-400" />
-                  <span class="text-purple-700">{{ path.to?.table }}.{{ path.to?.column }}</span>
-                </div>
-              </div>
-            </div>
-
-
           </div>
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div :class="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'" class="animate-pulse text-blue-500 text-xl" />
@@ -968,9 +983,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
               <div class="space-y-1.5">
                 <div
-                  v-for="group in linkedTableGroups"
+                  v-for="(group, gi) in linkedTableGroups"
                   :key="'lg-' + group.name"
-                  class="rounded-lg border border-teal-100 bg-teal-50/50 overflow-hidden"
+                  class="schema-group rounded-lg border border-teal-100 bg-teal-50/50 overflow-hidden"
+                  :style="{ animationDelay: (gi * 120) + 'ms' }"
                 >
                   <!-- Table header row -->
                   <div class="flex items-center gap-2 px-3 py-1.5">
@@ -980,14 +996,18 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                     <span class="text-xs font-bold text-teal-800">{{ group.name }}</span>
                     <span class="text-xs text-gray-400 ml-auto">{{ group.columns.length }} cols</span>
                   </div>
-                  <!-- Columns row -->
-                  <div v-if="group.columns.length" class="px-3 pb-2 flex flex-wrap gap-1">
-                    <span
+                  <!-- Columns list with RC description -->
+                  <div v-if="group.columns.length" class="px-3 pb-2 space-y-0.5">
+                    <div
                       v-for="c in group.columns"
                       :key="'lc-' + c.table + '.' + c.column"
-                      class="px-1.5 py-0.5 rounded bg-white border border-teal-100 text-xs font-medium text-teal-700"
-                      :title="[c.hint, c.dataType, c.description].filter(Boolean).join(' — ')"
-                    >{{ c.column }}<span v-if="c.dataType" class="text-gray-400 ml-0.5 text-[10px]">{{ c.dataType }}</span></span>
+                      class="flex items-center gap-1.5 min-w-0 py-0.5"
+                      :title="[c.hint, c.description].filter(Boolean).join(' — ')"
+                    >
+                      <span class="text-xs font-mono font-semibold text-teal-700 shrink-0">{{ c.column }}</span>
+                      <span v-if="c.dataType" class="text-[10px] text-gray-400 shrink-0">({{ c.dataType }})</span>
+                      <span v-if="c.description" class="text-[10px] text-gray-500 truncate min-w-0">{{ c.description }}</span>
+                    </div>
                   </div>
                   <!-- Hint row (query-specific, generated by LLM) -->
                   <div v-if="group.hint" class="px-3 pb-2">
@@ -1002,35 +1022,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Execution Logs -->
-            <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="stagger-item" style="--stagger: 2">
-              <NCollapse :default-expanded-names="['logs']" arrow-placement="left">
-                <NCollapseItem name="logs">
-                  <template #header>
-                    <div class="flex items-center gap-2">
-                      <div class="i-lucide-terminal text-sm text-gray-500" />
-                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Execution Log</span>
-                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }} queries)</span>
-                    </div>
-                  </template>
-                  <div class="space-y-2 mt-2">
-                    <div
-                      v-for="(log, idx) in workspaceStore.groundingResult.executionLogs"
-                      :key="idx"
-                      class="p-3 rounded-lg bg-gray-800 text-xs font-mono"
-                    >
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-green-400 font-bold">{{ log.phase }}</span>
-                        <span class="text-gray-400">{{ log.duration_ms }}ms | {{ log.result_count }} results</span>
-                      </div>
-                      <div class="text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
-                      <div class="mt-2 text-gray-500 italic">{{ log.summary }}</div>
-                    </div>
-                  </div>
-                </NCollapseItem>
-              </NCollapse>
             </div>
           </div>
 
@@ -1476,6 +1467,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 .execution-area {
   max-height: calc(100vh - 130px);
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 .query-input :deep(.n-input__textarea-el) {
@@ -1519,13 +1511,45 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 /* Stagger animation for linking card sections */
 .stagger-item {
   animation: staggerFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(var(--stagger, 0) * 150ms);
+  animation-delay: calc(var(--stagger, 0) * 200ms);
 }
 
 @keyframes staggerFadeIn {
   from {
     opacity: 0;
     transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Table pill stagger animation (individual pills pop in) */
+.table-pill {
+  animation: pillFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pillFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Schema group stagger (linked tables appear one by one) */
+.schema-group {
+  animation: groupSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes groupSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;

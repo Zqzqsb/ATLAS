@@ -436,10 +436,11 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 										columnName = sig.EntityName // fallback
 									}
 									columns = append(columns, GroundedColumnInfo{
-										TableName:  sig.SourceTable,
-										ColumnName: columnName,
-										DataType:   sig.Metadata, // data type parsed by coarse_retriever
-										Confidence: float64(sig.Score),
+										TableName:   sig.SourceTable,
+										ColumnName:  columnName,
+										DataType:    sig.Metadata, // data type parsed by coarse_retriever
+										Description: sig.Content,  // RC description from embedding text
+										Confidence:  float64(sig.Score),
 									})
 									}
 								}

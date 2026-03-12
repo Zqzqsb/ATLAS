@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,16 +14,21 @@ import (
 	"lucid/internal/logger"
 )
 
-// columnEntityRe parses "Column <table>.<column> (<type>)..." from entity_text
-var columnEntityRe = regexp.MustCompile(`^Column\s+(\S+)\.(\S+)\s+\(([^)]+)\)`)
+// columnEntityRe parses "Column <table>.<column> (<type>): description..." from entity_text
+var columnEntityRe = regexp.MustCompile(`^Column\s+(\S+)\.(\S+)\s+\(([^)]+)\)(?::\s*(.+))?`)
 
-// parseColumnEntity extracts (table, column, dataType) from a column embedding text.
-func parseColumnEntity(entityText string) (table, column, dataType string, ok bool) {
+// parseColumnEntity extracts (table, column, dataType, description) from a column embedding text.
+// The description includes any trailing ". Sample values: ..." text.
+func parseColumnEntity(entityText string) (table, column, dataType, description string, ok bool) {
 	m := columnEntityRe.FindStringSubmatch(entityText)
 	if len(m) < 4 {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
-	return m[1], m[2], m[3], true
+	desc := ""
+	if len(m) >= 5 && m[4] != "" {
+		desc = strings.TrimSpace(m[4])
+	}
+	return m[1], m[2], m[3], desc, true
 }
 
 // CoarseRetriever performs parallel vector search across multiple signal types
@@ -247,12 +253,15 @@ func (r *CoarseRetriever) retrieveByType(
 			Score:        score,
 		}
 
-		// For column signals, parse "Column table.col (type): ..." to populate SourceTable/SourceColumn
+		// For column signals, parse "Column table.col (type): desc..." to populate SourceTable/SourceColumn
 		if signalType == SignalTypeColumn {
-			if tbl, col, dataType, ok := parseColumnEntity(result.EntityText); ok {
+			if tbl, col, dataType, desc, ok := parseColumnEntity(result.EntityText); ok {
 				sig.SourceTable = tbl
 				sig.SourceColumn = col
 				sig.Metadata = dataType // store parsed data type
+				if desc != "" {
+					sig.Content = desc // store RC description (without prefix)
+				}
 				sig.EntityName = tbl + "." + col // normalise to "table.column"
 			}
 		}

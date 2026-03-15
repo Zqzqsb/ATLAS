@@ -162,7 +162,7 @@ func (a *LinkingAgent) LinkAsync(
 		// One-shot mode: must give Final Answer immediately after get_schema
 		systemPrompt = oneShotAsyncSystemPrompt
 		maxIter = 3  // 1 get_schema + 1 Final Answer + 1 buffer
-		actualMax = 8
+		actualMax = 4 // Tight cap: prevents LLM from wasting iterations on non-existent tools
 	}
 
 	engineConfig := &react.EngineConfig{
@@ -241,9 +241,107 @@ func (a *LinkingAgent) LinkAsync(
 	}, nil
 }
 
-// oneShotAsyncSystemPrompt is used for one-shot mode in the concurrent architecture.
-// The LLM calls get_candidate_schema to obtain the schema, then MUST immediately
-// produce Final Answer — no exploration via execute_sql is allowed.
+// LinkDirect performs one-shot schema linking with a single LLM call.
+// The schema text is injected directly into the prompt — no ReAct loop, no tools.
+// This eliminates the wasted first LLM call (predictable "call get_candidate_schema")
+// and prevents LLM hallucination of non-existent tools.
+//
+// Used for one-shot mode in both SmallScale (schema available immediately) and
+// LargeScale (schema available after sequential vector retrieval).
+// Only react mode uses LinkAsync (concurrent retrieval + ReAct multi-step exploration).
+func (a *LinkingAgent) LinkDirect(
+	ctx context.Context,
+	schemaPrompt string,
+	indexed *IndexedPromptResult,
+) (*LinkingResult, error) {
+	start := time.Now()
+	log := logger.With("component", "linking_agent_direct")
+
+	log.Info("[LinkDirect] Starting one-shot direct linking",
+		"prompt_length", len(schemaPrompt),
+	)
+
+	// Build the full prompt: system instructions + schema (already contains user query)
+	fullPrompt := oneShotDirectSystemPrompt + "\n\n" + schemaPrompt
+
+	// Single LLM call — no ReAct overhead
+	response, err := a.llm.Call(ctx, fullPrompt)
+	if err != nil {
+		log.Error("[LinkDirect] LLM call failed", "error", err, "duration", time.Since(start))
+		return nil, fmt.Errorf("direct linking LLM call failed: %w", err)
+	}
+
+	endTime := time.Now()
+	totalDuration := endTime.Sub(start)
+
+	log.Info("[LinkDirect] LLM call completed",
+		"duration", totalDuration.Round(time.Millisecond),
+		"response_length", len(response),
+	)
+
+	// Parse response — reuse the same parser as LinkAsync
+	selected, reasoning, err := a.parseLinkingResponse(response, indexed)
+	if err != nil {
+		log.Error("[LinkDirect] Failed to parse output", "error", err,
+			"output", truncateLinking(response, 300))
+		return nil, fmt.Errorf("failed to parse direct linking response: %w", err)
+	}
+
+	// Filter by confidence
+	var filtered []SelectedTable
+	for _, t := range selected {
+		if t.Confidence >= a.config.ConfidenceThreshold {
+			filtered = append(filtered, t)
+		}
+	}
+
+	selectedNames := make([]string, len(filtered))
+	for i, t := range filtered {
+		selectedNames[i] = t.Name
+	}
+	log.Info("[LinkDirect] Schema linking completed",
+		"selected_tables", strings.Join(selectedNames, ", "),
+		"total_duration", totalDuration.Round(time.Millisecond),
+	)
+
+	return &LinkingResult{
+		SelectedTables:   filtered,
+		Reasoning:        reasoning,
+		Duration:         totalDuration,
+		ReasoningLatency: totalDuration, // All time is reasoning (no retrieval)
+	}, nil
+}
+
+// oneShotDirectSystemPrompt is a streamlined prompt for single-call linking.
+// No tool-calling instructions — the schema is injected directly into the prompt.
+const oneShotDirectSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
+
+Given a natural language query and a database schema, identify which tables and columns are needed to answer the query.
+
+The schema uses index labels: [T1], [T2] for tables; [C1], [C2] for columns. Use these labels in your response.
+
+Respond with ONLY a JSON object (no markdown fences, no explanation outside JSON):
+{
+  "tables": ["T1", "T3"],
+  "columns": ["C2", "C5", "C8"],
+  "hints": {
+    "C5": "COUNT + GROUP BY for most-played",
+    "C8": "WHERE this = 'value' based on sample data"
+  },
+  "reasoning": "Brief explanation"
+}
+
+Rules:
+- "tables": list of table index labels. Include ALL tables needed for JOINs.
+- "columns": list of column index labels. Include relevant columns only.
+- "hints": only for key columns (WHERE/JOIN/ORDER BY/GROUP BY targets). Omit obvious ones.
+- "reasoning": one or two sentences.
+- Be thorough: missing a table is worse than including an extra one.
+- If the schema does not contain index labels, use real table/column names in the same format.`
+
+// oneShotAsyncSystemPrompt is used for one-shot mode in the concurrent LinkAsync path.
+// Only needed for LargeScale where schema arrives asynchronously via get_candidate_schema polling.
+// SmallScale one-shot now uses LinkDirect instead.
 const oneShotAsyncSystemPrompt = `You are an expert database schema analyst performing Schema Linking.
 
 Your task: Given a natural language query, retrieve the database schema and identify which tables and columns are needed to answer the query.
@@ -284,7 +382,8 @@ Rules:
 - "hints": only for key columns (WHERE/JOIN/ORDER BY/GROUP BY targets). Omit obvious ones.
 - "reasoning": one or two sentences.
 - Be thorough: missing a table is worse than including an extra one.
-- IMPORTANT: You MUST give Final Answer immediately after receiving the schema. Do NOT call execute_sql or any other tool.`
+- IMPORTANT: You have exactly ONE tool: get_candidate_schema. No other tools exist.
+- IMPORTANT: You MUST give Final Answer immediately after receiving the schema. Do NOT attempt to call execute_sql or any other tool — they do not exist and will cause errors.`
 
 // reactLinkingAsyncSystemPrompt is used for react mode in the concurrent architecture.
 // The LLM calls get_candidate_schema first, then can explore via execute_sql.

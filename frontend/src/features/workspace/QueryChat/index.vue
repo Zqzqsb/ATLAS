@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, Transition, TransitionGroup } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, Transition, TransitionGroup } from 'vue'
 import { NButton, NInput, NInputNumber, NSwitch, NSelect, NCollapse, NCollapseItem, NCheckbox, NSpin, NTag, useMessage } from 'naive-ui'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { queryApi } from '@/api/query'
@@ -23,6 +23,73 @@ const suggestedFields = ref<SuggestedFieldFromLinking[]>([])
 const showFieldPanel = ref(false)
 const awaitingFieldConfirmation = ref(false) // True when grounding-only is done, waiting for user
 const fieldPanelConsumed = ref(false) // True after user confirms/dismisses — prevents watcher re-trigger
+
+// Expandable step detail tracking — keyed by "phase-stepNumber" e.g. "schema_linking-1"
+const expandedSteps = ref(new Set<string>())
+function toggleStepDetail(key: string) {
+  if (expandedSteps.value.has(key)) {
+    expandedSteps.value.delete(key)
+  } else {
+    expandedSteps.value.add(key)
+  }
+}
+
+// Sub-stage progressive animation — fires on fixed timers once Schema Linking becomes active.
+// Stages 1 & 2 are purely visual (timed), stage 3 "done" anchors on real data arrival.
+// Each stage has: visible (show the row), done (check mark vs spinner)
+const subStage1Visible = ref(false)
+const subStage1Done = ref(false)
+const subStage2Visible = ref(false)
+const subStage2Done = ref(false)
+const subStage3Visible = ref(false)
+// subStage3 "done" = schemaLinkingStage.completed (real data)
+let subStageTimers: ReturnType<typeof setTimeout>[] = []
+
+function resetSubStages() {
+  subStageTimers.forEach(t => clearTimeout(t))
+  subStageTimers = []
+  subStage1Visible.value = false
+  subStage1Done.value = false
+  subStage2Visible.value = false
+  subStage2Done.value = false
+  subStage3Visible.value = false
+  visibleStepCount.value = 0
+  if (stepRevealTimer) { clearTimeout(stepRevealTimer); stepRevealTimer = null }
+}
+
+function startSubStageAnimation() {
+  resetSubStages()
+  // T+0ms: stage 1 appears (doing)
+  subStage1Visible.value = true
+  // T+1200ms: stage 1 → done
+  subStageTimers.push(setTimeout(() => { subStage1Done.value = true }, 1200))
+  // T+1800ms: stage 2 appears (doing)
+  subStageTimers.push(setTimeout(() => { subStage2Visible.value = true }, 1800))
+  // T+3200ms: stage 2 → done
+  subStageTimers.push(setTimeout(() => { subStage2Done.value = true }, 3200))
+  // T+3800ms: stage 3 appears (doing — stays doing until real data arrives)
+  subStageTimers.push(setTimeout(() => { subStage3Visible.value = true }, 3800))
+}
+
+// Delayed step reveal — steps that arrive while animation is playing get queued
+// and revealed one-by-one with stagger delay after stage 3 appears.
+const visibleStepCount = ref(0)
+let stepRevealTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleStepReveal(totalSteps: number) {
+  if (stepRevealTimer) clearTimeout(stepRevealTimer)
+  if (visibleStepCount.value >= totalSteps) return
+  // Base delay: if stage 3 hasn't appeared yet, wait for it; otherwise short stagger
+  const baseDelay = subStage3Visible.value ? 400 : 4500
+  stepRevealTimer = setTimeout(() => {
+    if (visibleStepCount.value < totalSteps) {
+      visibleStepCount.value++
+      // Continue revealing next step
+      scheduleStepReveal(totalSteps)
+    }
+  }, visibleStepCount.value === 0 ? baseDelay : 500)
+  subStageTimers.push(stepRevealTimer)
+}
 
 // Stage timing
 const stageTimings = ref({
@@ -99,6 +166,8 @@ function resetTimings() {
     schemaLinking: { start: 0, end: 0 },
     sqlGeneration: { start: 0, end: 0 }
   }
+  expandedSteps.value.clear()
+  resetSubStages()
 }
 
 // Query options
@@ -150,7 +219,7 @@ const exampleQuestions = computed(() => {
   if (dbName.includes('tvshow') || dbName.includes('tv_show')) {
     return [
       'List all TV channels',
-      'Which channel has the highest package price?',
+      'Which channels support Pay-Per-View?',
       'Show all cartoons and their broadcast channels',
       'Count the number of channels per country'
     ]
@@ -160,7 +229,7 @@ const exampleQuestions = computed(() => {
   if (dbName.includes('flight')) {
     return [
       'List all airlines',
-      'What flights depart from Los Angeles?',
+      'What flights depart from Aberdeen?',
       'Show all airports and their cities',
       'Which airline has the most flights?'
     ]
@@ -176,14 +245,16 @@ const exampleQuestions = computed(() => {
     ]
   }
 
-  // TPC-H Enterprise (38-table large-scale demo)
+  // TPC-H Enterprise (510-table large-scale demo)
   if (dbName.includes('tpch') || dbName.includes('enterprise')) {
     return [
       'Which supplier has the highest profit?',
       'Which parts in the East warehouse are low on stock?',
       'What are the lowest-rated products?',
       'Which orders have shipping delays over 3 days?',
-      'Which parts have a price increase over 10%?',
+      'List all open recruitment requisitions',
+      'Which employees have expiring certifications?',
+      'Show overdue accounts payable invoices',
     ]
   }
 
@@ -215,10 +286,14 @@ const vectorSearchStage = computed(() => {
   const backendLatency = workspaceStore.groundingResult?.retrievalLatencyMs
   const backendDuration = workspaceStore.groundingResult?.retrievalDurationMs
   const clientDuration = end && start ? end - start : 0
+  const isCompleted = stageDone && hasGroundingContent.value
+  const isEmpty = stageDone && !hasGroundingContent.value
   return {
-    active: isExecuting.value && workspaceStore.groundingStage !== 'idle',
-    completed: stageDone && hasGroundingContent.value,
-    empty: stageDone && !hasGroundingContent.value,
+    // Active only while still waiting for retrieval data — once done (completed or empty), stop
+    active: isExecuting.value && workspaceStore.groundingStage !== 'idle' && !isCompleted && !isEmpty,
+    // Treat empty as completed too — so RealtimeCard renders the content slot (shows "No context available")
+    completed: isCompleted || isEmpty,
+    empty: isEmpty,
     data: workspaceStore.groundingResult,
     // For small_scale: no vector retrieval → use client-side round-trip time
     // For large_scale: prefer backend-reported retrieval latency T0→T1
@@ -232,6 +307,12 @@ const vectorSearchStage = computed(() => {
 
 // Detect small-scale strategy (no vector search, schema passed directly)
 const isSmallScale = computed(() => workspaceStore.groundingResult?.strategy === 'small_scale')
+
+// Whether columns were explicitly selected by LLM (vs. all columns pass-through)
+const hasExplicitColumns = computed(() => (workspaceStore.groundingResult?.linkingColumns?.length ?? 0) > 0)
+
+// Total linking columns count (for summary)
+const totalLinkingColumns = computed(() => workspaceStore.groundingResult?.linkingColumns?.length ?? 0)
 
 // Group linking results by table for collapsible display
 const linkedTableGroups = computed(() => {
@@ -261,38 +342,62 @@ const schemaLinkingStage = computed(() => {
   const steps = workspaceStore.reactSteps.filter(s => s.phase === 'schema_linking')
   const hasSchemaLinkingSteps = steps.length > 0
   const hasSqlGenerationSteps = workspaceStore.reactSteps.some(s => s.phase === 'sql_generation')
-  const completed = end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql
   
-  // Active when: vector search is visually done AND (linking started/done OR has linking data)
-  // Gate on vectorSearchStage to prevent Schema Linking from activating before Vector Search completes
+  // Active when: vector search is visually done AND grounding in progress or linking data present
   const vectorDone = vectorSearchStage.value.completed || vectorSearchStage.value.empty
   const groundingDone = workspaceStore.groundingStage === 'done' || workspaceStore.groundingStage === 'stage2'
   const linkingInProgress = workspaceStore.groundingProgress?.stage === 'linking_start'
   const hasLinkingData = !!workspaceStore.groundingResult?.reasoning || !!workspaceStore.groundingResult?.linkingTables?.length
-  const active = awaitingFieldConfirmation.value || (vectorDone && (hasLinkingData || linkingInProgress || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)))
+  const active = awaitingFieldConfirmation.value
+    || (vectorDone && (hasLinkingData || linkingInProgress || (isExecuting.value && groundingDone && !hasSqlGenerationSteps)))
+    // For small_scale / one-shot: also activate once vector search is done and query is still running
+    || (vectorDone && isExecuting.value && !hasSqlGenerationSteps && !workspaceStore.generatedSql)
   
-  // Separate polling steps (get_candidate_schema with no result) from real analysis steps
-  // Also filter out get_candidate_schema calls that returned schema data (successful fetch)
-  // — those are infrastructure steps, not analysis steps worth showing.
+  // Completed when: has linking steps that finished, OR sql generation already started (meaning linking is done),
+  // OR grounding completed with linking data (one-shot/small_scale).
+  const completed = (end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql)
+    && (hasSchemaLinkingSteps || hasLinkingData || hasSqlGenerationSteps || !!workspaceStore.generatedSql)
+  
+  // Separate polling steps from real analysis steps
   const pollingSteps = steps.filter(s => s.action === 'get_candidate_schema' && !s.observation)
   const schemaReceivedSteps = steps.filter(s => s.action === 'get_candidate_schema' && !!s.observation)
   const realSteps = steps.filter(s => s.action !== 'get_candidate_schema')
 
   return {
     active: active || (isExecuting.value && hasSchemaLinkingSteps),
-    completed: completed && hasSchemaLinkingSteps,
+    completed,
     steps: realSteps,
     pollingCount: pollingSteps.length,
     schemaReceived: schemaReceivedSteps.length > 0,
     isPolling: pollingSteps.length > 0 && realSteps.length === 0 && isExecuting.value,
     contexts: workspaceStore.usedContexts,
-    // Prefer backend-reported reasoning latency T1.1→T2 (from linking_complete event).
-    // Fall back to linkingDurationMs, then client-side timestamps.
     duration: workspaceStore.groundingResult?.reasoningLatencyMs
       ? workspaceStore.groundingResult.reasoningLatencyMs
       : workspaceStore.groundingResult?.linkingDurationMs
       ? workspaceStore.groundingResult.linkingDurationMs
       : (completed && start && end ? end - start : 0)
+  }
+})
+
+// Trigger sub-stage animation when schema linking becomes active
+// MUST be after schemaLinkingStage computed definition to avoid "Cannot access before initialization"
+watch(() => schemaLinkingStage.value.active, (active) => {
+  if (active && !subStage1Visible.value) {
+    startSubStageAnimation()
+  }
+})
+
+// Schedule staggered reveal of schema linking react steps as they arrive
+watch(() => schemaLinkingStage.value.steps.length, (newLen) => {
+  if (newLen > 0) {
+    scheduleStepReveal(newLen)
+  }
+})
+
+// When sub-stage 3 appears, re-schedule step reveal with shorter delay if steps are already waiting
+watch(() => subStage3Visible.value, (visible) => {
+  if (visible && schemaLinkingStage.value.steps.length > visibleStepCount.value) {
+    scheduleStepReveal(schemaLinkingStage.value.steps.length)
   }
 })
 
@@ -314,73 +419,110 @@ const sqlGenerationStage = computed(() => {
   }
 })
 
-// ---- Auto-scroll: smooth, debounced, non-conflicting ----
+// ---- Auto-scroll: keep latest content visible, bottom-anchored ----
 const executionAreaRef = ref<HTMLElement | null>(null)
 const vectorSearchRef = ref<HTMLElement | null>(null)
 const schemaLinkingRef = ref<HTMLElement | null>(null)
 const sqlGenerationRef = ref<HTMLElement | null>(null)
 const queryResultRef = ref<HTMLElement | null>(null)
 
-// Debounce scroll requests to prevent multiple rapid calls from fighting each other.
-// Only the last target within a 120ms window actually scrolls.
-let scrollTimer: ReturnType<typeof setTimeout> | null = null
-let lastScrollTarget: HTMLElement | null = null
+// Whether auto-scroll is active (disabled when user manually scrolls up)
+let autoScrollEnabled = true
+let isProgrammaticScroll = false
+let mutationObserver: MutationObserver | null = null
 
-function scrollToElement(el: HTMLElement | null, delay = 80) {
-  if (!el || !executionAreaRef.value) return
-  lastScrollTarget = el
-  if (scrollTimer) clearTimeout(scrollTimer)
-  scrollTimer = setTimeout(() => {
-    if (!executionAreaRef.value || lastScrollTarget !== el) return
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        const container = executionAreaRef.value!
-        // Calculate true offset by traversing offsetParent chain
-        let elTop = 0
-        let node: HTMLElement | null = el
-        while (node && node !== container) {
-          elTop += node.offsetTop
-          node = node.offsetParent as HTMLElement | null
-        }
-        const target = Math.max(0, elTop - 32)
-        const distance = Math.abs(container.scrollTop - target)
-        // Skip tiny scrolls (< 20px) to avoid micro-jitter
-        if (distance < 20) return
-        container.scrollTo({ top: target, behavior: 'smooth' })
-      })
-    })
-  }, delay)
+// Detect user manual scroll — if user scrolls up significantly, pause auto-scroll;
+// if user is near bottom, re-enable.
+function onContainerScroll() {
+  const container = executionAreaRef.value
+  if (!container || isProgrammaticScroll) return
+  const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+  autoScrollEnabled = distanceFromBottom < 150
 }
 
-// When vector search becomes active — scroll immediately
+// Scroll so that the bottom of the target element is visible, with a small padding from
+// the container's bottom edge. This never scrolls PAST the content.
+function scrollTailToView(el: HTMLElement | null) {
+  if (!el || !executionAreaRef.value || !autoScrollEnabled) return
+  requestAnimationFrame(() => {
+    const container = executionAreaRef.value
+    if (!container || !autoScrollEnabled) return
+    // Get element bottom relative to container's scroll coordinate space
+    let elBottom = 0
+    let node: HTMLElement | null = el
+    while (node && node !== container) {
+      elBottom += node.offsetTop
+      node = node.offsetParent as HTMLElement | null
+    }
+    elBottom += el.offsetHeight
+    // We want elBottom to appear ~40px above the container's bottom edge
+    const padding = 40
+    const targetScroll = elBottom - container.clientHeight + padding
+    // Only scroll DOWN, never up — and skip tiny scrolls
+    if (targetScroll <= container.scrollTop || targetScroll - container.scrollTop < 15) return
+    // Also cap at maximum scrollable range
+    const maxScroll = container.scrollHeight - container.clientHeight
+    const finalScroll = Math.min(targetScroll, maxScroll)
+    isProgrammaticScroll = true
+    container.scrollTo({ top: finalScroll, behavior: 'smooth' })
+    setTimeout(() => { isProgrammaticScroll = false }, 400)
+  })
+}
+
+function getCurrentTailElement(): HTMLElement | null {
+  if (workspaceStore.generatedSql && queryResultRef.value) return queryResultRef.value
+  if (sqlGenerationStage.value.active && sqlGenerationRef.value) return sqlGenerationRef.value
+  if (schemaLinkingStage.value.active && schemaLinkingRef.value) return schemaLinkingRef.value
+  if (vectorSearchStage.value.active && vectorSearchRef.value) return vectorSearchRef.value
+  return null
+}
+
+function scrollToCurrentTail() {
+  scrollTailToView(getCurrentTailElement())
+}
+
+// Setup MutationObserver on mount to catch any DOM growth (SSE content arriving)
+onMounted(() => {
+  nextTick(() => {
+    const container = executionAreaRef.value
+    if (!container) return
+    container.addEventListener('scroll', onContainerScroll, { passive: true })
+    mutationObserver = new MutationObserver(() => {
+      if (autoScrollEnabled && isExecuting.value) {
+        scrollToCurrentTail()
+      }
+    })
+    mutationObserver.observe(container, { childList: true, subtree: true, characterData: true })
+  })
+})
+
+// Cleanup
+onBeforeUnmount(() => {
+  executionAreaRef.value?.removeEventListener('scroll', onContainerScroll)
+  mutationObserver?.disconnect()
+})
+
+// Re-enable auto-scroll when a new query starts
+watch(isExecuting, (executing) => {
+  if (executing) autoScrollEnabled = true
+})
+
+// Stage transitions — scroll to tail
 watch(() => vectorSearchStage.value.active, (active) => {
-  if (active) scrollToElement(vectorSearchRef.value, 50)
+  if (active) { autoScrollEnabled = true; scrollToCurrentTail() }
 })
-
-// When schema linking becomes active — give Vector Search card time to settle
 watch(() => schemaLinkingStage.value.active, (active) => {
-  if (active && !schemaLinkingStage.value.completed) scrollToElement(schemaLinkingRef.value, 200)
+  if (active && !schemaLinkingStage.value.completed) scrollToCurrentTail()
 })
-
-// When SQL generation becomes active
 watch(() => sqlGenerationStage.value.active, (active) => {
-  if (active) scrollToElement(sqlGenerationRef.value, 200)
+  if (active) scrollToCurrentTail()
 })
-
-// When SQL generation completes, scroll to query result with extra delay for polish
 watch(() => workspaceStore.generatedSql, (sql) => {
-  if (sql) scrollToElement(queryResultRef.value, 300)
+  if (sql) setTimeout(() => scrollTailToView(queryResultRef.value), 200)
 })
-
-// When new react steps arrive, scroll to the relevant card.
-// Debounce naturally prevents rapid step arrivals from causing scroll fights.
+// React steps arrival
 watch(() => workspaceStore.reactSteps.length, () => {
-  const sqlSteps = workspaceStore.reactSteps.filter(s => s.phase === 'sql_generation')
-  if (sqlSteps.length > 0) {
-    scrollToElement(sqlGenerationRef.value, 150)
-  } else if (workspaceStore.reactSteps.length > 0) {
-    scrollToElement(schemaLinkingRef.value, 150)
-  }
+  scrollToCurrentTail()
 })
 
 // Field Alignment: watch grounding result's suggestedFields specifically
@@ -451,23 +593,29 @@ function serializeGroundingForInjection(): any {
 
 // Dismiss field panel and execute full pipeline without field constraints (Phase 2: inference only)
 function dismissFieldPanel() {
-  showFieldPanel.value = false
   fieldPanelConsumed.value = true
   if (awaitingFieldConfirmation.value) {
     awaitingFieldConfirmation.value = false
-    // Phase 2: skip grounding, reuse previous grounding result, no field constraints
     const injectedGrounding = serializeGroundingForInjection()
-    workspaceStore.executeQuery(question.value, undefined, false, injectedGrounding)
+    // Brief delay so field panel collapse animation plays before Phase 2 stream starts
+    showFieldPanel.value = false
+    setTimeout(() => {
+      workspaceStore.executeQuery(question.value, undefined, false, injectedGrounding)
+    }, 250)
+  } else {
+    showFieldPanel.value = false
   }
 }
 
 // Confirm field selection and execute inference only with field constraints (Phase 2)
 async function confirmFieldsAndExecute() {
-  showFieldPanel.value = false
   awaitingFieldConfirmation.value = false
   fieldPanelConsumed.value = true
   const fieldDesc = getFieldDescription()
   const injectedGrounding = serializeGroundingForInjection()
+  // Smooth transition: collapse field panel first, then start Phase 2 after animation completes
+  showFieldPanel.value = false
+  await new Promise(resolve => setTimeout(resolve, 300))
   try {
     // Phase 2: skip grounding, reuse grounding result, inject field description
     await workspaceStore.executeQuery(question.value, fieldDesc, false, injectedGrounding)
@@ -780,16 +928,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 
       <!-- RIGHT: Execution Pipeline -->
       <div ref="executionAreaRef" class="execution-area p-6 xl:p-8 overflow-y-auto bg-slate-50/30">
-        <div class="flex flex-col mb-8">
-          <div class="flex items-center gap-2 mb-1.5">
-            <div class="w-6 h-6 rounded-md bg-emerald-100/80 flex items-center justify-center border border-emerald-200/50 shadow-sm">
-              <div class="i-lucide-workflow text-[13px] text-emerald-600" />
-            </div>
-            <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest">Execution Pipeline</h2>
-          </div>
-          <p class="text-[13px] text-gray-400 pl-8">Real-time trace of adaptive schema linking and query generation</p>
-        </div>
-
     <!-- Real-time Execution Cards (vertical stack) -->
     <div class="execution-pipeline space-y-4 mb-8">
       <!-- Stage 1: Vector Search / Schema Loaded -->
@@ -805,6 +943,16 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :step-number="1"
         color="blue"
       >
+        <template #summary>
+          <div v-if="workspaceStore.groundingResult" class="flex items-center gap-2 text-[11px]">
+            <span v-if="workspaceStore.groundingResult.tables?.length" class="text-blue-600 font-medium">
+              {{ workspaceStore.groundingResult.tables.length }} tables
+            </span>
+            <span v-if="workspaceStore.groundingResult.columns?.length" class="text-cyan-600 font-medium">
+              · {{ workspaceStore.groundingResult.columns.length }} columns
+            </span>
+          </div>
+        </template>
         <template #content>
           <!-- Skeleton screen: shows table names from local cache while waiting for backend -->
           <div v-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
@@ -833,33 +981,37 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
             </div>
           </div>
-          <div v-else-if="workspaceStore.groundingResult" class="space-y-4">
-            <!-- Summary: what was retrieved -->
-            <div class="flex flex-wrap items-center gap-3 stagger-item" style="--stagger: 0">
-              <div v-if="workspaceStore.groundingResult.tables?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-50 border border-blue-100">
-                <div class="i-lucide-table-2 text-xs text-blue-500" />
-                <span class="text-xs font-semibold text-blue-700">{{ workspaceStore.groundingResult.tables.length }} tables</span>
-              </div>
-              <div v-if="workspaceStore.groundingResult.columns?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-cyan-50 border border-cyan-100">
-                <div class="i-lucide-columns-3 text-xs text-cyan-500" />
-                <span class="text-xs font-semibold text-cyan-700">{{ workspaceStore.groundingResult.columns.length }} columns</span>
-              </div>
-              <div v-if="workspaceStore.groundingResult.joinPaths?.length" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-purple-50 border border-purple-100">
-                <div class="i-lucide-git-merge text-xs text-purple-500" />
-                <span class="text-xs font-semibold text-purple-700">{{ workspaceStore.groundingResult.joinPaths.length }} join paths</span>
+          <div v-else-if="workspaceStore.groundingResult" class="space-y-3">
+
+            <!-- Candidate tables with descriptions -->
+            <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item space-y-1.5" style="--stagger: 0">
+              <div
+                v-for="(table, ti) in workspaceStore.groundingResult.tables"
+                :key="table.name"
+                class="table-pill flex items-start gap-2 px-2 py-1 rounded-lg bg-blue-50/70 border border-blue-100"
+                :style="{ animationDelay: (ti * 60) + 'ms' }"
+              >
+                <div class="i-lucide-table-2 text-[11px] text-blue-400 mt-0.5 shrink-0" />
+                <div class="min-w-0">
+                  <span class="text-[11px] font-bold text-blue-700">{{ table.name }}</span>
+                  <span v-if="table.description" class="text-[11px] text-gray-500 ml-1.5">{{ table.description }}</span>
+                </div>
               </div>
             </div>
 
-            <!-- Candidate tables (compact pills, staggered per-pill) -->
-            <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item" style="--stagger: 1">
-              <div class="flex flex-wrap gap-1.5">
+            <!-- Retrieved columns (compact, grouped by table) -->
+            <div v-if="workspaceStore.groundingResult.columns?.length" class="stagger-item" style="--stagger: 1">
+              <div class="flex flex-wrap gap-1">
                 <span
-                  v-for="(table, ti) in workspaceStore.groundingResult.tables"
-                  :key="table.name"
-                  class="table-pill px-2 py-1 rounded-md bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-700"
-                  :style="{ animationDelay: (ti * 40) + 'ms' }"
-                  :title="table.description"
-                >{{ table.name }}</span>
+                  v-for="(col, ci) in workspaceStore.groundingResult.columns"
+                  :key="col.table + '.' + col.column"
+                  class="column-pill inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-cyan-50/80 border border-cyan-100 text-[10px]"
+                  :style="{ animationDelay: (ci * 30) + 'ms' }"
+                  :title="[col.table + '.' + col.column, col.dataType, col.description].filter(Boolean).join(' — ')"
+                >
+                  <span class="text-cyan-500 font-medium">{{ col.table }}</span><span class="text-gray-300">.</span><span class="text-cyan-700 font-semibold">{{ col.column }}</span>
+                  <span v-if="col.dataType" class="text-gray-400">{{ col.dataType }}</span>
+                </span>
               </div>
             </div>
 
@@ -931,17 +1083,10 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </RealtimeCard>
       </div>
 
-      <!-- Step connector 1→2 -->
-      <div class="step-connector flex flex-col items-center py-1">
-        <div class="w-px h-4 bg-gradient-to-b from-blue-200 to-cyan-200" />
-        <div class="w-1.5 h-1.5 rounded-full bg-gray-300 my-0.5" />
-        <div class="w-px h-4 bg-gradient-to-b from-cyan-200 to-cyan-100" />
-      </div>
-
       <!-- Stage 2: Schema Linking -->
       <div ref="schemaLinkingRef" class="scroll-mt-4">
       <RealtimeCard
-        :title="linkingMode === 'react' ? 'ReAct Schema Linking' : linkingMode === 'off' ? 'Schema Linking (Off)' : 'One-Shot Schema Linking'"
+        :title="linkingMode === 'react' ? 'ReAct Schema Linking' : linkingMode === 'off' ? 'Schema Pass-through' : 'One-Shot Schema Linking'"
         icon="i-lucide-link"
         :active="schemaLinkingStage.active"
         :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"
@@ -950,12 +1095,26 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :step-number="2"
         color="cyan"
       >
+        <template #summary>
+          <div v-if="linkedTableGroups.length" class="flex items-center gap-2 text-[11px]">
+            <span class="text-teal-600 font-medium">{{ linkedTableGroups.length }} tables</span>
+            <span v-if="hasExplicitColumns" class="text-cyan-600 font-medium">
+              · {{ totalLinkingColumns }} columns
+            </span>
+            <span v-else class="text-gray-400 font-medium">· all columns</span>
+          </div>
+        </template>
         <template #content>
           <!-- Step 1: Linking Agent Result (LLM Fine Selection + Selected Tables/Columns + Execution Logs) -->
           <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length" class="space-y-3 mb-4">
-            <!-- LLM Fine Selection -->
-            <div v-if="workspaceStore.groundingResult.reasoning" class="stagger-item" style="--stagger: 0">
-              <NCollapse :default-expanded-names="['reasoning']" arrow-placement="left">
+            <!-- Pass-through notice (linking off) -->
+            <div v-if="linkingMode === 'off'" class="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-50 border border-slate-200">
+              <div class="i-lucide-arrow-right-circle text-sm text-slate-400" />
+              <span class="text-xs text-slate-600">All tables passed directly to SQL generation — no LLM column selection.</span>
+            </div>
+            <!-- LLM Fine Selection (only when linking is actually active) -->
+            <div v-else-if="workspaceStore.groundingResult.reasoning" class="stagger-item" style="--stagger: 0">
+              <NCollapse :default-expanded-names="[]" arrow-placement="left">
                 <NCollapseItem name="reasoning">
                   <template #header>
                     <div class="flex items-center gap-2">
@@ -978,7 +1137,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div class="flex items-center gap-2 mb-2">
                 <div class="i-lucide-filter text-sm text-teal-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                  Linked Schema ({{ linkedTableGroups.length }} tables, {{ workspaceStore.groundingResult.linkingColumns?.length || 0 }} columns)
+                  Linked Schema ({{ linkedTableGroups.length }} tables{{ hasExplicitColumns ? `, ${totalLinkingColumns} columns` : ', all columns' }})
                 </span>
               </div>
               <div class="space-y-1.5">
@@ -994,7 +1153,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       <div class="i-lucide-table-2 text-xs text-teal-600" />
                     </div>
                     <span class="text-xs font-bold text-teal-800">{{ group.name }}</span>
-                    <span class="text-xs text-gray-400 ml-auto">{{ group.columns.length }} cols</span>
+                    <span class="text-xs text-gray-400 ml-auto">{{ group.columns.length ? `${group.columns.length} cols` : 'all cols' }}</span>
                   </div>
                   <!-- Columns list with RC description -->
                   <div v-if="group.columns.length" class="px-3 pb-2 space-y-0.5">
@@ -1089,67 +1248,87 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </Transition>
 
           <!-- Schema Linking Steps (only shown when inference is running / complete) -->
-          <div v-if="schemaLinkingStage.isPolling || schemaLinkingStage.steps.length" class="space-y-4" :class="{ 'mt-4': showFieldPanel }">
-            <!-- Polling indicator: waiting for schema data (cold-start acceleration) -->
-            <div v-if="schemaLinkingStage.pollingCount > 0 || schemaLinkingStage.schemaReceived" class="flex items-center gap-3 px-4 py-3 rounded-lg border"
-              :class="schemaLinkingStage.schemaReceived ? 'bg-green-50/50 border-green-100' : 'bg-cyan-50/50 border-cyan-100'"
-            >
-              <div v-if="schemaLinkingStage.isPolling" class="i-lucide-loader-2 animate-spin text-cyan-500 text-lg flex-shrink-0" />
-              <div v-else class="i-lucide-check-circle text-green-500 text-lg flex-shrink-0" />
-              <div class="flex-1">
-                <span v-if="schemaLinkingStage.isPolling" class="text-sm font-medium text-gray-600">Waiting for schema data...</span>
-                <span v-else class="text-sm font-medium text-green-700">Schema data received</span>
-                <span v-if="schemaLinkingStage.pollingCount > 0 && !schemaLinkingStage.isPolling" class="text-xs text-gray-400 ml-2">
-                  (waited {{ schemaLinkingStage.pollingCount }} {{ schemaLinkingStage.pollingCount === 1 ? 'round' : 'rounds' }})
+          <div v-if="subStage1Visible || schemaLinkingStage.isPolling || schemaLinkingStage.steps.length" class="space-y-4" :class="{ 'mt-4': showFieldPanel }">
+            <!-- Progressive sub-stage indicators (timed animation, stage 3 anchors on real data) -->
+            <div v-if="subStage1Visible" class="space-y-1.5">
+              <!-- Sub-stage 1: Waiting for schema data -->
+              <Transition name="substage">
+              <div v-if="subStage1Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
+                :class="subStage1Done ? 'bg-green-50/40 border-green-100/60' : 'bg-cyan-50/50 border-cyan-100'"
+              >
+                <div v-if="!subStage1Done" class="i-lucide-loader-2 animate-spin text-cyan-500 text-sm flex-shrink-0" />
+                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <span class="text-xs font-medium transition-colors duration-300" :class="subStage1Done ? 'text-green-700' : 'text-gray-600'">
+                  {{ subStage1Done ? 'Retrieval results ready' : 'Retrieving candidates...' }}
                 </span>
               </div>
+              </Transition>
+              <!-- Sub-stage 2: Schema loaded -->
+              <Transition name="substage">
+              <div v-if="subStage2Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
+                :class="subStage2Done ? 'bg-green-50/40 border-green-100/60' : 'bg-cyan-50/50 border-cyan-100'"
+              >
+                <div v-if="!subStage2Done" class="i-lucide-database text-cyan-500 text-sm flex-shrink-0 animate-pulse" />
+                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <span class="text-xs font-medium transition-colors duration-300" :class="subStage2Done ? 'text-green-700' : 'text-cyan-700'">
+                  {{ subStage2Done ? 'Schema loaded' : 'Loading schema...' }}
+                </span>
+              </div>
+              </Transition>
+              <!-- Sub-stage 3: Link reasoning (done anchored on real schemaLinkingStage.completed) -->
+              <Transition name="substage">
+              <div v-if="subStage3Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
+                :class="schemaLinkingStage.completed ? 'bg-green-50/40 border-green-100/60' : 'bg-indigo-50/50 border-indigo-100'"
+              >
+                <div v-if="!schemaLinkingStage.completed" class="i-lucide-brain text-indigo-500 text-sm flex-shrink-0 animate-pulse" />
+                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <span class="text-xs font-medium transition-colors duration-300" :class="schemaLinkingStage.completed ? 'text-green-700' : 'text-indigo-700'">
+                  {{ schemaLinkingStage.completed ? 'Link reasoning done' : 'Link reasoning...' }}
+                </span>
+                <span v-if="schemaLinkingStage.steps.length > 0" class="text-[10px] text-gray-400 ml-auto">
+                  {{ schemaLinkingStage.steps.length }} step{{ schemaLinkingStage.steps.length > 1 ? 's' : '' }}
+                </span>
+              </div>
+              </Transition>
             </div>
 
-            <!-- Step counter (only for real analysis steps) -->
-            <div v-if="schemaLinkingStage.steps.length" class="flex items-center gap-2 pb-2 border-b border-gray-100">
-              <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                {{ schemaLinkingStage.steps.length }} reasoning step{{ schemaLinkingStage.steps.length > 1 ? 's' : '' }}
-              </div>
-            </div>
-            
-            <!-- Steps -->
-            <TransitionGroup name="step-list" tag="div" class="space-y-4">
+            <!-- Steps (compact: action + status visible, thought/observation collapsed) -->
+            <TransitionGroup name="step-list" tag="div" class="space-y-1.5">
             <div
-              v-for="(step, idx) in schemaLinkingStage.steps"
+              v-for="(step, idx) in schemaLinkingStage.steps.slice(0, visibleStepCount)"
               :key="step.step || idx"
-              class="react-step p-4 rounded-lg bg-cyan-50 border border-cyan-100"
+              class="react-step rounded-lg bg-cyan-50 border border-cyan-100 overflow-hidden"
             >
-              <div class="flex items-start gap-3">
-                <!-- Step indicator -->
-                <div class="flex flex-col items-center">
-                  <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border border-cyan-100">
-                    <span class="text-xs text-cyan-600 font-bold">{{ step.step }}</span>
-                  </div>
+              <!-- Compact header: step number + action + click to expand -->
+              <div
+                class="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-cyan-100/50 transition-colors select-none"
+                @click="toggleStepDetail(`sl-${step.step || idx}`)"
+              >
+                <div class="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border border-cyan-100">
+                  <span class="text-[10px] text-cyan-600 font-bold">{{ step.step }}</span>
                 </div>
-                
-                <div class="flex-1 min-w-0 space-y-3">
-                  <!-- Thought -->
-                  <div v-if="step.thought" class="flex items-start gap-2">
-                    <div class="i-lucide-lightbulb text-cyan-600 mt-0.5 flex-shrink-0" />
-                    <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
-                  </div>
-                  
-                  <!-- Action -->
-                  <div v-if="step.action" class="flex items-start gap-2 bg-white p-2 rounded border border-cyan-100">
-                    <div class="i-lucide-play text-teal-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span class="text-xs text-teal-700 font-mono font-bold">{{ step.action }}</span>
-                      <span v-if="step.actionInput" class="text-xs text-gray-500 ml-2 font-mono">
-                        {{ typeof step.actionInput === 'object' ? JSON.stringify(step.actionInput) : step.actionInput }}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <!-- Observation -->
-                  <div v-if="step.observation" class="flex items-start gap-2">
-                    <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
-                  </div>
+                <div class="i-lucide-play text-teal-600 flex-shrink-0 text-[10px]" />
+                <span class="text-[11px] text-teal-700 font-mono font-bold">{{ step.action || 'thinking' }}</span>
+                <span v-if="step.observation" class="text-[10px] text-green-600 font-medium ml-auto">done</span>
+                <div class="i-lucide-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0"
+                  :class="{ 'rotate-180': expandedSteps.has(`sl-${step.step || idx}`) }"
+                />
+              </div>
+              <!-- Expandable detail -->
+              <div v-if="expandedSteps.has(`sl-${step.step || idx}`)" class="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-cyan-100/60">
+                <div v-if="step.thought" class="flex items-start gap-1.5">
+                  <div class="i-lucide-lightbulb text-cyan-600 mt-0.5 flex-shrink-0 text-xs" />
+                  <p class="text-xs text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
+                </div>
+                <div v-if="step.actionInput" class="flex items-start gap-1.5 bg-white p-1.5 rounded border border-cyan-100">
+                  <div class="i-lucide-terminal text-teal-600 mt-0.5 flex-shrink-0 text-xs" />
+                  <span class="text-[11px] text-gray-500 font-mono break-all">
+                    {{ typeof step.actionInput === 'object' ? JSON.stringify(step.actionInput) : step.actionInput }}
+                  </span>
+                </div>
+                <div v-if="step.observation" class="flex items-start gap-1.5">
+                  <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
+                  <p class="text-[11px] text-gray-500 leading-relaxed">{{ step.observation }}</p>
                 </div>
               </div>
             </div>
@@ -1223,13 +1402,6 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       </RealtimeCard>
       </div>
 
-      <!-- Step connector 2→3 -->
-      <div class="step-connector flex flex-col items-center py-1">
-        <div class="w-px h-4 bg-gradient-to-b from-cyan-200 to-purple-200" />
-        <div class="w-1.5 h-1.5 rounded-full bg-gray-300 my-0.5" />
-        <div class="w-px h-4 bg-gradient-to-b from-purple-200 to-purple-100" />
-      </div>
-
       <!-- Stage 3: SQL Generation -->
       <div ref="sqlGenerationRef" class="scroll-mt-4">
       <RealtimeCard
@@ -1242,6 +1414,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         :step-number="3"
         color="purple"
       >
+        <template #summary>
+          <div class="flex items-center gap-2 text-[11px]">
+            <span v-if="sqlGenerationStage.steps.length" class="text-purple-600 font-medium">
+              {{ sqlGenerationStage.steps.length }} steps
+            </span>
+            <span v-if="sqlGenerationStage.sql" class="text-green-600 font-medium">· SQL ready</span>
+          </div>
+        </template>
         <template #content>
           <div class="space-y-4">
             <!-- Steps if any -->
@@ -1252,117 +1432,120 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 </div>
               </div>
               
-              <TransitionGroup name="step-list" tag="div" class="space-y-4">
+              <TransitionGroup name="step-list" tag="div" class="space-y-1.5">
               <div
                 v-for="(step, idx) in sqlGenerationStage.steps"
                 :key="step.step || idx"
-                class="react-step p-4 rounded-lg border"
+                class="react-step rounded-lg border overflow-hidden"
                 :class="step.action === 'verify_sql' && step.observation
                   ? (step.observation.startsWith('✅') ? 'bg-green-50 border-green-200' : step.observation.startsWith('❌') ? 'bg-red-50 border-red-200' : 'bg-purple-50 border-purple-100')
+                  : step.action === 'Final Answer' ? 'bg-emerald-50 border-emerald-200'
                   : 'bg-purple-50 border-purple-100'"
               >
-                <div class="flex items-start gap-3">
-                  <div class="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border"
+                <!-- Compact header: step number + action + status badge -->
+                <div
+                  class="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/30 transition-colors select-none"
+                  @click="toggleStepDetail(`sql-${step.step || idx}`)"
+                >
+                  <div class="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border"
                     :class="step.action === 'verify_sql' && step.observation
                       ? (step.observation.startsWith('✅') ? 'border-green-200' : step.observation.startsWith('❌') ? 'border-red-200' : 'border-purple-100')
+                      : step.action === 'Final Answer' ? 'border-emerald-200'
                       : 'border-purple-100'"
                   >
-                    <span v-if="step.action === 'verify_sql' && step.observation?.startsWith('✅')" class="text-xs text-green-600 font-bold">✓</span>
-                    <span v-else-if="step.action === 'verify_sql' && step.observation?.startsWith('❌')" class="text-xs text-red-600 font-bold">✗</span>
-                    <span v-else class="text-xs text-purple-600 font-bold">{{ step.step }}</span>
+                    <span v-if="step.action === 'verify_sql' && step.observation?.startsWith('✅')" class="text-[10px] text-green-600 font-bold">✓</span>
+                    <span v-else-if="step.action === 'verify_sql' && step.observation?.startsWith('❌')" class="text-[10px] text-red-600 font-bold">✗</span>
+                    <span v-else-if="step.action === 'Final Answer'" class="text-[10px] text-emerald-600 font-bold">✓</span>
+                    <span v-else class="text-[10px] text-purple-600 font-bold">{{ step.step }}</span>
+                  </div>
+                  <div v-if="step.action === 'verify_sql'" class="i-lucide-shield-check text-[10px] flex-shrink-0"
+                    :class="step.observation?.startsWith('✅') ? 'text-green-600' : step.observation?.startsWith('❌') ? 'text-red-600' : 'text-purple-500'"
+                  />
+                  <div v-else-if="step.action === 'Final Answer'" class="i-lucide-flag text-[10px] text-emerald-600 flex-shrink-0" />
+                  <div v-else class="i-lucide-play text-[10px] text-pink-600 flex-shrink-0" />
+                  <span class="text-[11px] font-mono font-bold"
+                    :class="step.action === 'verify_sql'
+                      ? (step.observation?.startsWith('✅') ? 'text-green-700' : step.observation?.startsWith('❌') ? 'text-red-700' : 'text-purple-700')
+                      : step.action === 'Final Answer' ? 'text-emerald-700'
+                      : 'text-purple-700'"
+                  >{{ step.action || 'thinking' }}</span>
+                  <!-- Status tags -->
+                  <NTag v-if="step.action === 'verify_sql' && step.observation?.startsWith('✅')" size="tiny" type="success" round>PASSED</NTag>
+                  <NTag v-else-if="step.action === 'verify_sql' && step.observation?.startsWith('❌')" size="tiny" type="error" round>FAILED</NTag>
+                  <NTag v-else-if="step.action === 'Final Answer'" size="tiny" type="success" round>SQL ready</NTag>
+                  <NTag v-else-if="step.observation" size="tiny" round>done</NTag>
+                  <!-- Chevron -->
+                  <div class="i-lucide-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 ml-auto"
+                    :class="{ 'rotate-180': expandedSteps.has(`sql-${step.step || idx}`) }"
+                  />
+                </div>
+                <!-- Expandable detail -->
+                <div v-if="expandedSteps.has(`sql-${step.step || idx}`)" class="px-2.5 pb-2.5 pt-1 space-y-2 border-t"
+                  :class="step.action === 'verify_sql' && step.observation?.startsWith('✅') ? 'border-green-100'
+                    : step.action === 'verify_sql' && step.observation?.startsWith('❌') ? 'border-red-100'
+                    : step.action === 'Final Answer' ? 'border-emerald-100'
+                    : 'border-purple-100/60'"
+                >
+                  <!-- Thought -->
+                  <div v-if="step.thought" class="flex items-start gap-1.5">
+                    <div class="i-lucide-lightbulb text-purple-600 mt-0.5 flex-shrink-0 text-xs" />
+                    <p class="text-xs text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                   </div>
                   
-                  <div class="flex-1 min-w-0 space-y-3">
-                    <div v-if="step.thought" class="flex items-start gap-2">
-                      <div class="i-lucide-lightbulb text-purple-600 mt-0.5 flex-shrink-0" />
-                      <p class="text-sm text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
-                    </div>
-                    
-                    <!-- Action: verify_sql with status badge + expandable execution plan -->
-                    <div v-if="step.action === 'verify_sql'" class="space-y-2">
-                      <div class="flex items-center gap-2 bg-white p-2 rounded border"
-                        :class="step.observation?.startsWith('✅') ? 'border-green-200' : step.observation?.startsWith('❌') ? 'border-red-200' : 'border-purple-100'"
+                  <!-- verify_sql: Execution Plan -->
+                  <div v-if="step.action === 'verify_sql' && step.observation" class="verify-result">
+                    <div class="rounded-lg overflow-hidden border"
+                      :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
+                    >
+                      <div v-if="parseExplainPlan(step.observation).steps.length > 0" class="p-2">
+                        <table class="w-full text-xs">
+                          <thead>
+                            <tr class="text-left text-gray-400 uppercase tracking-wider">
+                              <th class="px-2 py-1.5 font-semibold">Table</th>
+                              <th class="px-2 py-1.5 font-semibold">Scan</th>
+                              <th class="px-2 py-1.5 font-semibold">Key</th>
+                              <th class="px-2 py-1.5 font-semibold text-right">Rows</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="(planStep, pi) in parseExplainPlan(step.observation).steps" :key="pi" class="border-t border-gray-100">
+                              <td class="px-2 py-1.5 font-mono font-medium text-gray-700">{{ planStep.table }}</td>
+                              <td class="px-2 py-1.5">
+                                <span class="px-1.5 py-0.5 rounded text-xs font-medium"
+                                  :class="planStep.scan === 'ALL' ? 'bg-red-100 text-red-700' : planStep.scan === 'eq_ref' || planStep.scan === 'const' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
+                                >{{ planStep.scan }}</span>
+                              </td>
+                              <td class="px-2 py-1.5 font-mono text-gray-500">{{ planStep.key }}</td>
+                              <td class="px-2 py-1.5 text-right font-mono text-gray-500">{{ planStep.rows }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <pre v-else class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-48 overflow-y-auto"
+                        :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
+                      >{{ step.observation }}</pre>
+                      <div class="px-3 py-1.5 text-xs flex items-center gap-1.5 border-t"
+                        :class="step.observation?.startsWith('✅') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'"
                       >
-                        <div class="i-lucide-check-circle mt-0.5 flex-shrink-0"
-                          :class="step.observation?.startsWith('✅') ? 'text-green-600' : step.observation?.startsWith('❌') ? 'text-red-600' : 'text-pink-600'"
-                        />
-                        <span class="text-xs font-mono font-bold"
-                          :class="step.observation?.startsWith('✅') ? 'text-green-700' : step.observation?.startsWith('❌') ? 'text-red-700' : 'text-pink-600'"
-                        >verify_sql</span>
-                        <NTag v-if="step.observation?.startsWith('✅')" size="tiny" type="success" round>PASSED</NTag>
-                        <NTag v-else-if="step.observation?.startsWith('❌')" size="tiny" type="error" round>FAILED</NTag>
-                        <NTag v-else-if="step.observation" size="tiny" type="warning" round>CHECKING</NTag>
-                      </div>
-                      
-                      <!-- Execution Plan (structured display) -->
-                      <div v-if="step.observation" class="verify-result mt-2">
-                        <div class="rounded-lg overflow-hidden border"
-                          :class="step.observation?.startsWith('✅') ? 'border-green-200' : 'border-red-200'"
-                        >
-                          <!-- Structured EXPLAIN table -->
-                          <div v-if="parseExplainPlan(step.observation).steps.length > 0" class="p-2">
-                            <table class="w-full text-xs">
-                              <thead>
-                                <tr class="text-left text-gray-400 uppercase tracking-wider">
-                                  <th class="px-2 py-1.5 font-semibold">Table</th>
-                                  <th class="px-2 py-1.5 font-semibold">Scan</th>
-                                  <th class="px-2 py-1.5 font-semibold">Key</th>
-                                  <th class="px-2 py-1.5 font-semibold text-right">Rows</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr
-                                  v-for="(planStep, pi) in parseExplainPlan(step.observation).steps"
-                                  :key="pi"
-                                  class="border-t border-gray-100"
-                                >
-                                  <td class="px-2 py-1.5 font-mono font-medium text-gray-700">{{ planStep.table }}</td>
-                                  <td class="px-2 py-1.5">
-                                    <span class="px-1.5 py-0.5 rounded text-xs font-medium"
-                                      :class="planStep.scan === 'ALL' ? 'bg-red-100 text-red-700' : planStep.scan === 'eq_ref' || planStep.scan === 'const' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'"
-                                    >{{ planStep.scan }}</span>
-                                  </td>
-                                  <td class="px-2 py-1.5 font-mono text-gray-500">{{ planStep.key }}</td>
-                                  <td class="px-2 py-1.5 text-right font-mono text-gray-500">{{ planStep.rows }}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                          <!-- Fallback: raw text if parsing fails -->
-                          <pre v-else class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 max-h-48 overflow-y-auto"
-                            :class="step.observation?.startsWith('✅') ? 'bg-green-50/50' : 'bg-red-50/50'"
-                          >{{ step.observation }}</pre>
-                          <!-- Summary footer -->
-                          <div class="px-3 py-1.5 text-xs flex items-center gap-1.5 border-t"
-                            :class="step.observation?.startsWith('✅') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'"
-                          >
-                            <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" class="text-xs" />
-                            <span class="font-medium">{{ parseExplainPlan(step.observation).summary }}</span>
-                          </div>
-                        </div>
+                        <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" class="text-xs" />
+                        <span class="font-medium">{{ parseExplainPlan(step.observation).summary }}</span>
                       </div>
                     </div>
-                    
-                    <!-- Regular action (non-verify_sql) -->
-                    <div v-else-if="step.action" class="space-y-2">
-                      <div class="flex items-start gap-2 bg-white p-2 rounded border border-purple-100">
-                        <div class="i-lucide-play text-pink-600 mt-0.5 flex-shrink-0" />
-                        <span class="text-xs text-pink-600 font-mono font-bold">{{ step.action }}</span>
-                      </div>
-                      <!-- Observation for execute_sql: show as code block -->
-                      <div v-if="step.observation && step.action === 'execute_sql'" class="rounded-lg overflow-hidden border border-gray-200">
-                        <div class="px-3 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                          <div class="i-lucide-terminal text-xs" />
-                          Query Result
-                        </div>
-                        <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 max-h-32 overflow-y-auto">{{ step.observation }}</pre>
-                      </div>
-                      <!-- Observation for other actions -->
-                      <div v-else-if="step.observation" class="flex items-start gap-2">
-                        <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0" />
-                        <p class="text-xs text-gray-500 leading-relaxed">{{ step.observation }}</p>
-                      </div>
+                  </div>
+                  
+                  <!-- execute_sql: code block observation -->
+                  <div v-else-if="step.observation && step.action === 'execute_sql'" class="rounded-lg overflow-hidden border border-gray-200">
+                    <div class="px-3 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                      <div class="i-lucide-terminal text-xs" />
+                      Query Result
                     </div>
+                    <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 max-h-32 overflow-y-auto">{{ step.observation }}</pre>
+                  </div>
+                  
+                  <!-- Other action observations -->
+                  <div v-else-if="step.observation" class="flex items-start gap-1.5">
+                    <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
+                    <p class="text-[11px] text-gray-500 leading-relaxed">{{ step.observation }}</p>
                   </div>
                 </div>
               </div>
@@ -1370,12 +1553,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
             
             <!-- Generated SQL Preview -->
-            <div v-if="sqlGenerationStage.sql" class="mt-4 p-4 rounded-lg bg-gray-900 border border-gray-800 shadow-inner sql-highlight-enter">
-              <div class="flex items-center gap-2 mb-3 border-b border-gray-800 pb-2">
-                <div class="i-lucide-check text-green-400" />
-                <span class="text-xs text-green-400 font-bold uppercase tracking-wide">SQL Generated</span>
+            <div v-if="sqlGenerationStage.sql" class="mt-3 p-3 rounded-lg bg-gray-900 border border-gray-800 shadow-inner sql-highlight-enter">
+              <div class="flex items-center gap-2 mb-2 border-b border-gray-800 pb-1.5">
+                <div class="i-lucide-check text-green-400 text-xs" />
+                <span class="text-[11px] text-green-400 font-bold uppercase tracking-wide">SQL Generated</span>
               </div>
-              <pre class="text-xs text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
+              <pre class="text-[11px] text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
             </div>
             
             <!-- Loading state -->
@@ -1383,8 +1566,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div v-if="sqlGenerationStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
             <div class="i-lucide-code-2 animate-pulse text-purple-500 text-xl" />
                 <div class="space-y-1">
-                  <span class="font-medium block">Generating SQL query...</span>
-                  <span class="text-xs text-gray-400">Building optimized query from context</span>
+                  <span class="font-medium block">{{ fieldPanelConsumed ? 'Generating SQL with field constraints...' : 'Generating SQL query...' }}</span>
+                  <span class="text-xs text-gray-400">{{ fieldPanelConsumed ? 'Applying selected output fields' : 'Building optimized query from context' }}</span>
                 </div>
               </div>
               <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
@@ -1499,6 +1682,19 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   }
 }
 
+/* Sub-stage progressive reveal transition */
+.substage-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.substage-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+}
+.substage-enter-to {
+  max-height: 48px;
+}
+
 /* Step list transition group */
 .step-list-enter-active {
   transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1528,6 +1724,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 /* Table pill stagger animation (individual pills pop in) */
 .table-pill {
   animation: pillFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Column pill stagger animation */
+.column-pill {
+  animation: pillFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes pillFadeIn {
@@ -1661,7 +1862,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
 }
 
 .field-panel-leave-active {
-  animation: fieldPanelOut 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fieldPanelOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes fieldPanelIn {
@@ -1681,10 +1882,12 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   from {
     opacity: 1;
     transform: translateY(0);
+    max-height: 500px;
   }
   to {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
+    max-height: 0;
   }
 }
 </style>

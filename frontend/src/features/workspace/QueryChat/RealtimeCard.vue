@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, Transition } from 'vue'
+import { computed, ref, watch, Transition } from 'vue'
 
 const props = defineProps<{
   title: string
@@ -12,13 +12,37 @@ const props = defineProps<{
   duration?: number // Duration in ms
   completed?: boolean
   stepNumber?: number // 1, 2, 3 — shown in idle/pending state
+  collapsible?: boolean // when true, completed cards can be collapsed (default: true)
 }>()
 
 // Whether this card is in idle state (not active, not completed, not pending)
 const isIdle = computed(() => !props.active && !props.completed && !props.pending)
 
+// Collapsible behavior — completed cards collapse by default
+const isCollapsible = computed(() => props.collapsible !== false)
+const isExpanded = ref(true) // starts expanded; auto-collapses on completion
+
+// Auto-collapse when stage completes
+watch(() => props.completed, (done) => {
+  if (done && isCollapsible.value) {
+    isExpanded.value = false
+  }
+})
+// Auto-expand when stage becomes active
+watch(() => props.active, (act) => {
+  if (act) {
+    isExpanded.value = true
+  }
+})
+
+function toggleExpand() {
+  if (props.completed && isCollapsible.value) {
+    isExpanded.value = !isExpanded.value
+  }
+}
+
 // Show content when active/completed, or show skeleton in idle
-const showContent = computed(() => props.active || props.completed)
+const showContent = computed(() => (props.active || props.completed) && isExpanded.value)
 const showSkeleton = computed(() => isIdle.value)
 
 const colorClasses = computed(() => {
@@ -73,54 +97,59 @@ const colorClasses = computed(() => {
       class="card-header px-5 transition-colors duration-200" 
       :class="[
         active 
-          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-4 border-b` 
+          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-3.5 border-b` 
           : completed 
-            ? 'border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-4 border-b' 
+            ? `border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-3 border-b ${isCollapsible ? 'cursor-pointer select-none hover:from-emerald-50 hover:to-emerald-50/20' : ''}` 
             : pending 
-              ? 'bg-gray-50/30 py-3.5' 
-              : 'py-4'
+              ? 'bg-gray-50/30 py-3' 
+              : 'py-3.5'
       ]"
+      @click="toggleExpand"
     >
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3.5">
+        <div class="flex items-center gap-3 min-w-0">
           <!-- Step number badge for idle/pending; icon for active/completed -->
           <div 
             v-if="isIdle && stepNumber"
-            class="w-8 h-8 rounded-full flex items-center justify-center border text-[13px] font-bold shadow-sm"
+            class="w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold shadow-sm shrink-0"
             :class="colorClasses.step"
           >
             {{ stepNumber }}
           </div>
           <div 
             v-else
-            class="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 shadow-sm"
+            class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm shrink-0"
             :class="active ? `${colorClasses.iconBg} ring-1 ring-${props.color || 'blue'}-200` : completed ? 'bg-emerald-50 ring-1 ring-emerald-200' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-50 border border-gray-100'"
           >
             <div 
               :class="[
                 icon, 
-                'text-lg transition-colors duration-200', 
+                'text-base transition-colors duration-200', 
                 active ? colorClasses.icon : completed ? 'text-emerald-600' : pending ? `${colorClasses.icon} opacity-60` : 'text-gray-400'
               ]" 
             />
           </div>
-          <div>
-            <h3 
-              class="font-medium transition-colors duration-200" 
-              :class="[
-                active || completed ? 'text-gray-900 text-sm' : pending ? 'text-gray-500 text-sm' : 'text-gray-400 text-[13px]'
-              ]"
-            >
-              {{ title }}
-            </h3>
-            <p v-if="subtitle && completed" class="text-xs text-gray-400 mt-0.5">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 
+                class="font-medium transition-colors duration-200" 
+                :class="[
+                  active || completed ? 'text-gray-900 text-[13px]' : pending ? 'text-gray-500 text-[13px]' : 'text-gray-400 text-xs'
+                ]"
+              >
+                {{ title }}
+              </h3>
+              <!-- Inline summary (shown when collapsed or completed) -->
+              <slot v-if="completed" name="summary" />
+            </div>
+            <p v-if="subtitle && completed && isExpanded" class="text-xs text-gray-400 mt-0.5">
               {{ subtitle }}
             </p>
           </div>
         </div>
 
-        <!-- Status Indicator -->
-        <div class="flex items-center gap-2">
+        <!-- Status Indicator + Chevron -->
+        <div class="flex items-center gap-2 shrink-0">
           <template v-if="active && !completed">
             <div class="flex items-center gap-1">
               <span class="processing-dot w-1.5 h-1.5 rounded-full" :class="colorClasses.pulse" />
@@ -130,11 +159,17 @@ const colorClasses = computed(() => {
             <span class="text-xs text-gray-400 ml-1">Processing</span>
           </template>
           <template v-else-if="completed">
-            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
+            <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60">
               <div class="i-lucide-check text-xs" />
-              <span v-if="duration" class="text-xs font-semibold">{{ (duration / 1000).toFixed(2) }}s</span>
-              <span v-else class="text-xs font-semibold">Done</span>
+              <span v-if="duration" class="text-[11px] font-semibold">{{ (duration / 1000).toFixed(2) }}s</span>
+              <span v-else class="text-[11px] font-semibold">Done</span>
             </div>
+            <!-- Chevron for collapse toggle -->
+            <div 
+              v-if="isCollapsible"
+              class="i-lucide-chevron-down text-sm text-gray-400 transition-transform duration-200"
+              :class="{ 'rotate-180': isExpanded }"
+            />
           </template>
           <template v-else-if="pending">
             <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 ring-1 ring-gray-200/60">
@@ -147,9 +182,9 @@ const colorClasses = computed(() => {
       </div>
     </div>
 
-    <!-- Content: only shown when active or completed -->
+    <!-- Content: only shown when active or completed AND expanded -->
     <Transition name="card-content">
-    <div v-if="showContent" class="card-content p-5">
+    <div v-if="showContent" class="card-content px-5 py-4">
       <slot name="content" />
     </div>
     </Transition>
@@ -276,12 +311,21 @@ const colorClasses = computed(() => {
   }
 }
 
-/* Card content reveal transition */
+/* Card content reveal/collapse transition */
 .card-content-enter-active {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-content-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
 }
 .card-content-enter-from {
   opacity: 0;
-  transform: translateY(-6px);
+  max-height: 0;
+  transform: translateY(-4px);
+}
+.card-content-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-4px);
 }
 </style>

@@ -183,6 +183,20 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 		contextPrompt = p.preLinked.ContextPrompt
 		result.SelectedTables = tables
 
+		// If grounding selected 0 tables, fall back to all tables from schema
+		// so SQL generation still has schema context to work with.
+		if len(tables) == 0 && p.schema != nil {
+			allTables := make([]string, 0, len(p.schema.Tables))
+			for name := range p.schema.Tables {
+				allTables = append(allTables, name)
+			}
+			tables = allTables
+			result.SelectedTables = tables
+			log.Warn("[Execute] Grounding selected 0 tables, falling back to all schema tables",
+				"fallback_tables", len(tables),
+			)
+		}
+
 		p.notifyStep(ReActStep{
 			Step:        1,
 			Thought:     fmt.Sprintf("Using pre-linked context from Grounding: %d tables selected", len(tables)),

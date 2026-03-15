@@ -77,6 +77,10 @@ type Text2SQLRequest struct {
 	// Pre-linked context from Grounding stage (if available)
 	LinkedTables        []string `json:"linked_tables,omitempty"`
 	LinkedContextPrompt string   `json:"linked_context_prompt,omitempty"`
+
+	// GroundingExecuted indicates that the Grounding pipeline has already run.
+	// When true, inference pipeline skips internal Schema Linking even if LinkedTables is empty.
+	GroundingExecuted bool `json:"grounding_executed,omitempty"`
 }
 
 // Text2SQLResult represents the result of text2sql
@@ -115,6 +119,7 @@ func (s *InferenceService) Execute(ctx context.Context, req *Text2SQLRequest) (*
 		FieldDescription:    req.FieldDescription,
 		LinkedTables:        req.LinkedTables,
 		LinkedContextPrompt: req.LinkedContextPrompt,
+		GroundingExecuted:   req.GroundingExecuted,
 	}
 
 	if inferReq.MaxIterations == 0 {
@@ -159,6 +164,7 @@ func (s *InferenceService) ExecuteStream(ctx context.Context, req *Text2SQLReque
 		FieldDescription:    req.FieldDescription,
 		LinkedTables:        req.LinkedTables,
 		LinkedContextPrompt: req.LinkedContextPrompt,
+		GroundingExecuted:   req.GroundingExecuted,
 	}
 
 	if inferReq.MaxIterations == 0 {

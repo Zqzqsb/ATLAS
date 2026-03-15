@@ -207,6 +207,7 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 
 	// Inject grounding result into inference to skip redundant Schema Linking
 	if groundingInfo != nil {
+		inferReq.GroundingExecuted = true
 		inferReq.LinkedTables, inferReq.LinkedContextPrompt = extractLinkedContext(groundingInfo, req.FieldDescription)
 	}
 
@@ -623,12 +624,15 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 	// Extract linked context from grounding for injection into inference
 	var linkedTables []string
 	var linkedContextPrompt string
+	var groundingExecuted bool
 	if groundingInfo != nil {
+		groundingExecuted = true
 		linkedTables, linkedContextPrompt = extractLinkedContext(groundingInfo, req.FieldDescription)
 		hLog := logger.With("component", "text2sql_handler")
 		hLog.Info("Linked context extracted",
 			"linked_tables", strings.Join(linkedTables, ", "),
 			"context_prompt_length", len(linkedContextPrompt),
+			"grounding_executed", groundingExecuted,
 		)
 		hLog.Debug("Linked context prompt", "prompt", linkedContextPrompt)
 	}
@@ -648,6 +652,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			FieldDescription:    req.FieldDescription,
 			LinkedTables:        linkedTables,
 			LinkedContextPrompt: linkedContextPrompt,
+			GroundingExecuted:   groundingExecuted,
 		}
 
 		if err := h.inferenceService.ExecuteStream(ctx, inferReq, events); err != nil {

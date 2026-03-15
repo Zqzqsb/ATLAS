@@ -35,6 +35,13 @@ type InferenceRequest struct {
 	// When set, inference pipeline skips its own Schema Linking
 	LinkedTables       []string `json:"linked_tables,omitempty"`
 	LinkedContextPrompt string  `json:"linked_context_prompt,omitempty"`
+
+	// GroundingExecuted indicates that the Grounding pipeline has already run.
+	// When true, inference pipeline ALWAYS skips internal Schema Linking,
+	// even if LinkedTables is empty (grounding selected 0 tables).
+	// This prevents the "two schema linkers" problem where legacy inference
+	// re-runs linking after grounding already did it.
+	GroundingExecuted bool `json:"grounding_executed,omitempty"`
 }
 
 // InferenceResult holds the output of an inference call.

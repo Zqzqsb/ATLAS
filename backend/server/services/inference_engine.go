@@ -151,8 +151,10 @@ func (e *InferenceEngine) Execute(ctx context.Context, req *InferenceRequest) (*
 		}
 	}
 
-	// If external linking result is available, inject it to skip internal Schema Linking
-	if len(req.LinkedTables) > 0 {
+	// If external linking result is available, inject it to skip internal Schema Linking.
+	// Also skip when grounding has executed (even with 0 tables) to prevent
+	// the legacy linker from re-running a redundant schema linking pass.
+	if len(req.LinkedTables) > 0 || req.GroundingExecuted {
 		pipeline.SetPreLinkedContext(&inference.PreLinkedContext{
 			SelectedTables: req.LinkedTables,
 			ContextPrompt:  req.LinkedContextPrompt,
@@ -192,8 +194,10 @@ func (e *InferenceEngine) ExecuteStream(ctx context.Context, req *InferenceReque
 		}
 	}
 
-	// If external linking result is available, inject it to skip internal Schema Linking
-	if len(req.LinkedTables) > 0 {
+	// If external linking result is available, inject it to skip internal Schema Linking.
+	// Also skip when grounding has executed (even with 0 tables) to prevent
+	// the legacy linker from re-running a redundant schema linking pass.
+	if len(req.LinkedTables) > 0 || req.GroundingExecuted {
 		pipeline.SetPreLinkedContext(&inference.PreLinkedContext{
 			SelectedTables: req.LinkedTables,
 			ContextPrompt:  req.LinkedContextPrompt,

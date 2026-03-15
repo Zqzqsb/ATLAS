@@ -596,10 +596,11 @@ func (r *MySQLRepository) PruneAllContext(ctx context.Context, dsID int64) error
 	}
 
 	// Delete generated context data (these can be fully regenerated)
+	// NOTE: rc_relations is NOT pruned — it contains physical FK metadata from information_schema,
+	// not AI-generated context. Deleting it would break ForestDecompose (all tables become isolated).
 	deleteTables := []string{
 		"rc_business_context",
 		"rc_change_log",
-		"rc_relations",
 		"rc_terms",
 	}
 

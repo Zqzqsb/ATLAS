@@ -715,32 +715,78 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		"force", req.Force,
 	)
 
-	// Phase 1: Announce start with totals
-	sendEvent("agent_start", GenerateContextEvent{
-		Agent:   "rc_gen",
-		Phase:   "init",
-		Status:  "running",
-		Message: fmt.Sprintf("Starting ReAct Rich Context generation for %s (%d tables, %d columns)", ds.Name, len(tables), len(columns)),
-		Data: map[string]interface{}{
-			"tables_total":  len(tables),
-			"columns_total": len(columns),
-		},
-	})
+	const forestThreshold = 30
+	tableCount := len(tables)
 
-	// Phase 2: Run ReAct agent
 	// Create RC writer with storage callback to notify frontend on each write
 	// and trigger incremental embedding immediately
 	rcWriter := reacttools.NewLakebaseRCWriter(h.lakebaseService.GetRepository())
 
 	// Track incremental embedding progress.
-	// embeddingsExpected increments on each RC write (queued for embedding).
-	// embeddingsCompleted increments when an embedding actually finishes.
-	// This gives an accurate N/M progress display instead of a static estimate.
 	var embeddingsExpected int
 	var embeddingsCompleted int
 	var embeddingMu sync.Mutex
 
-	// Announce embedding agent is running (starts alongside RC gen)
+	setupEmbeddingCallback := func(rcw *reacttools.LakebaseRCWriter) {
+		rcw.SetOnWrite(func(contextType, tableName, columnName string) {
+			target := "rc_tables"
+			detail := tableName
+			if columnName != "" {
+				target = "rc_columns"
+				detail = tableName + "." + columnName
+			}
+			if contextType == "business_term" {
+				target = "rc_terms"
+			}
+
+			embeddingMu.Lock()
+			embeddingsExpected++
+			embeddingMu.Unlock()
+
+			sendEvent("storage", GenerateContextEvent{
+				Agent:   "storage",
+				Phase:   contextType,
+				Message: fmt.Sprintf("Saved %s: %s", contextType, detail),
+				Data: map[string]interface{}{
+					"target":       target,
+					"context_type": contextType,
+					"table":        tableName,
+					"column":       columnName,
+				},
+			})
+
+			go func(ct, tn, cn string) {
+				if embErr := h.lakebaseService.EmbedEntityByName(ctx, dsID, ct, tn, cn); embErr != nil {
+					sendEvent("agent_step", GenerateContextEvent{
+						Agent:   "embedding",
+						Phase:   "embedding",
+						Status:  "error",
+						Message: fmt.Sprintf("⚠️ Embed failed for %s %s: %v", ct, tn, embErr),
+					})
+					return
+				}
+				embeddingMu.Lock()
+				embeddingsCompleted++
+				completed := embeddingsCompleted
+				expected := embeddingsExpected
+				embeddingMu.Unlock()
+				sendEvent("agent_step", GenerateContextEvent{
+					Agent:   "embedding",
+					Phase:   "embedding",
+					Message: fmt.Sprintf("🧬 Embedded %s: %s (%d/%d)", ct, detail, completed, expected),
+					Data: map[string]interface{}{
+						"context_type":      ct,
+						"table":             tn,
+						"column":            cn,
+						"embeddings_so_far": completed,
+						"embeddings_total":  expected,
+					},
+				})
+			}(contextType, tableName, columnName)
+		})
+	}
+
+	// Announce embedding agent is running
 	sendEvent("agent_start", GenerateContextEvent{
 		Agent:   "embedding",
 		Phase:   "embedding",
@@ -748,156 +794,180 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		Message: "Streaming embeddings — each RC write triggers immediate embedding...",
 	})
 
-	rcWriter.SetOnWrite(func(contextType, tableName, columnName string) {
-		target := "rc_tables"
-		detail := tableName
-		if columnName != "" {
-			target = "rc_columns"
-			detail = tableName + "." + columnName
-		}
-		if contextType == "business_term" {
-			target = "rc_terms"
-		}
+	var totalIterations int
 
-		// Increment expected count when a new RC is written (before embedding starts)
-		embeddingMu.Lock()
-		embeddingsExpected++
-		embeddingMu.Unlock()
-
-		sendEvent("storage", GenerateContextEvent{
-			Agent:   "storage",
-			Phase:   contextType,
-			Message: fmt.Sprintf("Saved %s: %s", contextType, detail),
+	if tableCount <= forestThreshold {
+		// === Small schema: single-agent path (original) ===
+		sendEvent("agent_start", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Phase:   "init",
+			Status:  "running",
+			Message: fmt.Sprintf("Starting ReAct Rich Context generation for %s (%d tables, %d columns)", ds.Name, len(tables), len(columns)),
 			Data: map[string]interface{}{
-				"target":       target,
-				"context_type": contextType,
-				"table":        tableName,
-				"column":       columnName,
+				"tables_total":  len(tables),
+				"columns_total": len(columns),
+				"mode":          "single_agent",
 			},
 		})
 
-		// Incremental embedding: embed this entity immediately after write
-		go func(ct, tn, cn string) {
-			if embErr := h.lakebaseService.EmbedEntityByName(ctx, dsID, ct, tn, cn); embErr != nil {
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   "embedding",
-					Phase:   "embedding",
-					Status:  "error",
-					Message: fmt.Sprintf("⚠️ Embed failed for %s %s: %v", ct, tn, embErr),
-				})
-				return
-			}
-			embeddingMu.Lock()
-			embeddingsCompleted++
-			completed := embeddingsCompleted
-			expected := embeddingsExpected
-			embeddingMu.Unlock()
-			sendEvent("agent_step", GenerateContextEvent{
-				Agent:   "embedding",
-				Phase:   "embedding",
-				Message: fmt.Sprintf("🧬 Embedded %s: %s (%d/%d)", ct, detail, completed, expected),
+		setupEmbeddingCallback(rcWriter)
+
+		engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
+			DatasourceID:  dsID,
+			Tables:        tables,
+			Columns:       columns,
+			Relations:     relations,
+			MaxIterations: req.MaxIterations,
+			MinIterations: req.MinIterations,
+			Force:         req.Force,
+			StepCallback: func(step react.Step, eventType string) {
+				h.sendRCGenStep(sendEvent, step, eventType, -1)
+			},
+		})
+
+		engine := react.New(model, engineCfg)
+		result, execErr := engine.Execute(ctx, "")
+
+		if execErr != nil {
+			log.Error("ReAct agent execution failed", "error", execErr)
+			sendEvent("agent_done", GenerateContextEvent{
+				Agent:   "rc_gen",
+				Status:  "error",
+				Message: fmt.Sprintf("ReAct agent error: %v", execErr),
+			})
+		} else {
+			totalIterations = result.Iterations
+			log.Info("ReAct agent completed", "iterations", result.Iterations, "duration_s", result.Duration.Seconds())
+			sendEvent("agent_done", GenerateContextEvent{
+				Agent:   "rc_gen",
+				Status:  "success",
+				Message: fmt.Sprintf("ReAct agent completed in %d iterations (%.1fs)", result.Iterations, result.Duration.Seconds()),
 				Data: map[string]interface{}{
-					"context_type":        ct,
-					"table":               tn,
-					"column":              cn,
-					"embeddings_so_far":   completed,
-					"embeddings_total":    expected,
+					"iterations": result.Iterations,
+					"duration":   result.Duration.Seconds(),
+					"output":     result.Output,
 				},
 			})
-		}(contextType, tableName, columnName)
-	})
-
-	engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
-		DatasourceID:  dsID,
-		Tables:        tables,
-		Columns:       columns,
-		Relations:     relations,
-		MaxIterations: req.MaxIterations,
-		MinIterations: req.MinIterations,
-		Force:         req.Force,
-		StepCallback: func(step react.Step, eventType string) {
-			// Send distinct SSE events for each ReAct step type
-			switch eventType {
-			case "thought":
-				if step.Thought != "" {
-					sendEvent("agent_step", GenerateContextEvent{
-						Agent:   "rc_gen",
-						Phase:   "thought",
-						Message: step.Thought,
-						Data: map[string]interface{}{
-							"iteration": step.Iteration,
-						},
-					})
-				}
-			case "action":
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   "rc_gen",
-					Phase:   "action",
-					Message: fmt.Sprintf("🔧 %s", step.Action),
-					Data: map[string]interface{}{
-						"iteration":    step.Iteration,
-						"action":       step.Action,
-						"action_input": step.ActionInput,
-					},
-				})
-			case "observation":
-				obs := step.Observation
-				if len(obs) > 500 {
-					obs = obs[:500] + "..."
-				}
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   "rc_gen",
-					Phase:   "observation",
-					Message: obs,
-					Data: map[string]interface{}{
-						"iteration":    step.Iteration,
-						"action":       step.Action,
-						"observation":  step.Observation,
-					},
-				})
-			case "finish":
-				sendEvent("agent_step", GenerateContextEvent{
-					Agent:   "rc_gen",
-					Phase:   "finish",
-					Message: step.Thought,
-					Data: map[string]interface{}{
-						"iteration": step.Iteration,
-					},
-				})
-			}
-		},
-	})
-
-	engine := react.New(model, engineCfg)
-	result, execErr := engine.Execute(ctx, "")
-
-	if execErr != nil {
-		log.Error("ReAct agent execution failed", "error", execErr)
-		sendEvent("agent_done", GenerateContextEvent{
-			Agent:   "rc_gen",
-			Status:  "error",
-			Message: fmt.Sprintf("ReAct agent error: %v", execErr),
-		})
+		}
 	} else {
-		log.Info("ReAct agent completed",
-			"iterations", result.Iterations,
-			"duration_s", result.Duration.Seconds(),
-			"output_length", len(result.Output),
-		)
+		// === Large schema: forest-based chunked path ===
+		forestResult := scenarios.ForestDecompose(tables, columns, relations)
+		clusters := scenarios.MergeIsolatedTables(forestResult.Clusters, 15)
+
+		// Build per-cluster metadata for treemap visualization
+		clustersMeta := make([]map[string]interface{}, len(clusters))
+		for i, cl := range clusters {
+			tableNames := make([]string, len(cl.Tables))
+			for j, t := range cl.Tables {
+				tableNames[j] = t.TableName
+			}
+			clustersMeta[i] = map[string]interface{}{
+				"index":          i,
+				"table_count":    len(cl.Tables),
+				"relation_count": len(cl.Relations),
+				"tables":         tableNames,
+			}
+		}
+
+		sendEvent("agent_start", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Phase:   "init",
+			Status:  "running",
+			Message: fmt.Sprintf("Starting forest-based chunked generation for %s (%d tables → %d clusters)", ds.Name, tableCount, len(clusters)),
+			Data: map[string]interface{}{
+				"tables_total":    tableCount,
+				"columns_total":   len(columns),
+				"mode":            "forest_chunked",
+				"clusters_total":  len(clusters),
+				"largest_cluster": forestResult.LargestSize,
+				"median_cluster":  forestResult.MedianSize,
+				"isolated_tables": forestResult.IsolatedCount,
+				"clusters":        clustersMeta,
+			},
+		})
+
+		setupEmbeddingCallback(rcWriter)
+
+		for ci, cluster := range clusters {
+			clusterTableNames := make([]string, len(cluster.Tables))
+			for i, t := range cluster.Tables {
+				clusterTableNames[i] = t.TableName
+			}
+
+			sendEvent("chunk_start", GenerateContextEvent{
+				Agent:   "rc_gen",
+				Phase:   "chunk",
+				Status:  "running",
+				Message: fmt.Sprintf("🌲 Chunk %d/%d: %d tables (%d relations)", ci+1, len(clusters), len(cluster.Tables), len(cluster.Relations)),
+				Data: map[string]interface{}{
+					"chunk_index":    ci,
+					"chunk_total":    len(clusters),
+					"tables":         clusterTableNames,
+					"table_count":    len(cluster.Tables),
+					"relation_count": len(cluster.Relations),
+				},
+			})
+
+			chunkMin, chunkMax := scenarios.ComputeChunkBudget(len(cluster.Tables))
+
+			engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
+				DatasourceID:  dsID,
+				Tables:        cluster.Tables,
+				Columns:       cluster.Columns,
+				Relations:     cluster.Relations,
+				MaxIterations: chunkMax,
+				MinIterations: chunkMin,
+				Force:         req.Force,
+				StepCallback: func(step react.Step, eventType string) {
+					h.sendRCGenStep(sendEvent, step, eventType, ci)
+				},
+			})
+
+			engine := react.New(model, engineCfg)
+			result, execErr := engine.Execute(ctx, "")
+
+			if execErr != nil {
+				log.Error("chunk agent failed", "chunk", ci, "error", execErr)
+				sendEvent("chunk_error", GenerateContextEvent{
+					Agent:   "rc_gen",
+					Phase:   "chunk",
+					Status:  "error",
+					Message: fmt.Sprintf("Chunk %d/%d error: %v", ci+1, len(clusters), execErr),
+					Data: map[string]interface{}{
+						"chunk_index": ci,
+						"error":       execErr.Error(),
+					},
+				})
+				continue
+			}
+
+			totalIterations += result.Iterations
+			sendEvent("chunk_complete", GenerateContextEvent{
+				Agent:   "rc_gen",
+				Phase:   "chunk",
+				Status:  "success",
+				Message: fmt.Sprintf("✓ Chunk %d/%d done: %d iterations (%.1fs)", ci+1, len(clusters), result.Iterations, result.Duration.Seconds()),
+				Data: map[string]interface{}{
+					"chunk_index": ci,
+					"iterations":  result.Iterations,
+					"duration":    result.Duration.Seconds(),
+				},
+			})
+		}
+
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "rc_gen",
 			Status:  "success",
-			Message: fmt.Sprintf("ReAct agent completed in %d iterations (%.1fs)", result.Iterations, result.Duration.Seconds()),
+			Message: fmt.Sprintf("Forest-based generation completed: %d clusters, %d total iterations", len(clusters), totalIterations),
 			Data: map[string]interface{}{
-				"iterations": result.Iterations,
-				"duration":   result.Duration.Seconds(),
-				"output":     result.Output,
+				"iterations":     totalIterations,
+				"clusters":       len(clusters),
+				"duration":       time.Since(startTime).Seconds(),
 			},
 		})
 	}
 
 	// Phase 3: Catch-up embeddings for any entities that may have been missed
-	// (e.g., entities that existed before but had no embedding yet)
 	embeddingMu.Lock()
 	streamEmbedded := embeddingsCompleted
 	embeddingMu.Unlock()
@@ -934,10 +1004,6 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	// Complete
 	duration := time.Since(startTime)
-	iterations := 0
-	if result != nil {
-		iterations = result.Iterations
-	}
 	totalEmb := catchupEmbeddings
 	if totalEmb == 0 {
 		totalEmb = streamEmbedded
@@ -948,7 +1014,7 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 		Data: map[string]interface{}{
 			"total_tables":         len(tables),
 			"total_columns":        len(columns),
-			"react_iterations":     iterations,
+			"react_iterations":     totalIterations,
 			"embeddings_generated": totalEmb,
 			"stream_embedded":      streamEmbedded,
 			"duration_ms":          duration.Milliseconds(),
@@ -957,6 +1023,63 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	close(eventChan)
 	<-done
+}
+
+// sendRCGenStep sends an SSE event for a ReAct step (shared by single-agent and chunked paths).
+// chunkIndex < 0 means single-agent mode (no chunk info).
+func (h *Handler) sendRCGenStep(
+	sendEvent func(string, GenerateContextEvent),
+	step react.Step,
+	eventType string,
+	chunkIndex int,
+) {
+	buildData := func(extra map[string]interface{}) map[string]interface{} {
+		d := map[string]interface{}{"iteration": step.Iteration}
+		if chunkIndex >= 0 {
+			d["chunk"] = chunkIndex
+		}
+		for k, v := range extra {
+			d[k] = v
+		}
+		return d
+	}
+
+	switch eventType {
+	case "thought":
+		if step.Thought != "" {
+			sendEvent("agent_step", GenerateContextEvent{
+				Agent:   "rc_gen",
+				Phase:   "thought",
+				Message: step.Thought,
+				Data:    buildData(nil),
+			})
+		}
+	case "action":
+		sendEvent("agent_step", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Phase:   "action",
+			Message: fmt.Sprintf("🔧 %s", step.Action),
+			Data:    buildData(map[string]interface{}{"action": step.Action, "action_input": step.ActionInput}),
+		})
+	case "observation":
+		obs := step.Observation
+		if len(obs) > 500 {
+			obs = obs[:500] + "..."
+		}
+		sendEvent("agent_step", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Phase:   "observation",
+			Message: obs,
+			Data:    buildData(map[string]interface{}{"action": step.Action, "observation": step.Observation}),
+		})
+	case "finish":
+		sendEvent("agent_step", GenerateContextEvent{
+			Agent:   "rc_gen",
+			Phase:   "finish",
+			Message: step.Thought,
+			Data:    buildData(nil),
+		})
+	}
 }
 
 // ===========================================

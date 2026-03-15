@@ -18,7 +18,7 @@ function handleEnter() {
 }
 
 const features = [
-  { icon: 'i-lucide-layers', label: 'Vector Retrieval', desc: 'HNSW coarse filtering on 38 tables' },
+  { icon: 'i-lucide-layers', label: 'Vector Retrieval', desc: 'HNSW coarse filtering on 500+ tables' },
   { icon: 'i-lucide-brain', label: 'LLM Linking', desc: 'Semantic precision on candidate set' },
   { icon: 'i-lucide-zap', label: 'Ablation Study', desc: '3-mode comparison experiments' },
 ]

@@ -1,7 +1,7 @@
 -- =============================================================
 -- LUCID TPC-H Enterprise Demo Database
 -- Demonstrates two-stage Adaptive Schema Linking (>30 tables triggers LargeScale)
--- TPC-H core 8 tables + 30 enterprise extension tables = 38 tables
+-- TPC-H core 8 tables + 30 enterprise extension tables + 479 addon domain tables = 517 tables
 -- =============================================================
 
 CREATE DATABASE IF NOT EXISTS tpch_enterprise DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -906,5 +906,7202 @@ USE lucid;
 
 INSERT INTO rc_datasources (name, db_type, host, port, db_name, username, description, status)
 VALUES ('tpch_enterprise', 'mariadb', 'lucid-mariadb', 3306, 'tpch_enterprise', 'lucid',
-        'TPC-H Enterprise — 38-table supply chain database for Large-Scale Adaptive Schema Linking demo', 'active')
+        'TPC-H Enterprise — 517-table enterprise database for Large-Scale Adaptive Schema Linking demo', 'active')
 ON DUPLICATE KEY UPDATE status = 'active', description = VALUES(description);
+
+
+-- === ADDON: 479 enterprise extension tables (with intra-domain FK relations) ===
+USE tpch_enterprise;
+
+-- === HR (35 tables) ===
+
+CREATE TABLE IF NOT EXISTS hr_departments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='HR — Departments';
+INSERT IGNORE INTO hr_departments (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-02-02 00:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-05-01 07:00:00', 'active'),
+('Gamma-3', 'descri_3', 'type_C', '2025-03-16 23:00:00', 'active'),
+('Delta-4', 'descri_4', 'type_D', '2025-12-11 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_employees (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Employees';
+INSERT IGNORE INTO hr_employees (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 76, 'descri_1', 'type_A', '2025-08-21 01:00:00', 'active'),
+('Beta-2', 12, 'descri_2', 'type_B', '2025-04-28 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_positions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Positions';
+INSERT IGNORE INTO hr_positions (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 4, 'descri_1', 'type_A', '2025-10-08 06:00:00', 'done'),
+('Beta-2', 84, 'descri_2', 'type_B', '2025-12-24 17:00:00', 'pending'),
+('Gamma-3', 29, 'descri_3', 'type_C', '2025-08-06 18:00:00', 'pending'),
+('Delta-4', 1, 'descri_4', 'type_D', '2025-03-26 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_recruitment_requisitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Recruitment Requisitions';
+INSERT IGNORE INTO hr_recruitment_requisitions (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 36, 'descri_1', 'type_A', '2025-03-24 06:00:00', 'pending'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-02-20 12:00:00', 'active'),
+('Gamma-3', 46, 'descri_3', 'type_C', '2025-06-09 19:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_candidates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Candidates';
+INSERT IGNORE INTO hr_candidates (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 94, 'descri_1', 'type_A', '2025-08-12 17:00:00', 'active'),
+('Beta-2', 49, 'descri_2', 'type_B', '2025-02-13 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_interviews (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Interviews';
+INSERT IGNORE INTO hr_interviews (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 80, 'descri_1', 'type_A', '2025-07-18 18:00:00', 'active'),
+('Beta-2', 91, 'descri_2', 'type_B', '2025-02-08 01:00:00', 'done'),
+('Gamma-3', 30, 'descri_3', 'type_C', '2025-05-09 02:00:00', 'active'),
+('Delta-4', 13, 'descri_4', 'type_D', '2025-07-27 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_offer_letters (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Offer Letters';
+INSERT IGNORE INTO hr_offer_letters (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 47, 'descri_1', 'type_A', '2025-03-28 11:00:00', 'pending'),
+('Beta-2', 27, 'descri_2', 'type_B', '2025-12-08 08:00:00', 'done'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-12-24 02:00:00', 'done'),
+('Delta-4', 82, 'descri_4', 'type_D', '2025-03-04 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_training_courses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Training Courses';
+INSERT IGNORE INTO hr_training_courses (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 21, 'descri_1', 'type_A', '2025-08-13 12:00:00', 'pending'),
+('Beta-2', 82, 'descri_2', 'type_B', '2025-12-17 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_training_enrollments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Training Enrollments';
+INSERT IGNORE INTO hr_training_enrollments (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-01-01 07:00:00', 'active'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-07-10 08:00:00', 'active'),
+('Gamma-3', 28, 'descri_3', 'type_C', '2025-10-11 22:00:00', 'pending'),
+('Delta-4', 28, 'descri_4', 'type_D', '2025-12-28 15:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_performance_goals (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Performance Goals';
+INSERT IGNORE INTO hr_performance_goals (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 59, 'descri_1', 'type_A', '2025-03-18 08:00:00', 'active'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-10-08 17:00:00', 'pending'),
+('Gamma-3', 96, 'descri_3', 'type_C', '2025-10-20 13:00:00', 'done'),
+('Delta-4', 52, 'descri_4', 'type_D', '2025-07-18 07:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_benefits_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Benefits Plans';
+INSERT IGNORE INTO hr_benefits_plans (name, departments_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 64, 2024, 918.09, 480.65, 'active'),
+('Beta-2', 20, 2025, 6277.56, 7922.08, 'pending'),
+('Gamma-3', 77, 2026, 644.58, 3822.00, 'pending'),
+('Delta-4', 68, 2024, 2521.38, 5536.17, 'active');
+
+CREATE TABLE IF NOT EXISTS hr_benefits_enrollments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Benefits Enrollments';
+INSERT IGNORE INTO hr_benefits_enrollments (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-02-03 21:00:00', 'done'),
+('Beta-2', 97, 'descri_2', 'type_B', '2025-05-25 20:00:00', 'pending'),
+('Gamma-3', 15, 'descri_3', 'type_C', '2025-06-11 13:00:00', 'active'),
+('Delta-4', 59, 'descri_4', 'type_D', '2025-01-02 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_leave_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Leave Requests';
+INSERT IGNORE INTO hr_leave_requests (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-04-08 16:00:00', 'active'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-06-13 20:00:00', 'done'),
+('Gamma-3', 78, 'descri_3', 'type_C', '2025-04-18 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_leave_balances (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Leave Balances';
+INSERT IGNORE INTO hr_leave_balances (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-10-20 00:00:00', 'done'),
+('Beta-2', 42, 'descri_2', 'type_B', '2025-09-27 00:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_timesheets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Timesheets';
+INSERT IGNORE INTO hr_timesheets (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 40, 'descri_1', 'type_A', '2025-05-11 01:00:00', 'active'),
+('Beta-2', 73, 'descri_2', 'type_B', '2025-02-13 02:00:00', 'done'),
+('Gamma-3', 63, 'descri_3', 'type_C', '2025-02-08 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_expense_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Expense Reports';
+INSERT IGNORE INTO hr_expense_reports (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-09-20 17:00:00', 'active'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-10-19 19:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_expense_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Expense Items';
+INSERT IGNORE INTO hr_expense_items (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-12-18 06:00:00', 'done'),
+('Beta-2', 40, 'descri_2', 'type_B', '2025-07-09 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_employee_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Employee Documents';
+INSERT IGNORE INTO hr_employee_documents (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-09-13 14:00:00', 'active'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-04-04 02:00:00', 'pending'),
+('Gamma-3', 3, 'descri_3', 'type_C', '2025-11-22 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_org_chart_history (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Org Chart History';
+INSERT IGNORE INTO hr_org_chart_history (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 29, 'descri_1', 'type_A', '2025-01-04 02:00:00', 'done'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-02-03 07:00:00', 'active'),
+('Gamma-3', 5, 'descri_3', 'type_C', '2025-06-02 02:00:00', 'done'),
+('Delta-4', 31, 'descri_4', 'type_D', '2025-05-03 21:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_salary_bands (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Salary Bands';
+INSERT IGNORE INTO hr_salary_bands (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-03-12 23:00:00', 'done'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-09-19 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_compensation_history (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Compensation History';
+INSERT IGNORE INTO hr_compensation_history (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 25, 'descri_1', 'type_A', '2025-02-21 03:00:00', 'done'),
+('Beta-2', 56, 'descri_2', 'type_B', '2025-07-14 13:00:00', 'pending'),
+('Gamma-3', 60, 'descri_3', 'type_C', '2025-01-28 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_skills (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Skills';
+INSERT IGNORE INTO hr_skills (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 13, 'descri_1', 'type_A', '2025-02-04 12:00:00', 'done'),
+('Beta-2', 44, 'descri_2', 'type_B', '2025-02-28 07:00:00', 'active'),
+('Gamma-3', 25, 'descri_3', 'type_C', '2025-10-23 14:00:00', 'active'),
+('Delta-4', 55, 'descri_4', 'type_D', '2025-04-10 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_employee_skills (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Employee Skills';
+INSERT IGNORE INTO hr_employee_skills (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 10, 'descri_1', 'type_A', '2025-08-03 17:00:00', 'active'),
+('Beta-2', 7, 'descri_2', 'type_B', '2025-12-26 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_employee_certifications (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Employee Certifications';
+INSERT IGNORE INTO hr_employee_certifications (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 97, 'descri_1', 'type_A', '2025-05-10 05:00:00', 'pending'),
+('Beta-2', 63, 'descri_2', 'type_B', '2025-09-23 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_disciplinary_actions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Disciplinary Actions';
+INSERT IGNORE INTO hr_disciplinary_actions (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 22, 'descri_1', 'type_A', '2025-07-27 00:00:00', 'pending'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-08-09 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_employee_surveys (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Employee Surveys';
+INSERT IGNORE INTO hr_employee_surveys (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 94, 'descri_1', 'type_A', '2025-10-05 21:00:00', 'done'),
+('Beta-2', 63, 'descri_2', 'type_B', '2025-03-24 06:00:00', 'pending'),
+('Gamma-3', 28, 'descri_3', 'type_C', '2025-01-02 18:00:00', 'done'),
+('Delta-4', 70, 'descri_4', 'type_D', '2025-02-04 23:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_succession_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Succession Plans';
+INSERT IGNORE INTO hr_succession_plans (name, departments_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 7, 2024, 5845.35, 5032.97, 'done'),
+('Beta-2', 21, 2025, 578.17, 5082.70, 'active');
+
+CREATE TABLE IF NOT EXISTS hr_onboarding_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Onboarding Tasks';
+INSERT IGNORE INTO hr_onboarding_tasks (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 77, 'descri_1', 'type_A', '2025-02-07 21:00:00', 'active'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-03-06 18:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_exit_interviews (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Exit Interviews';
+INSERT IGNORE INTO hr_exit_interviews (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 77, 'descri_1', 'type_A', '2025-01-21 19:00:00', 'active'),
+('Beta-2', 54, 'descri_2', 'type_B', '2025-12-01 18:00:00', 'done'),
+('Gamma-3', 67, 'descri_3', 'type_C', '2025-06-22 08:00:00', 'active'),
+('Delta-4', 86, 'descri_4', 'type_D', '2025-06-21 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_payroll_runs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Payroll Runs';
+INSERT IGNORE INTO hr_payroll_runs (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-12-08 20:00:00', 'pending'),
+('Beta-2', 59, 'descri_2', 'type_B', '2025-06-22 02:00:00', 'active'),
+('Gamma-3', 59, 'descri_3', 'type_C', '2025-11-11 18:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_payroll_details (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Payroll Details';
+INSERT IGNORE INTO hr_payroll_details (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 69, 'descri_1', 'type_A', '2025-04-26 16:00:00', 'pending'),
+('Beta-2', 17, 'descri_2', 'type_B', '2025-06-11 02:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_workforce_forecast (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Workforce Forecast';
+INSERT IGNORE INTO hr_workforce_forecast (name, departments_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 37, 2024, 1585.73, 8338.28, 'done'),
+('Beta-2', 39, 2025, 6120.05, 9871.47, 'done'),
+('Gamma-3', 68, 2026, 88.15, 8172.05, 'pending');
+
+CREATE TABLE IF NOT EXISTS hr_emergency_contacts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Emergency Contacts';
+INSERT IGNORE INTO hr_emergency_contacts (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 14, 'descri_1', 'type_A', '2025-03-13 08:00:00', 'active'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-10-04 04:00:00', 'pending'),
+('Gamma-3', 37, 'descri_3', 'type_C', '2025-11-02 06:00:00', 'done'),
+('Delta-4', 44, 'descri_4', 'type_D', '2025-04-21 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS hr_grievances (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Grievances';
+INSERT IGNORE INTO hr_grievances (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-09-27 08:00:00', 'active'),
+('Beta-2', 12, 'descri_2', 'type_B', '2025-11-17 13:00:00', 'pending'),
+('Gamma-3', 6, 'descri_3', 'type_C', '2025-01-02 10:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS hr_workplace_incidents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    departments_id               INT COMMENT 'FK to hr_departments' COMMENT 'Ref hr_departments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
+) COMMENT='HR — Workplace Incidents';
+INSERT IGNORE INTO hr_workplace_incidents (name, departments_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-03-27 23:00:00', 'pending'),
+('Beta-2', 71, 'descri_2', 'type_B', '2025-13-26 13:00:00', 'done'),
+('Gamma-3', 2, 'descri_3', 'type_C', '2025-02-02 02:00:00', 'done'),
+('Delta-4', 20, 'descri_4', 'type_D', '2025-10-28 01:00:00', 'pending');
+
+-- === Finance (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS fin_chart_of_accounts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Finance — Chart Of Accounts';
+INSERT IGNORE INTO fin_chart_of_accounts (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-10-03 04:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-03-10 01:00:00', 'pending'),
+('Gamma-3', 'descri_3', 'type_C', '2025-07-19 01:00:00', 'pending'),
+('Delta-4', 'descri_4', 'type_D', '2025-04-24 21:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fin_journal_entries (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Journal Entries';
+INSERT IGNORE INTO fin_journal_entries (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 27, 'descri_1', 'type_A', '2025-07-14 17:00:00', 'pending'),
+('Beta-2', 159, 'descri_2', 'type_B', '2025-03-24 07:00:00', 'active'),
+('Gamma-3', 46, 'descri_3', 'type_C', '2025-08-16 00:00:00', 'active'),
+('Delta-4', 189, 'descri_4', 'type_D', '2025-06-03 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_journal_lines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Journal Lines';
+INSERT IGNORE INTO fin_journal_lines (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 64, 'descri_1', 'type_A', '2025-05-25 05:00:00', 'done'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-07-28 01:00:00', 'pending'),
+('Gamma-3', 57, 'descri_3', 'type_C', '2025-04-19 14:00:00', 'pending'),
+('Delta-4', 79, 'descri_4', 'type_D', '2025-04-05 07:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fin_fiscal_periods (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Fiscal Periods';
+INSERT IGNORE INTO fin_fiscal_periods (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 50, 'descri_1', 'type_A', '2025-07-09 10:00:00', 'pending'),
+('Beta-2', 18, 'descri_2', 'type_B', '2025-05-03 11:00:00', 'done'),
+('Gamma-3', 131, 'descri_3', 'type_C', '2025-07-09 21:00:00', 'done'),
+('Delta-4', 85, 'descri_4', 'type_D', '2025-01-15 03:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_vendor_master (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Vendor Master';
+INSERT IGNORE INTO fin_vendor_master (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 149, 'descri_1', 'type_A', '2025-05-24 01:00:00', 'active'),
+('Beta-2', 153, 'descri_2', 'type_B', '2025-08-27 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_purchase_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Purchase Orders';
+INSERT IGNORE INTO fin_purchase_orders (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 112, 'descri_1', 'type_A', '2025-11-03 16:00:00', 'active'),
+('Beta-2', 99, 'descri_2', 'type_B', '2025-10-16 06:00:00', 'pending'),
+('Gamma-3', 12, 'descri_3', 'type_C', '2025-13-27 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fin_po_line_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Po Line Items';
+INSERT IGNORE INTO fin_po_line_items (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 138, 'descri_1', 'type_A', '2025-12-16 23:00:00', 'done'),
+('Beta-2', 189, 'descri_2', 'type_B', '2025-12-08 06:00:00', 'pending'),
+('Gamma-3', 111, 'descri_3', 'type_C', '2025-02-08 21:00:00', 'pending'),
+('Delta-4', 160, 'descri_4', 'type_D', '2025-06-21 21:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fin_ap_invoices (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Ap Invoices';
+INSERT IGNORE INTO fin_ap_invoices (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 77, 'descri_1', 'type_A', '2025-09-08 09:00:00', 'done'),
+('Beta-2', 105, 'descri_2', 'type_B', '2025-06-28 12:00:00', 'done'),
+('Gamma-3', 76, 'descri_3', 'type_C', '2025-10-04 04:00:00', 'active'),
+('Delta-4', 108, 'descri_4', 'type_D', '2025-12-05 12:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_ap_payments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Ap Payments';
+INSERT IGNORE INTO fin_ap_payments (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 45, 'descri_1', 'type_A', '2025-11-08 18:00:00', 'pending'),
+('Beta-2', 104, 'descri_2', 'type_B', '2025-10-01 00:00:00', 'pending'),
+('Gamma-3', 74, 'descri_3', 'type_C', '2025-04-24 13:00:00', 'done'),
+('Delta-4', 156, 'descri_4', 'type_D', '2025-12-28 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_ar_invoices (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Ar Invoices';
+INSERT IGNORE INTO fin_ar_invoices (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 114, 'descri_1', 'type_A', '2025-12-10 06:00:00', 'done'),
+('Beta-2', 122, 'descri_2', 'type_B', '2025-03-03 21:00:00', 'active'),
+('Gamma-3', 73, 'descri_3', 'type_C', '2025-09-12 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_ar_receipts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Ar Receipts';
+INSERT IGNORE INTO fin_ar_receipts (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-02-20 07:00:00', 'done'),
+('Beta-2', 80, 'descri_2', 'type_B', '2025-04-04 06:00:00', 'active'),
+('Gamma-3', 7, 'descri_3', 'type_C', '2025-01-24 07:00:00', 'pending'),
+('Delta-4', 157, 'descri_4', 'type_D', '2025-02-10 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_bank_accounts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Bank Accounts';
+INSERT IGNORE INTO fin_bank_accounts (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 148, 'descri_1', 'type_A', '2025-04-16 22:00:00', 'done'),
+('Beta-2', 99, 'descri_2', 'type_B', '2025-09-02 12:00:00', 'active'),
+('Gamma-3', 38, 'descri_3', 'type_C', '2025-12-28 22:00:00', 'active'),
+('Delta-4', 193, 'descri_4', 'type_D', '2025-02-27 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fin_bank_transactions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Bank Transactions';
+INSERT IGNORE INTO fin_bank_transactions (name, chart_of_accounts_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 179, '2025-09-14 14:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 143, '2025-05-16 03:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_fixed_assets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Fixed Assets';
+INSERT IGNORE INTO fin_fixed_assets (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 119, 'descri_1', 'type_A', '2025-12-06 16:00:00', 'done'),
+('Beta-2', 153, 'descri_2', 'type_B', '2025-06-23 14:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_depreciation_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Depreciation Schedules';
+INSERT IGNORE INTO fin_depreciation_schedules (name, chart_of_accounts_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 130, 2024, 4272.71, 9068.57, 'pending'),
+('Beta-2', 41, 2025, 7438.37, 4751.52, 'pending'),
+('Gamma-3', 193, 2026, 2479.68, 6379.60, 'done'),
+('Delta-4', 125, 2024, 6270.59, 2752.95, 'active');
+
+CREATE TABLE IF NOT EXISTS fin_budgets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Budgets';
+INSERT IGNORE INTO fin_budgets (name, chart_of_accounts_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 74, 2024, 2352.36, 3364.78, 'done'),
+('Beta-2', 21, 2025, 1392.22, 2320.07, 'done'),
+('Gamma-3', 40, 2026, 7066.42, 651.58, 'pending'),
+('Delta-4', 85, 2024, 5430.14, 4163.17, 'active');
+
+CREATE TABLE IF NOT EXISTS fin_cost_centers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Cost Centers';
+INSERT IGNORE INTO fin_cost_centers (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 100, 'descri_1', 'type_A', '2025-10-20 22:00:00', 'active'),
+('Beta-2', 196, 'descri_2', 'type_B', '2025-10-15 12:00:00', 'pending'),
+('Gamma-3', 2, 'descri_3', 'type_C', '2025-07-13 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_exchange_rates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Exchange Rates';
+INSERT IGNORE INTO fin_exchange_rates (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 138, 'descri_1', 'type_A', '2025-10-28 19:00:00', 'active'),
+('Beta-2', 125, 'descri_2', 'type_B', '2025-04-01 08:00:00', 'pending'),
+('Gamma-3', 125, 'descri_3', 'type_C', '2025-01-15 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_tax_jurisdictions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Tax Jurisdictions';
+INSERT IGNORE INTO fin_tax_jurisdictions (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 174, 'descri_1', 'type_A', '2025-07-12 23:00:00', 'active'),
+('Beta-2', 120, 'descri_2', 'type_B', '2025-03-10 19:00:00', 'done'),
+('Gamma-3', 7, 'descri_3', 'type_C', '2025-07-06 18:00:00', 'done'),
+('Delta-4', 170, 'descri_4', 'type_D', '2025-01-14 02:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_intercompany_txns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Intercompany Txns';
+INSERT IGNORE INTO fin_intercompany_txns (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 35, 'descri_1', 'type_A', '2025-08-13 05:00:00', 'active'),
+('Beta-2', 67, 'descri_2', 'type_B', '2025-07-27 10:00:00', 'active'),
+('Gamma-3', 117, 'descri_3', 'type_C', '2025-06-28 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_credit_memos (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Credit Memos';
+INSERT IGNORE INTO fin_credit_memos (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 193, 'descri_1', 'type_A', '2025-08-20 08:00:00', 'active'),
+('Beta-2', 121, 'descri_2', 'type_B', '2025-01-10 23:00:00', 'done'),
+('Gamma-3', 14, 'descri_3', 'type_C', '2025-06-12 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_financial_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Financial Reports';
+INSERT IGNORE INTO fin_financial_reports (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 200, 'descri_1', 'type_A', '2025-12-26 01:00:00', 'active'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-04-19 00:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fin_audit_findings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Audit Findings';
+INSERT IGNORE INTO fin_audit_findings (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 62, 'descri_1', 'type_A', '2025-03-09 15:00:00', 'done'),
+('Beta-2', 30, 'descri_2', 'type_B', '2025-10-09 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_cash_flow_forecasts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Cash Flow Forecasts';
+INSERT IGNORE INTO fin_cash_flow_forecasts (name, chart_of_accounts_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 66, 2024, 7670.55, 1686.05, 'done'),
+('Beta-2', 192, 2025, 7185.67, 7779.36, 'active'),
+('Gamma-3', 80, 2026, 1089.80, 266.50, 'pending'),
+('Delta-4', 148, 2024, 6776.02, 9581.19, 'pending');
+
+CREATE TABLE IF NOT EXISTS fin_revenue_recognition (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    chart_of_accounts_id         INT COMMENT 'FK to fin_chart_of_accounts' COMMENT 'Ref fin_chart_of_accounts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (chart_of_accounts_id) REFERENCES fin_chart_of_accounts(id)
+) COMMENT='Finance — Revenue Recognition';
+INSERT IGNORE INTO fin_revenue_recognition (name, chart_of_accounts_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-02-11 18:00:00', 'done'),
+('Beta-2', 161, 'descri_2', 'type_B', '2025-05-13 03:00:00', 'done'),
+('Gamma-3', 198, 'descri_3', 'type_C', '2025-06-15 21:00:00', 'done'),
+('Delta-4', 31, 'descri_4', 'type_D', '2025-10-10 01:00:00', 'pending');
+
+-- === Supply Chain (14 tables) ===
+
+CREATE TABLE IF NOT EXISTS scm_procurement_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Supply Chain — Procurement Requests';
+INSERT IGNORE INTO scm_procurement_requests (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-08-24 21:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-02-08 16:00:00', 'done'),
+('Gamma-3', 'descri_3', 'type_C', '2025-06-07 00:00:00', 'pending'),
+('Delta-4', 'descri_4', 'type_D', '2025-09-27 03:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS scm_supplier_evaluations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Supplier Evaluations';
+INSERT IGNORE INTO scm_supplier_evaluations (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 82, 'descri_1', 'type_A', '2025-08-12 22:00:00', 'active'),
+('Beta-2', 56, 'descri_2', 'type_B', '2025-04-07 23:00:00', 'done'),
+('Gamma-3', 84, 'descri_3', 'type_C', '2025-05-27 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_goods_receipts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Goods Receipts';
+INSERT IGNORE INTO scm_goods_receipts (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 60, 'descri_1', 'type_A', '2025-08-28 23:00:00', 'done'),
+('Beta-2', 35, 'descri_2', 'type_B', '2025-06-26 07:00:00', 'active'),
+('Gamma-3', 36, 'descri_3', 'type_C', '2025-08-07 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS scm_returns_to_vendor (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Returns To Vendor';
+INSERT IGNORE INTO scm_returns_to_vendor (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 79, 'descri_1', 'type_A', '2025-12-07 12:00:00', 'pending'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-09-02 10:00:00', 'active'),
+('Gamma-3', 63, 'descri_3', 'type_C', '2025-04-25 11:00:00', 'pending'),
+('Delta-4', 44, 'descri_4', 'type_D', '2025-05-04 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_shipping_carriers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Shipping Carriers';
+INSERT IGNORE INTO scm_shipping_carriers (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 72, 'descri_1', 'type_A', '2025-01-06 16:00:00', 'active'),
+('Beta-2', 11, 'descri_2', 'type_B', '2025-05-12 23:00:00', 'pending'),
+('Gamma-3', 63, 'descri_3', 'type_C', '2025-10-05 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_shipment_tracking (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Shipment Tracking';
+INSERT IGNORE INTO scm_shipment_tracking (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-13-01 15:00:00', 'pending'),
+('Beta-2', 3, 'descri_2', 'type_B', '2025-02-20 09:00:00', 'active'),
+('Gamma-3', 52, 'descri_3', 'type_C', '2025-12-19 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS scm_demand_forecasts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Demand Forecasts';
+INSERT IGNORE INTO scm_demand_forecasts (name, procurement_requests_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 75, 2024, 3696.15, 5538.64, 'pending'),
+('Beta-2', 55, 2025, 9965.35, 5507.83, 'pending'),
+('Gamma-3', 90, 2026, 4542.46, 3072.86, 'active'),
+('Delta-4', 16, 2024, 7214.91, 3162.01, 'done');
+
+CREATE TABLE IF NOT EXISTS scm_safety_stock_levels (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Safety Stock Levels';
+INSERT IGNORE INTO scm_safety_stock_levels (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 98, 'descri_1', 'type_A', '2025-12-18 05:00:00', 'active'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-09-24 08:00:00', 'done'),
+('Gamma-3', 76, 'descri_3', 'type_C', '2025-09-17 19:00:00', 'pending'),
+('Delta-4', 13, 'descri_4', 'type_D', '2025-04-16 09:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS scm_customs_declarations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Customs Declarations';
+INSERT IGNORE INTO scm_customs_declarations (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-06-15 00:00:00', 'done'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-03-09 08:00:00', 'active'),
+('Gamma-3', 7, 'descri_3', 'type_C', '2025-10-04 09:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_inbound_deliveries (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Inbound Deliveries';
+INSERT IGNORE INTO scm_inbound_deliveries (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 82, 'descri_1', 'type_A', '2025-09-28 03:00:00', 'active'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-05-06 15:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS scm_outbound_shipments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Outbound Shipments';
+INSERT IGNORE INTO scm_outbound_shipments (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 44, 'descri_1', 'type_A', '2025-04-11 01:00:00', 'pending'),
+('Beta-2', 62, 'descri_2', 'type_B', '2025-02-03 02:00:00', 'pending'),
+('Gamma-3', 63, 'descri_3', 'type_C', '2025-02-10 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_supplier_contracts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Supplier Contracts';
+INSERT IGNORE INTO scm_supplier_contracts (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 7, 'descri_1', 'type_A', '2025-03-22 04:00:00', 'done'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-02-16 07:00:00', 'active'),
+('Gamma-3', 72, 'descri_3', 'type_C', '2025-08-18 19:00:00', 'done'),
+('Delta-4', 80, 'descri_4', 'type_D', '2025-04-04 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS scm_material_requirements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Material Requirements';
+INSERT IGNORE INTO scm_material_requirements (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-06-13 18:00:00', 'pending'),
+('Beta-2', 40, 'descri_2', 'type_B', '2025-10-12 19:00:00', 'active'),
+('Gamma-3', 79, 'descri_3', 'type_C', '2025-02-23 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS scm_freight_invoices (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    procurement_requests_id      INT COMMENT 'FK to scm_procurement_requests' COMMENT 'Ref scm_procurement_requests',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (procurement_requests_id) REFERENCES scm_procurement_requests(id)
+) COMMENT='Supply Chain — Freight Invoices';
+INSERT IGNORE INTO scm_freight_invoices (name, procurement_requests_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-12-03 02:00:00', 'active'),
+('Beta-2', 31, 'descri_2', 'type_B', '2025-03-05 17:00:00', 'active');
+
+-- === CRM (10 tables) ===
+
+CREATE TABLE IF NOT EXISTS crm_customer_segments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='CRM — Customer Segments';
+INSERT IGNORE INTO crm_customer_segments (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-01-02 13:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-17 19:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS crm_contact_interactions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Contact Interactions';
+INSERT IGNORE INTO crm_contact_interactions (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 5, 'descri_1', 'type_A', '2025-04-07 09:00:00', 'done'),
+('Beta-2', 37, 'descri_2', 'type_B', '2025-12-24 14:00:00', 'active'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-04-08 08:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS crm_support_tickets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Support Tickets';
+INSERT IGNORE INTO crm_support_tickets (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-04-18 13:00:00', 'active'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-04-04 20:00:00', 'active'),
+('Gamma-3', 35, 'descri_3', 'type_C', '2025-03-17 02:00:00', 'active'),
+('Delta-4', 22, 'descri_4', 'type_D', '2025-06-18 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS crm_ticket_responses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Ticket Responses';
+INSERT IGNORE INTO crm_ticket_responses (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 37, 'descri_1', 'type_A', '2025-08-01 03:00:00', 'pending'),
+('Beta-2', 89, 'descri_2', 'type_B', '2025-06-16 22:00:00', 'pending'),
+('Gamma-3', 35, 'descri_3', 'type_C', '2025-09-05 17:00:00', 'pending'),
+('Delta-4', 57, 'descri_4', 'type_D', '2025-02-14 19:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS crm_loyalty_programs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Loyalty Programs';
+INSERT IGNORE INTO crm_loyalty_programs (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 95, 'descri_1', 'type_A', '2025-06-26 19:00:00', 'pending'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-02-19 07:00:00', 'done'),
+('Gamma-3', 74, 'descri_3', 'type_C', '2025-11-21 00:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS crm_loyalty_transactions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Loyalty Transactions';
+INSERT IGNORE INTO crm_loyalty_transactions (name, customer_segments_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 74, '2025-01-21 05:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 67, '2025-12-26 14:00:00', 'Sample data row 2', 'create_2', 'pending'),
+('Gamma-3', 24, '2025-10-20 13:00:00', 'Sample data row 3', 'create_3', 'done');
+
+CREATE TABLE IF NOT EXISTS crm_feedback_forms (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Feedback Forms';
+INSERT IGNORE INTO crm_feedback_forms (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-09-17 11:00:00', 'pending'),
+('Beta-2', 43, 'descri_2', 'type_B', '2025-06-25 21:00:00', 'active'),
+('Gamma-3', 21, 'descri_3', 'type_C', '2025-06-01 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS crm_nps_scores (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Nps Scores';
+INSERT IGNORE INTO crm_nps_scores (name, customer_segments_id, metric_date, value, target, status) VALUES
+('Alpha-1', 37, '2025-12-04', 9451.54, 8136.71, 'done'),
+('Beta-2', 5, '2025-08-09', 889.63, 2531.21, 'active'),
+('Gamma-3', 99, '2025-07-11', 8649.59, 8250.20, 'active');
+
+CREATE TABLE IF NOT EXISTS crm_customer_addresses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Customer Addresses';
+INSERT IGNORE INTO crm_customer_addresses (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-08-13 13:00:00', 'active'),
+('Beta-2', 25, 'descri_2', 'type_B', '2025-09-14 11:00:00', 'done'),
+('Gamma-3', 97, 'descri_3', 'type_C', '2025-09-04 20:00:00', 'pending'),
+('Delta-4', 98, 'descri_4', 'type_D', '2025-01-27 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS crm_referral_programs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_segments_id         INT COMMENT 'FK to crm_customer_segments' COMMENT 'Ref crm_customer_segments',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_segments_id) REFERENCES crm_customer_segments(id)
+) COMMENT='CRM — Referral Programs';
+INSERT IGNORE INTO crm_referral_programs (name, customer_segments_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-05-08 14:00:00', 'done'),
+('Beta-2', 63, 'descri_2', 'type_B', '2025-03-07 00:00:00', 'done'),
+('Gamma-3', 78, 'descri_3', 'type_C', '2025-05-11 22:00:00', 'active'),
+('Delta-4', 40, 'descri_4', 'type_D', '2025-10-03 00:00:00', 'done');
+
+-- === Manufacturing (10 tables) ===
+
+CREATE TABLE IF NOT EXISTS mfg_bill_of_materials (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Manufacturing — Bill Of Materials';
+INSERT IGNORE INTO mfg_bill_of_materials (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-02-20 07:00:00', 'active'),
+('Beta-2', 'descri_2', 'type_B', '2025-08-13 03:00:00', 'done'),
+('Gamma-3', 'descri_3', 'type_C', '2025-03-23 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mfg_work_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Work Orders';
+INSERT IGNORE INTO mfg_work_orders (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-13-26 08:00:00', 'pending'),
+('Beta-2', 62, 'descri_2', 'type_B', '2025-09-18 07:00:00', 'pending'),
+('Gamma-3', 71, 'descri_3', 'type_C', '2025-03-19 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mfg_work_centers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Work Centers';
+INSERT IGNORE INTO mfg_work_centers (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-03-14 02:00:00', 'pending'),
+('Beta-2', 99, 'descri_2', 'type_B', '2025-08-17 10:00:00', 'done'),
+('Gamma-3', 35, 'descri_3', 'type_C', '2025-01-02 09:00:00', 'done'),
+('Delta-4', 39, 'descri_4', 'type_D', '2025-11-21 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mfg_production_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Production Schedules';
+INSERT IGNORE INTO mfg_production_schedules (name, bill_of_materials_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 20, 2024, 4470.56, 4848.09, 'pending'),
+('Beta-2', 71, 2025, 7630.34, 3777.95, 'pending'),
+('Gamma-3', 25, 2026, 9806.96, 2395.43, 'pending');
+
+CREATE TABLE IF NOT EXISTS mfg_quality_inspections (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Quality Inspections';
+INSERT IGNORE INTO mfg_quality_inspections (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 100, 'descri_1', 'type_A', '2025-08-15 01:00:00', 'pending'),
+('Beta-2', 96, 'descri_2', 'type_B', '2025-09-19 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mfg_scrap_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Scrap Records';
+INSERT IGNORE INTO mfg_scrap_records (name, bill_of_materials_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 85, '2025-12-26 04:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 5, '2025-03-09 16:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 43, '2025-02-24 14:00:00', 'Sample data row 3', 'create_3', 'active');
+
+CREATE TABLE IF NOT EXISTS mfg_equipment_master (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Equipment Master';
+INSERT IGNORE INTO mfg_equipment_master (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 59, 'descri_1', 'type_A', '2025-01-08 23:00:00', 'active'),
+('Beta-2', 53, 'descri_2', 'type_B', '2025-12-28 04:00:00', 'active'),
+('Gamma-3', 61, 'descri_3', 'type_C', '2025-05-24 10:00:00', 'done'),
+('Delta-4', 89, 'descri_4', 'type_D', '2025-07-08 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mfg_maintenance_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Maintenance Orders';
+INSERT IGNORE INTO mfg_maintenance_orders (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 87, 'descri_1', 'type_A', '2025-10-22 12:00:00', 'pending'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-09-26 17:00:00', 'active'),
+('Gamma-3', 80, 'descri_3', 'type_C', '2025-02-08 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mfg_tooling_inventory (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Tooling Inventory';
+INSERT IGNORE INTO mfg_tooling_inventory (name, bill_of_materials_id, description, category, created_at, status) VALUES
+('Alpha-1', 37, 'descri_1', 'type_A', '2025-04-05 23:00:00', 'active'),
+('Beta-2', 56, 'descri_2', 'type_B', '2025-02-23 20:00:00', 'done'),
+('Gamma-3', 13, 'descri_3', 'type_C', '2025-08-04 05:00:00', 'done'),
+('Delta-4', 39, 'descri_4', 'type_D', '2025-01-15 01:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mfg_production_kpis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    bill_of_materials_id         INT COMMENT 'FK to mfg_bill_of_materials' COMMENT 'Ref mfg_bill_of_materials',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (bill_of_materials_id) REFERENCES mfg_bill_of_materials(id)
+) COMMENT='Manufacturing — Production Kpis';
+INSERT IGNORE INTO mfg_production_kpis (name, bill_of_materials_id, metric_date, value, target, status) VALUES
+('Alpha-1', 38, '2025-07-16', 3754.29, 1464.10, 'done'),
+('Beta-2', 53, '2025-10-10', 6820.50, 1808.59, 'active');
+
+-- === Sales (10 tables) ===
+
+CREATE TABLE IF NOT EXISTS sales_price_lists (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Sales — Price Lists';
+INSERT IGNORE INTO sales_price_lists (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-11-05 12:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-14 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS sales_price_list_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Price List Items';
+INSERT IGNORE INTO sales_price_list_items (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 19, 'descri_1', 'type_A', '2025-04-07 14:00:00', 'done'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-08-12 08:00:00', 'done'),
+('Gamma-3', 2, 'descri_3', 'type_C', '2025-08-15 09:00:00', 'done'),
+('Delta-4', 70, 'descri_4', 'type_D', '2025-03-25 02:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS sales_sales_quotations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Quotations';
+INSERT IGNORE INTO sales_sales_quotations (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 76, 'descri_1', 'type_A', '2025-06-14 20:00:00', 'pending'),
+('Beta-2', 89, 'descri_2', 'type_B', '2025-05-17 14:00:00', 'pending'),
+('Gamma-3', 26, 'descri_3', 'type_C', '2025-07-01 15:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS sales_quote_line_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Quote Line Items';
+INSERT IGNORE INTO sales_quote_line_items (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 49, 'descri_1', 'type_A', '2025-10-13 11:00:00', 'done'),
+('Beta-2', 38, 'descri_2', 'type_B', '2025-12-23 09:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS sales_sales_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Orders';
+INSERT IGNORE INTO sales_sales_orders (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-05-01 00:00:00', 'done'),
+('Beta-2', 88, 'descri_2', 'type_B', '2025-01-26 19:00:00', 'done'),
+('Gamma-3', 64, 'descri_3', 'type_C', '2025-05-07 07:00:00', 'done'),
+('Delta-4', 46, 'descri_4', 'type_D', '2025-04-01 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS sales_sales_order_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Order Items';
+INSERT IGNORE INTO sales_sales_order_items (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 33, 'descri_1', 'type_A', '2025-12-12 23:00:00', 'done'),
+('Beta-2', 88, 'descri_2', 'type_B', '2025-03-15 20:00:00', 'active'),
+('Gamma-3', 81, 'descri_3', 'type_C', '2025-12-23 01:00:00', 'pending'),
+('Delta-4', 57, 'descri_4', 'type_D', '2025-01-18 18:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS sales_sales_territories (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Territories';
+INSERT IGNORE INTO sales_sales_territories (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-02-19 09:00:00', 'pending'),
+('Beta-2', 96, 'descri_2', 'type_B', '2025-08-17 05:00:00', 'active'),
+('Gamma-3', 17, 'descri_3', 'type_C', '2025-10-25 11:00:00', 'done'),
+('Delta-4', 65, 'descri_4', 'type_D', '2025-05-28 05:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS sales_sales_commissions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Commissions';
+INSERT IGNORE INTO sales_sales_commissions (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-06-06 03:00:00', 'pending'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-03-17 07:00:00', 'done'),
+('Gamma-3', 93, 'descri_3', 'type_C', '2025-12-10 12:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS sales_sales_returns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Returns';
+INSERT IGNORE INTO sales_sales_returns (name, price_lists_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-07-07 00:00:00', 'pending'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-03-08 14:00:00', 'pending'),
+('Gamma-3', 87, 'descri_3', 'type_C', '2025-12-09 08:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS sales_sales_targets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    price_lists_id               INT COMMENT 'FK to sales_price_lists' COMMENT 'Ref sales_price_lists',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (price_lists_id) REFERENCES sales_price_lists(id)
+) COMMENT='Sales — Sales Targets';
+INSERT IGNORE INTO sales_sales_targets (name, price_lists_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 82, 2024, 9402.58, 1092.27, 'active'),
+('Beta-2', 61, 2025, 259.97, 8842.62, 'done'),
+('Gamma-3', 42, 2026, 9152.49, 2221.24, 'active');
+
+-- === Project Mgmt (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS proj_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Project Mgmt — Tasks';
+INSERT IGNORE INTO proj_tasks (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-08-14 22:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-25 13:00:00', 'active'),
+('Gamma-3', 'descri_3', 'type_C', '2025-03-16 01:00:00', 'active'),
+('Delta-4', 'descri_4', 'type_D', '2025-06-16 15:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proj_milestones (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Milestones';
+INSERT IGNORE INTO proj_milestones (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 31, 'descri_1', 'type_A', '2025-10-24 04:00:00', 'pending'),
+('Beta-2', 59, 'descri_2', 'type_B', '2025-07-22 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_resource_allocations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Resource Allocations';
+INSERT IGNORE INTO proj_resource_allocations (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-08-19 18:00:00', 'done'),
+('Beta-2', 94, 'descri_2', 'type_B', '2025-03-24 13:00:00', 'done'),
+('Gamma-3', 13, 'descri_3', 'type_C', '2025-09-27 19:00:00', 'pending'),
+('Delta-4', 36, 'descri_4', 'type_D', '2025-01-17 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_risk_register (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Risk Register';
+INSERT IGNORE INTO proj_risk_register (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-08-04 07:00:00', 'pending'),
+('Beta-2', 13, 'descri_2', 'type_B', '2025-12-16 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_project_budgets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Budgets';
+INSERT IGNORE INTO proj_project_budgets (name, tasks_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 46, 2024, 614.83, 2765.78, 'active'),
+('Beta-2', 59, 2025, 925.73, 2128.72, 'done'),
+('Gamma-3', 77, 2026, 9710.25, 515.23, 'pending'),
+('Delta-4', 32, 2024, 9887.33, 7871.12, 'active');
+
+CREATE TABLE IF NOT EXISTS proj_status_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Status Reports';
+INSERT IGNORE INTO proj_status_reports (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 98, 'descri_1', 'type_A', '2025-10-04 06:00:00', 'done'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-04-08 10:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proj_project_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Documents';
+INSERT IGNORE INTO proj_project_documents (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 1, 'descri_1', 'type_A', '2025-05-02 04:00:00', 'active'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-05-17 05:00:00', 'active'),
+('Gamma-3', 85, 'descri_3', 'type_C', '2025-01-14 04:00:00', 'active'),
+('Delta-4', 46, 'descri_4', 'type_D', '2025-05-10 18:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_stakeholders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Stakeholders';
+INSERT IGNORE INTO proj_stakeholders (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-05-24 01:00:00', 'active'),
+('Beta-2', 95, 'descri_2', 'type_B', '2025-08-20 16:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proj_change_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Change Requests';
+INSERT IGNORE INTO proj_change_requests (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 9, 'descri_1', 'type_A', '2025-09-20 14:00:00', 'pending'),
+('Beta-2', 66, 'descri_2', 'type_B', '2025-11-24 03:00:00', 'pending'),
+('Gamma-3', 65, 'descri_3', 'type_C', '2025-04-02 19:00:00', 'active'),
+('Delta-4', 94, 'descri_4', 'type_D', '2025-12-02 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_project_phases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Phases';
+INSERT IGNORE INTO proj_project_phases (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-01-16 01:00:00', 'pending'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-08-23 21:00:00', 'active'),
+('Gamma-3', 63, 'descri_3', 'type_C', '2025-13-01 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proj_dependencies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Dependencies';
+INSERT IGNORE INTO proj_dependencies (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-11-04 04:00:00', 'active'),
+('Beta-2', 17, 'descri_2', 'type_B', '2025-05-01 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_issue_log (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Issue Log';
+INSERT IGNORE INTO proj_issue_log (name, tasks_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 71, '2025-13-01 10:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 77, '2025-10-20 09:00:00', 'Sample data row 2', 'create_2', 'pending'),
+('Gamma-3', 65, '2025-11-02 13:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 90, '2025-02-03 20:00:00', 'Sample data row 4', 'create_4', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_lessons_learned (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Lessons Learned';
+INSERT IGNORE INTO proj_lessons_learned (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-04-27 13:00:00', 'pending'),
+('Beta-2', 30, 'descri_2', 'type_B', '2025-08-16 10:00:00', 'pending'),
+('Gamma-3', 52, 'descri_3', 'type_C', '2025-08-17 23:00:00', 'active'),
+('Delta-4', 41, 'descri_4', 'type_D', '2025-08-23 10:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_meeting_minutes (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Meeting Minutes';
+INSERT IGNORE INTO proj_meeting_minutes (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 48, 'descri_1', 'type_A', '2025-03-23 21:00:00', 'pending'),
+('Beta-2', 9, 'descri_2', 'type_B', '2025-02-19 02:00:00', 'active'),
+('Gamma-3', 56, 'descri_3', 'type_C', '2025-02-22 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_deliverables (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Deliverables';
+INSERT IGNORE INTO proj_deliverables (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-10-05 01:00:00', 'done'),
+('Beta-2', 72, 'descri_2', 'type_B', '2025-10-08 10:00:00', 'done'),
+('Gamma-3', 16, 'descri_3', 'type_C', '2025-08-15 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_work_packages (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Work Packages';
+INSERT IGNORE INTO proj_work_packages (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-01-27 09:00:00', 'done'),
+('Beta-2', 40, 'descri_2', 'type_B', '2025-07-13 03:00:00', 'done'),
+('Gamma-3', 65, 'descri_3', 'type_C', '2025-04-25 04:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_gantt_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Gantt Schedules';
+INSERT IGNORE INTO proj_gantt_schedules (name, tasks_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 29, 2024, 8473.43, 3507.29, 'done'),
+('Beta-2', 48, 2025, 1157.59, 2792.62, 'active'),
+('Gamma-3', 55, 2026, 8452.25, 9744.75, 'done');
+
+CREATE TABLE IF NOT EXISTS proj_project_portfolios (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Portfolios';
+INSERT IGNORE INTO proj_project_portfolios (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 87, 'descri_1', 'type_A', '2025-11-22 17:00:00', 'active'),
+('Beta-2', 78, 'descri_2', 'type_B', '2025-12-01 22:00:00', 'pending'),
+('Gamma-3', 4, 'descri_3', 'type_C', '2025-04-09 08:00:00', 'done'),
+('Delta-4', 98, 'descri_4', 'type_D', '2025-06-19 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_program_master (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Program Master';
+INSERT IGNORE INTO proj_program_master (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 24, 'descri_1', 'type_A', '2025-03-18 18:00:00', 'done'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-02-08 04:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_project_templates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Templates';
+INSERT IGNORE INTO proj_project_templates (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 4, 'descri_1', 'type_A', '2025-02-19 23:00:00', 'done'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-07-25 13:00:00', 'pending'),
+('Gamma-3', 44, 'descri_3', 'type_C', '2025-03-25 11:00:00', 'pending'),
+('Delta-4', 93, 'descri_4', 'type_D', '2025-06-27 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proj_approval_workflows (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Approval Workflows';
+INSERT IGNORE INTO proj_approval_workflows (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 7, 'descri_1', 'type_A', '2025-03-24 05:00:00', 'done'),
+('Beta-2', 7, 'descri_2', 'type_B', '2025-12-10 02:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_time_entries (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Time Entries';
+INSERT IGNORE INTO proj_time_entries (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-08-22 15:00:00', 'done'),
+('Beta-2', 57, 'descri_2', 'type_B', '2025-08-17 08:00:00', 'active'),
+('Gamma-3', 97, 'descri_3', 'type_C', '2025-09-11 03:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_resource_skills (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Resource Skills';
+INSERT IGNORE INTO proj_resource_skills (name, tasks_id, description, category, created_at, status) VALUES
+('Alpha-1', 15, 'descri_1', 'type_A', '2025-05-06 21:00:00', 'done'),
+('Beta-2', 76, 'descri_2', 'type_B', '2025-09-26 16:00:00', 'done'),
+('Gamma-3', 40, 'descri_3', 'type_C', '2025-01-24 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_project_kpis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Project Kpis';
+INSERT IGNORE INTO proj_project_kpis (name, tasks_id, metric_date, value, target, status) VALUES
+('Alpha-1', 8, '2025-01-04', 2051.98, 9452.84, 'active'),
+('Beta-2', 98, '2025-05-19', 2901.29, 1208.52, 'pending'),
+('Gamma-3', 96, '2025-08-25', 1765.02, 3807.89, 'done'),
+('Delta-4', 30, '2025-09-05', 5591.09, 6683.13, 'pending');
+
+CREATE TABLE IF NOT EXISTS proj_sprint_backlogs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tasks_id                     INT COMMENT 'FK to proj_tasks' COMMENT 'Ref proj_tasks',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tasks_id) REFERENCES proj_tasks(id)
+) COMMENT='Project Mgmt — Sprint Backlogs';
+INSERT IGNORE INTO proj_sprint_backlogs (name, tasks_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 51, '2025-01-22 13:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 59, '2025-02-12 10:00:00', 'Sample data row 2', 'create_2', 'done');
+
+-- === Quality (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS qa_inspection_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Quality — Inspection Plans';
+INSERT IGNORE INTO qa_inspection_plans (name, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 2024, 5737.69, 7097.19, 'pending'),
+('Beta-2', 2025, 2901.97, 4055.87, 'pending'),
+('Gamma-3', 2026, 1726.84, 9475.72, 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_test_cases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Test Cases';
+INSERT IGNORE INTO qa_test_cases (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 47, 'descri_1', 'type_A', '2025-02-18 13:00:00', 'active'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-08-28 18:00:00', 'pending'),
+('Gamma-3', 68, 'descri_3', 'type_C', '2025-02-13 12:00:00', 'pending'),
+('Delta-4', 96, 'descri_4', 'type_D', '2025-06-06 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_test_runs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Test Runs';
+INSERT IGNORE INTO qa_test_runs (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 10, 'descri_1', 'type_A', '2025-09-10 20:00:00', 'active'),
+('Beta-2', 68, 'descri_2', 'type_B', '2025-09-10 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_defect_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Defect Reports';
+INSERT IGNORE INTO qa_defect_reports (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 94, 'descri_1', 'type_A', '2025-12-23 04:00:00', 'active'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-03-19 08:00:00', 'active'),
+('Gamma-3', 23, 'descri_3', 'type_C', '2025-11-01 04:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_corrective_actions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Corrective Actions';
+INSERT IGNORE INTO qa_corrective_actions (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-11-14 15:00:00', 'pending'),
+('Beta-2', 97, 'descri_2', 'type_B', '2025-10-09 18:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_preventive_actions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Preventive Actions';
+INSERT IGNORE INTO qa_preventive_actions (name, inspection_plans_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 73, '2025-11-22 20:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 42, '2025-11-14 10:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 57, '2025-02-07 15:00:00', 'Sample data row 3', 'create_3', 'pending'),
+('Delta-4', 81, '2025-06-16 08:00:00', 'Sample data row 4', 'create_4', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_audit_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Audit Schedules';
+INSERT IGNORE INTO qa_audit_schedules (name, inspection_plans_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 46, 2024, 5077.79, 3110.66, 'pending'),
+('Beta-2', 5, 2025, 578.27, 8317.82, 'active');
+
+CREATE TABLE IF NOT EXISTS qa_audit_findings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Audit Findings';
+INSERT IGNORE INTO qa_audit_findings (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-11-07 19:00:00', 'done'),
+('Beta-2', 50, 'descri_2', 'type_B', '2025-08-13 18:00:00', 'done'),
+('Gamma-3', 95, 'descri_3', 'type_C', '2025-01-22 14:00:00', 'done'),
+('Delta-4', 84, 'descri_4', 'type_D', '2025-04-13 10:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_nonconformance_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Nonconformance Reports';
+INSERT IGNORE INTO qa_nonconformance_reports (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-03-22 01:00:00', 'pending'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-06-08 22:00:00', 'active'),
+('Gamma-3', 65, 'descri_3', 'type_C', '2025-12-23 05:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_control_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Control Plans';
+INSERT IGNORE INTO qa_control_plans (name, inspection_plans_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 91, 2024, 4382.77, 4399.38, 'done'),
+('Beta-2', 79, 2025, 1595.72, 3734.42, 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_measurement_systems (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Measurement Systems';
+INSERT IGNORE INTO qa_measurement_systems (name, inspection_plans_id, metric_date, value, target, status) VALUES
+('Alpha-1', 53, '2025-06-06', 6791.51, 533.08, 'done'),
+('Beta-2', 83, '2025-06-04', 668.39, 954.02, 'done'),
+('Gamma-3', 50, '2025-05-06', 2527.19, 8516.30, 'done');
+
+CREATE TABLE IF NOT EXISTS qa_calibration_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Calibration Records';
+INSERT IGNORE INTO qa_calibration_records (name, inspection_plans_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 43, '2025-02-14 18:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 19, '2025-06-12 09:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_spc_data (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Spc Data';
+INSERT IGNORE INTO qa_spc_data (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-07-05 04:00:00', 'done'),
+('Beta-2', 91, 'descri_2', 'type_B', '2025-02-16 09:00:00', 'done'),
+('Gamma-3', 49, 'descri_3', 'type_C', '2025-11-22 10:00:00', 'active'),
+('Delta-4', 86, 'descri_4', 'type_D', '2025-12-24 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_process_capability (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Process Capability';
+INSERT IGNORE INTO qa_process_capability (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-12-23 21:00:00', 'pending'),
+('Beta-2', 66, 'descri_2', 'type_B', '2025-07-18 00:00:00', 'pending'),
+('Gamma-3', 40, 'descri_3', 'type_C', '2025-04-09 06:00:00', 'pending'),
+('Delta-4', 99, 'descri_4', 'type_D', '2025-09-25 06:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_reliability_tests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Reliability Tests';
+INSERT IGNORE INTO qa_reliability_tests (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 20, 'descri_1', 'type_A', '2025-02-12 09:00:00', 'active'),
+('Beta-2', 65, 'descri_2', 'type_B', '2025-10-25 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_environmental_tests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Environmental Tests';
+INSERT IGNORE INTO qa_environmental_tests (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-06-05 19:00:00', 'active'),
+('Beta-2', 77, 'descri_2', 'type_B', '2025-07-25 04:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_supplier_quality (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Supplier Quality';
+INSERT IGNORE INTO qa_supplier_quality (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 89, 'descri_1', 'type_A', '2025-11-12 05:00:00', 'done'),
+('Beta-2', 57, 'descri_2', 'type_B', '2025-01-23 13:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_incoming_inspections (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Incoming Inspections';
+INSERT IGNORE INTO qa_incoming_inspections (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-05-10 14:00:00', 'done'),
+('Beta-2', 37, 'descri_2', 'type_B', '2025-08-06 07:00:00', 'done'),
+('Gamma-3', 31, 'descri_3', 'type_C', '2025-06-19 15:00:00', 'active'),
+('Delta-4', 48, 'descri_4', 'type_D', '2025-12-12 18:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_final_inspections (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Final Inspections';
+INSERT IGNORE INTO qa_final_inspections (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 99, 'descri_1', 'type_A', '2025-05-05 12:00:00', 'done'),
+('Beta-2', 68, 'descri_2', 'type_B', '2025-08-19 05:00:00', 'active'),
+('Gamma-3', 78, 'descri_3', 'type_C', '2025-03-15 08:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_customer_complaints (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Customer Complaints';
+INSERT IGNORE INTO qa_customer_complaints (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 62, 'descri_1', 'type_A', '2025-07-23 17:00:00', 'active'),
+('Beta-2', 92, 'descri_2', 'type_B', '2025-09-13 03:00:00', 'pending'),
+('Gamma-3', 11, 'descri_3', 'type_C', '2025-03-27 08:00:00', 'pending'),
+('Delta-4', 66, 'descri_4', 'type_D', '2025-03-20 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_root_cause_analysis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Root Cause Analysis';
+INSERT IGNORE INTO qa_root_cause_analysis (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-06-11 00:00:00', 'pending'),
+('Beta-2', 7, 'descri_2', 'type_B', '2025-07-07 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_capa_tracking (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Capa Tracking';
+INSERT IGNORE INTO qa_capa_tracking (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 50, 'descri_1', 'type_A', '2025-02-14 11:00:00', 'active'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-06-24 03:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS qa_quality_costs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Quality Costs';
+INSERT IGNORE INTO qa_quality_costs (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 43, 'descri_1', 'type_A', '2025-03-19 04:00:00', 'active'),
+('Beta-2', 37, 'descri_2', 'type_B', '2025-09-18 22:00:00', 'active'),
+('Gamma-3', 98, 'descri_3', 'type_C', '2025-13-26 15:00:00', 'pending'),
+('Delta-4', 79, 'descri_4', 'type_D', '2025-01-03 02:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS qa_quality_objectives (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Quality Objectives';
+INSERT IGNORE INTO qa_quality_objectives (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 28, 'descri_1', 'type_A', '2025-03-21 17:00:00', 'done'),
+('Beta-2', 78, 'descri_2', 'type_B', '2025-10-19 13:00:00', 'active'),
+('Gamma-3', 100, 'descri_3', 'type_C', '2025-05-08 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS qa_document_controls (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    inspection_plans_id          INT COMMENT 'FK to qa_inspection_plans' COMMENT 'Ref qa_inspection_plans',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (inspection_plans_id) REFERENCES qa_inspection_plans(id)
+) COMMENT='Quality — Document Controls';
+INSERT IGNORE INTO qa_document_controls (name, inspection_plans_id, description, category, created_at, status) VALUES
+('Alpha-1', 7, 'descri_1', 'type_A', '2025-05-11 13:00:00', 'done'),
+('Beta-2', 80, 'descri_2', 'type_B', '2025-08-11 02:00:00', 'active');
+
+-- === IT (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS it_it_assets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='IT — It Assets';
+INSERT IGNORE INTO it_it_assets (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-11-26 17:00:00', 'active'),
+('Beta-2', 'descri_2', 'type_B', '2025-11-16 16:00:00', 'done'),
+('Gamma-3', 'descri_3', 'type_C', '2025-05-12 22:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_software_licenses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Software Licenses';
+INSERT IGNORE INTO it_software_licenses (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 55, 'descri_1', 'type_A', '2025-01-01 19:00:00', 'pending'),
+('Beta-2', 31, 'descri_2', 'type_B', '2025-10-13 13:00:00', 'active'),
+('Gamma-3', 86, 'descri_3', 'type_C', '2025-12-07 02:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_hardware_inventory (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Hardware Inventory';
+INSERT IGNORE INTO it_hardware_inventory (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 9, 'descri_1', 'type_A', '2025-09-18 17:00:00', 'done'),
+('Beta-2', 65, 'descri_2', 'type_B', '2025-10-04 00:00:00', 'pending'),
+('Gamma-3', 61, 'descri_3', 'type_C', '2025-01-23 20:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS it_help_desk_tickets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Help Desk Tickets';
+INSERT IGNORE INTO it_help_desk_tickets (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 33, 'descri_1', 'type_A', '2025-01-09 11:00:00', 'active'),
+('Beta-2', 45, 'descri_2', 'type_B', '2025-05-12 23:00:00', 'done'),
+('Gamma-3', 81, 'descri_3', 'type_C', '2025-02-26 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_ticket_comments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Ticket Comments';
+INSERT IGNORE INTO it_ticket_comments (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-01-23 11:00:00', 'done'),
+('Beta-2', 44, 'descri_2', 'type_B', '2025-11-22 05:00:00', 'done'),
+('Gamma-3', 60, 'descri_3', 'type_C', '2025-12-21 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_change_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Change Requests';
+INSERT IGNORE INTO it_change_requests (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-02-05 22:00:00', 'pending'),
+('Beta-2', 5, 'descri_2', 'type_B', '2025-06-11 06:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_change_approvals (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Change Approvals';
+INSERT IGNORE INTO it_change_approvals (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 6, 'descri_1', 'type_A', '2025-06-22 09:00:00', 'done'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-10-27 15:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS it_sla_definitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Sla Definitions';
+INSERT IGNORE INTO it_sla_definitions (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 97, 'descri_1', 'type_A', '2025-12-24 06:00:00', 'pending'),
+('Beta-2', 46, 'descri_2', 'type_B', '2025-01-25 20:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS it_sla_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Sla Metrics';
+INSERT IGNORE INTO it_sla_metrics (name, it_assets_id, metric_date, value, target, status) VALUES
+('Alpha-1', 16, '2025-07-21', 4374.71, 4005.82, 'pending'),
+('Beta-2', 50, '2025-06-06', 9736.52, 4966.57, 'pending'),
+('Gamma-3', 48, '2025-09-14', 2674.27, 835.21, 'pending');
+
+CREATE TABLE IF NOT EXISTS it_network_devices (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Network Devices';
+INSERT IGNORE INTO it_network_devices (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 56, 'descri_1', 'type_A', '2025-11-01 05:00:00', 'done'),
+('Beta-2', 38, 'descri_2', 'type_B', '2025-06-25 03:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_server_inventory (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Server Inventory';
+INSERT IGNORE INTO it_server_inventory (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-06-12 09:00:00', 'pending'),
+('Beta-2', 78, 'descri_2', 'type_B', '2025-08-23 05:00:00', 'done'),
+('Gamma-3', 57, 'descri_3', 'type_C', '2025-06-12 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_backup_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Backup Schedules';
+INSERT IGNORE INTO it_backup_schedules (name, it_assets_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 46, 2024, 6151.75, 4354.62, 'done'),
+('Beta-2', 8, 2025, 759.59, 6378.11, 'pending'),
+('Gamma-3', 66, 2026, 8012.15, 6796.63, 'active'),
+('Delta-4', 19, 2024, 8487.36, 6783.43, 'pending');
+
+CREATE TABLE IF NOT EXISTS it_backup_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Backup Logs';
+INSERT IGNORE INTO it_backup_logs (name, it_assets_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 17, '2025-02-07 07:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 47, '2025-07-18 12:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS it_security_incidents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Security Incidents';
+INSERT IGNORE INTO it_security_incidents (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 78, 'descri_1', 'type_A', '2025-03-23 21:00:00', 'pending'),
+('Beta-2', 48, 'descri_2', 'type_B', '2025-07-23 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_vulnerability_scans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Vulnerability Scans';
+INSERT IGNORE INTO it_vulnerability_scans (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-10-20 11:00:00', 'pending'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-12-25 08:00:00', 'active'),
+('Gamma-3', 15, 'descri_3', 'type_C', '2025-01-14 23:00:00', 'active'),
+('Delta-4', 64, 'descri_4', 'type_D', '2025-09-14 12:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_patch_management (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Patch Management';
+INSERT IGNORE INTO it_patch_management (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-05-22 22:00:00', 'pending'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-11-06 09:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_access_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Access Requests';
+INSERT IGNORE INTO it_access_requests (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 26, 'descri_1', 'type_A', '2025-03-07 04:00:00', 'active'),
+('Beta-2', 58, 'descri_2', 'type_B', '2025-03-05 22:00:00', 'pending'),
+('Gamma-3', 12, 'descri_3', 'type_C', '2025-12-14 10:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_it_projects (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — It Projects';
+INSERT IGNORE INTO it_it_projects (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-02-06 17:00:00', 'done'),
+('Beta-2', 38, 'descri_2', 'type_B', '2025-06-14 05:00:00', 'done'),
+('Gamma-3', 91, 'descri_3', 'type_C', '2025-12-23 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_service_catalog (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Service Catalog';
+INSERT IGNORE INTO it_service_catalog (name, it_assets_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 66, '2025-04-03 03:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 18, '2025-05-10 15:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 47, '2025-10-04 18:00:00', 'Sample data row 3', 'create_3', 'pending');
+
+CREATE TABLE IF NOT EXISTS it_capacity_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Capacity Metrics';
+INSERT IGNORE INTO it_capacity_metrics (name, it_assets_id, metric_date, value, target, status) VALUES
+('Alpha-1', 71, '2025-03-11', 6122.75, 871.21, 'pending'),
+('Beta-2', 51, '2025-09-22', 5261.17, 7693.18, 'done'),
+('Gamma-3', 10, '2025-03-09', 9723.10, 6426.32, 'pending');
+
+CREATE TABLE IF NOT EXISTS it_configuration_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Configuration Items';
+INSERT IGNORE INTO it_configuration_items (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 88, 'descri_1', 'type_A', '2025-09-13 11:00:00', 'active'),
+('Beta-2', 100, 'descri_2', 'type_B', '2025-10-03 20:00:00', 'done'),
+('Gamma-3', 24, 'descri_3', 'type_C', '2025-03-11 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_release_management (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Release Management';
+INSERT IGNORE INTO it_release_management (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 16, 'descri_1', 'type_A', '2025-09-14 04:00:00', 'pending'),
+('Beta-2', 22, 'descri_2', 'type_B', '2025-03-27 10:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_incident_escalations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Incident Escalations';
+INSERT IGNORE INTO it_incident_escalations (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 45, 'descri_1', 'type_A', '2025-09-14 09:00:00', 'active'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-04-17 20:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS it_knowledge_articles (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — Knowledge Articles';
+INSERT IGNORE INTO it_knowledge_articles (name, it_assets_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-11-13 09:00:00', 'done'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-02-20 16:00:00', 'done'),
+('Gamma-3', 22, 'descri_3', 'type_C', '2025-11-24 18:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS it_it_budgets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    it_assets_id                 INT COMMENT 'FK to it_it_assets' COMMENT 'Ref it_it_assets',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (it_assets_id) REFERENCES it_it_assets(id)
+) COMMENT='IT — It Budgets';
+INSERT IGNORE INTO it_it_budgets (name, it_assets_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 85, 2024, 6247.92, 9020.09, 'pending'),
+('Beta-2', 73, 2025, 421.49, 8638.31, 'active');
+
+-- === Legal (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS legal_contracts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Legal — Contracts';
+INSERT IGNORE INTO legal_contracts (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-11-21 18:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-26 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_contract_amendments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Contract Amendments';
+INSERT IGNORE INTO legal_contract_amendments (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 80, 'descri_1', 'type_A', '2025-11-20 00:00:00', 'pending'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-10-28 09:00:00', 'done'),
+('Gamma-3', 39, 'descri_3', 'type_C', '2025-09-24 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_legal_cases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Legal Cases';
+INSERT IGNORE INTO legal_legal_cases (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 39, 'descri_1', 'type_A', '2025-08-09 02:00:00', 'done'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-03-25 14:00:00', 'pending'),
+('Gamma-3', 62, 'descri_3', 'type_C', '2025-08-14 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_case_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Case Documents';
+INSERT IGNORE INTO legal_case_documents (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 19, 'descri_1', 'type_A', '2025-06-21 22:00:00', 'pending'),
+('Beta-2', 94, 'descri_2', 'type_B', '2025-06-09 12:00:00', 'active'),
+('Gamma-3', 98, 'descri_3', 'type_C', '2025-07-22 16:00:00', 'done'),
+('Delta-4', 14, 'descri_4', 'type_D', '2025-06-24 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_intellectual_property (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Intellectual Property';
+INSERT IGNORE INTO legal_intellectual_property (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 35, 'descri_1', 'type_A', '2025-08-07 07:00:00', 'active'),
+('Beta-2', 13, 'descri_2', 'type_B', '2025-01-26 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_trademark_registrations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Trademark Registrations';
+INSERT IGNORE INTO legal_trademark_registrations (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 54, 'descri_1', 'type_A', '2025-05-16 05:00:00', 'pending'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-06-21 06:00:00', 'active'),
+('Gamma-3', 64, 'descri_3', 'type_C', '2025-09-12 14:00:00', 'pending'),
+('Delta-4', 40, 'descri_4', 'type_D', '2025-09-03 00:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS legal_patent_filings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Patent Filings';
+INSERT IGNORE INTO legal_patent_filings (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-08-11 07:00:00', 'active'),
+('Beta-2', 75, 'descri_2', 'type_B', '2025-07-13 01:00:00', 'active'),
+('Gamma-3', 37, 'descri_3', 'type_C', '2025-09-02 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_regulatory_requirements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Regulatory Requirements';
+INSERT IGNORE INTO legal_regulatory_requirements (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 61, 'descri_1', 'type_A', '2025-05-07 17:00:00', 'active'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-08-25 04:00:00', 'pending'),
+('Gamma-3', 94, 'descri_3', 'type_C', '2025-07-20 12:00:00', 'pending'),
+('Delta-4', 6, 'descri_4', 'type_D', '2025-07-10 01:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_compliance_checklist (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Compliance Checklist';
+INSERT IGNORE INTO legal_compliance_checklist (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 25, 'descri_1', 'type_A', '2025-07-18 17:00:00', 'pending'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-07-02 16:00:00', 'pending'),
+('Gamma-3', 98, 'descri_3', 'type_C', '2025-10-02 08:00:00', 'done'),
+('Delta-4', 88, 'descri_4', 'type_D', '2025-11-05 03:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS legal_compliance_audits (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Compliance Audits';
+INSERT IGNORE INTO legal_compliance_audits (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-07-24 10:00:00', 'done'),
+('Beta-2', 47, 'descri_2', 'type_B', '2025-03-18 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_legal_holds (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Legal Holds';
+INSERT IGNORE INTO legal_legal_holds (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 52, 'descri_1', 'type_A', '2025-09-05 01:00:00', 'active'),
+('Beta-2', 5, 'descri_2', 'type_B', '2025-03-15 22:00:00', 'pending'),
+('Gamma-3', 61, 'descri_3', 'type_C', '2025-09-14 14:00:00', 'active'),
+('Delta-4', 78, 'descri_4', 'type_D', '2025-09-12 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_litigation_matters (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Litigation Matters';
+INSERT IGNORE INTO legal_litigation_matters (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 41, 'descri_1', 'type_A', '2025-03-28 12:00:00', 'done'),
+('Beta-2', 95, 'descri_2', 'type_B', '2025-06-14 18:00:00', 'pending'),
+('Gamma-3', 65, 'descri_3', 'type_C', '2025-09-09 17:00:00', 'pending'),
+('Delta-4', 91, 'descri_4', 'type_D', '2025-10-09 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_settlement_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Settlement Records';
+INSERT IGNORE INTO legal_settlement_records (name, contracts_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 48, '2025-06-02 21:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 54, '2025-10-19 09:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_legal_fees (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Legal Fees';
+INSERT IGNORE INTO legal_legal_fees (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 81, 'descri_1', 'type_A', '2025-01-14 19:00:00', 'pending'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-12-28 18:00:00', 'done'),
+('Gamma-3', 30, 'descri_3', 'type_C', '2025-01-27 18:00:00', 'pending'),
+('Delta-4', 22, 'descri_4', 'type_D', '2025-09-17 20:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS legal_attorney_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Attorney Assignments';
+INSERT IGNORE INTO legal_attorney_assignments (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 100, 'descri_1', 'type_A', '2025-07-27 04:00:00', 'done'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-01-17 18:00:00', 'done'),
+('Gamma-3', 15, 'descri_3', 'type_C', '2025-04-14 00:00:00', 'pending'),
+('Delta-4', 41, 'descri_4', 'type_D', '2025-08-19 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_nda_register (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Nda Register';
+INSERT IGNORE INTO legal_nda_register (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 27, 'descri_1', 'type_A', '2025-08-15 16:00:00', 'done'),
+('Beta-2', 61, 'descri_2', 'type_B', '2025-02-04 22:00:00', 'active'),
+('Gamma-3', 67, 'descri_3', 'type_C', '2025-04-23 17:00:00', 'pending'),
+('Delta-4', 85, 'descri_4', 'type_D', '2025-09-21 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_corporate_filings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Corporate Filings';
+INSERT IGNORE INTO legal_corporate_filings (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-08-12 17:00:00', 'pending'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-07-14 21:00:00', 'done'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-11-22 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_policy_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Policy Documents';
+INSERT IGNORE INTO legal_policy_documents (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 62, 'descri_1', 'type_A', '2025-04-15 07:00:00', 'pending'),
+('Beta-2', 72, 'descri_2', 'type_B', '2025-06-13 07:00:00', 'pending'),
+('Gamma-3', 99, 'descri_3', 'type_C', '2025-05-08 22:00:00', 'active'),
+('Delta-4', 89, 'descri_4', 'type_D', '2025-13-25 15:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_regulatory_fines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Regulatory Fines';
+INSERT IGNORE INTO legal_regulatory_fines (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 45, 'descri_1', 'type_A', '2025-10-07 23:00:00', 'pending'),
+('Beta-2', 37, 'descri_2', 'type_B', '2025-03-07 18:00:00', 'done'),
+('Gamma-3', 70, 'descri_3', 'type_C', '2025-07-27 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS legal_legal_calendar (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    contracts_id                 INT COMMENT 'FK to legal_contracts' COMMENT 'Ref legal_contracts',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (contracts_id) REFERENCES legal_contracts(id)
+) COMMENT='Legal — Legal Calendar';
+INSERT IGNORE INTO legal_legal_calendar (name, contracts_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-01-22 09:00:00', 'done'),
+('Beta-2', 11, 'descri_2', 'type_B', '2025-06-10 14:00:00', 'done');
+
+-- === Marketing (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS mktg_marketing_campaigns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Marketing — Marketing Campaigns';
+INSERT IGNORE INTO mktg_marketing_campaigns (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-09-22 06:00:00', 'active'),
+('Beta-2', 'descri_2', 'type_B', '2025-10-24 08:00:00', 'done'),
+('Gamma-3', 'descri_3', 'type_C', '2025-12-21 08:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_campaign_budgets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Campaign Budgets';
+INSERT IGNORE INTO mktg_campaign_budgets (name, marketing_campaigns_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 79, 2024, 7410.76, 2400.19, 'active'),
+('Beta-2', 86, 2025, 9051.88, 2264.23, 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_campaign_performance (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Campaign Performance';
+INSERT IGNORE INTO mktg_campaign_performance (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 13, 'descri_1', 'type_A', '2025-08-16 10:00:00', 'done'),
+('Beta-2', 61, 'descri_2', 'type_B', '2025-02-24 21:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_email_campaigns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Email Campaigns';
+INSERT IGNORE INTO mktg_email_campaigns (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 71, 'descri_1', 'type_A', '2025-03-25 13:00:00', 'done'),
+('Beta-2', 61, 'descri_2', 'type_B', '2025-09-21 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_email_templates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Email Templates';
+INSERT IGNORE INTO mktg_email_templates (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-05-07 20:00:00', 'active'),
+('Beta-2', 99, 'descri_2', 'type_B', '2025-02-18 20:00:00', 'done'),
+('Gamma-3', 30, 'descri_3', 'type_C', '2025-10-22 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_social_media_posts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Social Media Posts';
+INSERT IGNORE INTO mktg_social_media_posts (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-08-18 05:00:00', 'active'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-09-02 05:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_social_media_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Social Media Metrics';
+INSERT IGNORE INTO mktg_social_media_metrics (name, marketing_campaigns_id, metric_date, value, target, status) VALUES
+('Alpha-1', 5, '2025-01-05', 2990.64, 6031.20, 'pending'),
+('Beta-2', 37, '2025-08-09', 9890.11, 5437.03, 'pending'),
+('Gamma-3', 18, '2025-09-07', 4685.06, 1935.99, 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_content_calendar (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Content Calendar';
+INSERT IGNORE INTO mktg_content_calendar (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 21, 'descri_1', 'type_A', '2025-08-11 20:00:00', 'pending'),
+('Beta-2', 92, 'descri_2', 'type_B', '2025-04-12 00:00:00', 'done'),
+('Gamma-3', 44, 'descri_3', 'type_C', '2025-06-12 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_content_assets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Content Assets';
+INSERT IGNORE INTO mktg_content_assets (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-11-05 20:00:00', 'pending'),
+('Beta-2', 55, 'descri_2', 'type_B', '2025-09-12 10:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_seo_keywords (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Seo Keywords';
+INSERT IGNORE INTO mktg_seo_keywords (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-02-21 05:00:00', 'active'),
+('Beta-2', 62, 'descri_2', 'type_B', '2025-06-26 07:00:00', 'active'),
+('Gamma-3', 34, 'descri_3', 'type_C', '2025-07-01 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_seo_rankings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Seo Rankings';
+INSERT IGNORE INTO mktg_seo_rankings (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 43, 'descri_1', 'type_A', '2025-06-15 18:00:00', 'done'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-01-06 08:00:00', 'done'),
+('Gamma-3', 47, 'descri_3', 'type_C', '2025-12-19 07:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_ppc_campaigns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Ppc Campaigns';
+INSERT IGNORE INTO mktg_ppc_campaigns (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 16, 'descri_1', 'type_A', '2025-08-15 09:00:00', 'active'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-12-16 16:00:00', 'done'),
+('Gamma-3', 99, 'descri_3', 'type_C', '2025-06-20 22:00:00', 'active'),
+('Delta-4', 82, 'descri_4', 'type_D', '2025-06-12 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_ppc_ad_groups (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Ppc Ad Groups';
+INSERT IGNORE INTO mktg_ppc_ad_groups (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 29, 'descri_1', 'type_A', '2025-03-13 15:00:00', 'active'),
+('Beta-2', 59, 'descri_2', 'type_B', '2025-11-03 11:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_landing_pages (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Landing Pages';
+INSERT IGNORE INTO mktg_landing_pages (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 71, 'descri_1', 'type_A', '2025-09-18 17:00:00', 'done'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-05-15 21:00:00', 'done'),
+('Gamma-3', 11, 'descri_3', 'type_C', '2025-09-18 14:00:00', 'done'),
+('Delta-4', 91, 'descri_4', 'type_D', '2025-07-18 02:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_conversion_tracking (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Conversion Tracking';
+INSERT IGNORE INTO mktg_conversion_tracking (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 8, 'descri_1', 'type_A', '2025-10-01 16:00:00', 'active'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-10-23 04:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_webinar_events (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Webinar Events';
+INSERT IGNORE INTO mktg_webinar_events (name, marketing_campaigns_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 67, '2025-08-03 03:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 27, '2025-10-19 15:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 66, '2025-08-05 01:00:00', 'Sample data row 3', 'create_3', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_webinar_registrations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Webinar Registrations';
+INSERT IGNORE INTO mktg_webinar_registrations (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-08-17 14:00:00', 'done'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-10-07 14:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_trade_shows (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Trade Shows';
+INSERT IGNORE INTO mktg_trade_shows (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-01-12 12:00:00', 'pending'),
+('Beta-2', 1, 'descri_2', 'type_B', '2025-04-28 18:00:00', 'active'),
+('Gamma-3', 6, 'descri_3', 'type_C', '2025-08-21 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_brand_guidelines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Brand Guidelines';
+INSERT IGNORE INTO mktg_brand_guidelines (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-02-03 02:00:00', 'pending'),
+('Beta-2', 5, 'descri_2', 'type_B', '2025-05-07 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS mktg_market_research (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Market Research';
+INSERT IGNORE INTO mktg_market_research (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 99, 'descri_1', 'type_A', '2025-11-21 23:00:00', 'done'),
+('Beta-2', 54, 'descri_2', 'type_B', '2025-07-24 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_competitor_analysis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Competitor Analysis';
+INSERT IGNORE INTO mktg_competitor_analysis (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 49, 'descri_1', 'type_A', '2025-02-14 21:00:00', 'done'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-03-13 20:00:00', 'pending'),
+('Gamma-3', 16, 'descri_3', 'type_C', '2025-04-08 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_press_releases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Press Releases';
+INSERT IGNORE INTO mktg_press_releases (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-04-03 00:00:00', 'active'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-08-14 21:00:00', 'done'),
+('Gamma-3', 70, 'descri_3', 'type_C', '2025-08-22 17:00:00', 'pending'),
+('Delta-4', 30, 'descri_4', 'type_D', '2025-05-15 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS mktg_influencer_partnerships (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Influencer Partnerships';
+INSERT IGNORE INTO mktg_influencer_partnerships (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 36, 'descri_1', 'type_A', '2025-04-13 23:00:00', 'active'),
+('Beta-2', 5, 'descri_2', 'type_B', '2025-12-03 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_media_buys (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Media Buys';
+INSERT IGNORE INTO mktg_media_buys (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 31, 'descri_1', 'type_A', '2025-04-22 02:00:00', 'active'),
+('Beta-2', 77, 'descri_2', 'type_B', '2025-01-18 14:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS mktg_affiliate_programs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    marketing_campaigns_id       INT COMMENT 'FK to mktg_marketing_campaigns' COMMENT 'Ref mktg_marketing_campaigns',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (marketing_campaigns_id) REFERENCES mktg_marketing_campaigns(id)
+) COMMENT='Marketing — Affiliate Programs';
+INSERT IGNORE INTO mktg_affiliate_programs (name, marketing_campaigns_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-01-25 07:00:00', 'done'),
+('Beta-2', 6, 'descri_2', 'type_B', '2025-07-10 14:00:00', 'active'),
+('Gamma-3', 70, 'descri_3', 'type_C', '2025-04-28 01:00:00', 'active'),
+('Delta-4', 65, 'descri_4', 'type_D', '2025-05-09 07:00:00', 'done');
+
+-- === Warehouse (25 tables) ===
+
+CREATE TABLE IF NOT EXISTS wms_warehouse_zones (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Warehouse — Warehouse Zones';
+INSERT IGNORE INTO wms_warehouse_zones (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-06-24 18:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-09 10:00:00', 'active'),
+('Gamma-3', 'descri_3', 'type_C', '2025-06-15 04:00:00', 'done'),
+('Delta-4', 'descri_4', 'type_D', '2025-09-15 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_storage_bins (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Storage Bins';
+INSERT IGNORE INTO wms_storage_bins (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 36, 'descri_1', 'type_A', '2025-02-04 17:00:00', 'done'),
+('Beta-2', 95, 'descri_2', 'type_B', '2025-03-06 20:00:00', 'done'),
+('Gamma-3', 55, 'descri_3', 'type_C', '2025-10-05 15:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_bin_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Bin Assignments';
+INSERT IGNORE INTO wms_bin_assignments (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-12-08 12:00:00', 'done'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-12-21 13:00:00', 'pending'),
+('Gamma-3', 20, 'descri_3', 'type_C', '2025-06-14 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_pick_lists (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Pick Lists';
+INSERT IGNORE INTO wms_pick_lists (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 61, 'descri_1', 'type_A', '2025-05-12 07:00:00', 'pending'),
+('Beta-2', 91, 'descri_2', 'type_B', '2025-03-18 14:00:00', 'active'),
+('Gamma-3', 72, 'descri_3', 'type_C', '2025-08-16 13:00:00', 'done'),
+('Delta-4', 68, 'descri_4', 'type_D', '2025-03-13 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_pick_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Pick Tasks';
+INSERT IGNORE INTO wms_pick_tasks (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 27, 'descri_1', 'type_A', '2025-06-02 20:00:00', 'active'),
+('Beta-2', 58, 'descri_2', 'type_B', '2025-07-22 02:00:00', 'done'),
+('Gamma-3', 93, 'descri_3', 'type_C', '2025-04-14 01:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_pack_stations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Pack Stations';
+INSERT IGNORE INTO wms_pack_stations (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 87, 'descri_1', 'type_A', '2025-11-02 19:00:00', 'active'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-04-13 18:00:00', 'done'),
+('Gamma-3', 86, 'descri_3', 'type_C', '2025-10-07 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_packing_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Packing Records';
+INSERT IGNORE INTO wms_packing_records (name, warehouse_zones_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 43, '2025-06-16 00:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 25, '2025-03-05 23:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_receiving_docks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Receiving Docks';
+INSERT IGNORE INTO wms_receiving_docks (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 90, 'descri_1', 'type_A', '2025-11-02 22:00:00', 'active'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-05-11 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_putaway_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Putaway Tasks';
+INSERT IGNORE INTO wms_putaway_tasks (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 49, 'descri_1', 'type_A', '2025-08-15 17:00:00', 'done'),
+('Beta-2', 46, 'descri_2', 'type_B', '2025-06-18 08:00:00', 'pending'),
+('Gamma-3', 66, 'descri_3', 'type_C', '2025-09-03 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_cycle_count_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Cycle Count Plans';
+INSERT IGNORE INTO wms_cycle_count_plans (name, warehouse_zones_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 61, 2024, 7617.91, 3208.81, 'active'),
+('Beta-2', 48, 2025, 3135.78, 466.65, 'active'),
+('Gamma-3', 95, 2026, 1467.62, 2614.87, 'done'),
+('Delta-4', 75, 2024, 7202.20, 2958.68, 'active');
+
+CREATE TABLE IF NOT EXISTS wms_cycle_count_results (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Cycle Count Results';
+INSERT IGNORE INTO wms_cycle_count_results (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 30, 'descri_1', 'type_A', '2025-07-27 18:00:00', 'active'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-10-02 20:00:00', 'done'),
+('Gamma-3', 44, 'descri_3', 'type_C', '2025-05-20 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS wms_wave_planning (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Wave Planning';
+INSERT IGNORE INTO wms_wave_planning (name, warehouse_zones_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 95, 2024, 4910.56, 1690.49, 'pending'),
+('Beta-2', 22, 2025, 1408.05, 5469.45, 'active'),
+('Gamma-3', 70, 2026, 9902.34, 9571.84, 'done'),
+('Delta-4', 5, 2024, 8391.46, 752.49, 'done');
+
+CREATE TABLE IF NOT EXISTS wms_replenishment_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Replenishment Tasks';
+INSERT IGNORE INTO wms_replenishment_tasks (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 98, 'descri_1', 'type_A', '2025-01-04 13:00:00', 'active'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-04-07 02:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS wms_cross_dock_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Cross Dock Orders';
+INSERT IGNORE INTO wms_cross_dock_orders (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-04-28 16:00:00', 'pending'),
+('Beta-2', 48, 'descri_2', 'type_B', '2025-02-03 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS wms_kitting_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Kitting Orders';
+INSERT IGNORE INTO wms_kitting_orders (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 79, 'descri_1', 'type_A', '2025-09-24 21:00:00', 'pending'),
+('Beta-2', 3, 'descri_2', 'type_B', '2025-01-04 17:00:00', 'done'),
+('Gamma-3', 53, 'descri_3', 'type_C', '2025-01-07 00:00:00', 'done'),
+('Delta-4', 93, 'descri_4', 'type_D', '2025-05-01 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_kit_components (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Kit Components';
+INSERT IGNORE INTO wms_kit_components (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-12-22 21:00:00', 'pending'),
+('Beta-2', 23, 'descri_2', 'type_B', '2025-02-27 03:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS wms_returns_processing (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Returns Processing';
+INSERT IGNORE INTO wms_returns_processing (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 31, 'descri_1', 'type_A', '2025-04-15 19:00:00', 'done'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-07-14 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_quarantine_areas (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Quarantine Areas';
+INSERT IGNORE INTO wms_quarantine_areas (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 48, 'descri_1', 'type_A', '2025-07-12 14:00:00', 'done'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-12-21 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_temperature_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Temperature Logs';
+INSERT IGNORE INTO wms_temperature_logs (name, warehouse_zones_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 11, '2025-12-27 20:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 12, '2025-07-12 12:00:00', 'Sample data row 2', 'create_2', 'pending'),
+('Gamma-3', 71, '2025-09-20 01:00:00', 'Sample data row 3', 'create_3', 'done'),
+('Delta-4', 2, '2025-12-24 05:00:00', 'Sample data row 4', 'create_4', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_warehouse_kpis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Warehouse Kpis';
+INSERT IGNORE INTO wms_warehouse_kpis (name, warehouse_zones_id, metric_date, value, target, status) VALUES
+('Alpha-1', 56, '2025-12-23', 7845.13, 5662.34, 'active'),
+('Beta-2', 68, '2025-01-22', 2305.14, 9012.82, 'done'),
+('Gamma-3', 73, '2025-09-20', 2717.97, 9241.43, 'done');
+
+CREATE TABLE IF NOT EXISTS wms_labor_tracking (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Labor Tracking';
+INSERT IGNORE INTO wms_labor_tracking (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-10-09 21:00:00', 'active'),
+('Beta-2', 23, 'descri_2', 'type_B', '2025-06-22 00:00:00', 'active'),
+('Gamma-3', 76, 'descri_3', 'type_C', '2025-03-18 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS wms_forklift_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Forklift Assignments';
+INSERT IGNORE INTO wms_forklift_assignments (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 39, 'descri_1', 'type_A', '2025-03-28 18:00:00', 'active'),
+('Beta-2', 73, 'descri_2', 'type_B', '2025-07-04 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS wms_yard_management (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Yard Management';
+INSERT IGNORE INTO wms_yard_management (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 50, 'descri_1', 'type_A', '2025-03-16 22:00:00', 'done'),
+('Beta-2', 11, 'descri_2', 'type_B', '2025-09-05 23:00:00', 'pending'),
+('Gamma-3', 7, 'descri_3', 'type_C', '2025-02-23 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS wms_dock_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Dock Schedules';
+INSERT IGNORE INTO wms_dock_schedules (name, warehouse_zones_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 44, 2024, 6055.03, 6141.90, 'done'),
+('Beta-2', 51, 2025, 9688.55, 3270.18, 'done');
+
+CREATE TABLE IF NOT EXISTS wms_barcode_labels (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    warehouse_zones_id           INT COMMENT 'FK to wms_warehouse_zones' COMMENT 'Ref wms_warehouse_zones',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (warehouse_zones_id) REFERENCES wms_warehouse_zones(id)
+) COMMENT='Warehouse — Barcode Labels';
+INSERT IGNORE INTO wms_barcode_labels (name, warehouse_zones_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-09-28 07:00:00', 'pending'),
+('Beta-2', 71, 'descri_2', 'type_B', '2025-07-25 13:00:00', 'active'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-10-20 21:00:00', 'pending');
+
+-- === Fleet (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS fleet_vehicles (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Fleet — Vehicles';
+INSERT IGNORE INTO fleet_vehicles (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-11-09 09:00:00', 'active'),
+('Beta-2', 'descri_2', 'type_B', '2025-02-10 02:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_vehicle_maintenance (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Vehicle Maintenance';
+INSERT IGNORE INTO fleet_vehicle_maintenance (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 49, 'descri_1', 'type_A', '2025-13-01 20:00:00', 'active'),
+('Beta-2', 95, 'descri_2', 'type_B', '2025-07-04 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_drivers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Drivers';
+INSERT IGNORE INTO fleet_drivers (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-01-03 09:00:00', 'pending'),
+('Beta-2', 47, 'descri_2', 'type_B', '2025-05-27 03:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_driver_licenses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Driver Licenses';
+INSERT IGNORE INTO fleet_driver_licenses (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 24, 'descri_1', 'type_A', '2025-08-25 14:00:00', 'done'),
+('Beta-2', 72, 'descri_2', 'type_B', '2025-09-11 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_routes (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Routes';
+INSERT IGNORE INTO fleet_routes (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-07-14 17:00:00', 'active'),
+('Beta-2', 77, 'descri_2', 'type_B', '2025-11-27 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_route_stops (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Route Stops';
+INSERT IGNORE INTO fleet_route_stops (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-08-16 12:00:00', 'active'),
+('Beta-2', 93, 'descri_2', 'type_B', '2025-10-07 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fleet_fuel_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Fuel Records';
+INSERT IGNORE INTO fleet_fuel_records (name, vehicles_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 22, '2025-12-15 12:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 18, '2025-05-26 09:00:00', 'Sample data row 2', 'create_2', 'pending'),
+('Gamma-3', 64, '2025-03-19 02:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 56, '2025-05-02 13:00:00', 'Sample data row 4', 'create_4', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_fuel_cards (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Fuel Cards';
+INSERT IGNORE INTO fleet_fuel_cards (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 10, 'descri_1', 'type_A', '2025-07-17 08:00:00', 'active'),
+('Beta-2', 93, 'descri_2', 'type_B', '2025-11-13 15:00:00', 'done'),
+('Gamma-3', 79, 'descri_3', 'type_C', '2025-04-17 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_trip_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Trip Logs';
+INSERT IGNORE INTO fleet_trip_logs (name, vehicles_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 39, '2025-01-04 12:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 80, '2025-07-27 10:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_vehicle_inspections (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Vehicle Inspections';
+INSERT IGNORE INTO fleet_vehicle_inspections (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 56, 'descri_1', 'type_A', '2025-12-26 19:00:00', 'active'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-06-25 19:00:00', 'done'),
+('Gamma-3', 26, 'descri_3', 'type_C', '2025-09-22 10:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_accident_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Accident Reports';
+INSERT IGNORE INTO fleet_accident_reports (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 41, 'descri_1', 'type_A', '2025-05-10 23:00:00', 'done'),
+('Beta-2', 82, 'descri_2', 'type_B', '2025-09-28 18:00:00', 'active'),
+('Gamma-3', 42, 'descri_3', 'type_C', '2025-07-25 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_insurance_policies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Insurance Policies';
+INSERT IGNORE INTO fleet_insurance_policies (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 15, 'descri_1', 'type_A', '2025-10-09 06:00:00', 'done'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-04-09 21:00:00', 'done'),
+('Gamma-3', 4, 'descri_3', 'type_C', '2025-08-13 22:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_vehicle_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Vehicle Assignments';
+INSERT IGNORE INTO fleet_vehicle_assignments (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-12-19 02:00:00', 'pending'),
+('Beta-2', 87, 'descri_2', 'type_B', '2025-09-04 04:00:00', 'done'),
+('Gamma-3', 39, 'descri_3', 'type_C', '2025-05-12 08:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fleet_toll_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Toll Records';
+INSERT IGNORE INTO fleet_toll_records (name, vehicles_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 92, '2025-08-21 12:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 58, '2025-11-27 15:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS fleet_parking_permits (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Parking Permits';
+INSERT IGNORE INTO fleet_parking_permits (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 69, 'descri_1', 'type_A', '2025-09-08 22:00:00', 'pending'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-01-19 11:00:00', 'done'),
+('Gamma-3', 69, 'descri_3', 'type_C', '2025-11-25 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_gps_tracking (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Gps Tracking';
+INSERT IGNORE INTO fleet_gps_tracking (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 99, 'descri_1', 'type_A', '2025-05-16 21:00:00', 'done'),
+('Beta-2', 46, 'descri_2', 'type_B', '2025-03-02 20:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS fleet_vehicle_leases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Vehicle Leases';
+INSERT IGNORE INTO fleet_vehicle_leases (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 73, 'descri_1', 'type_A', '2025-12-23 21:00:00', 'done'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-06-02 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS fleet_tire_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Tire Records';
+INSERT IGNORE INTO fleet_tire_records (name, vehicles_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 13, '2025-05-21 07:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 96, '2025-09-14 17:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS fleet_emissions_tests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Emissions Tests';
+INSERT IGNORE INTO fleet_emissions_tests (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 74, 'descri_1', 'type_A', '2025-04-02 14:00:00', 'pending'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-08-14 21:00:00', 'done'),
+('Gamma-3', 89, 'descri_3', 'type_C', '2025-09-05 04:00:00', 'pending'),
+('Delta-4', 4, 'descri_4', 'type_D', '2025-09-24 03:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS fleet_fleet_costs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    vehicles_id                  INT COMMENT 'FK to fleet_vehicles' COMMENT 'Ref fleet_vehicles',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (vehicles_id) REFERENCES fleet_vehicles(id)
+) COMMENT='Fleet — Fleet Costs';
+INSERT IGNORE INTO fleet_fleet_costs (name, vehicles_id, description, category, created_at, status) VALUES
+('Alpha-1', 11, 'descri_1', 'type_A', '2025-02-04 23:00:00', 'active'),
+('Beta-2', 45, 'descri_2', 'type_B', '2025-06-20 10:00:00', 'pending'),
+('Gamma-3', 27, 'descri_3', 'type_C', '2025-09-15 15:00:00', 'pending');
+
+-- === ESG (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS esg_carbon_emissions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='ESG — Carbon Emissions';
+INSERT IGNORE INTO esg_carbon_emissions (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-02-22 14:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-12-21 14:00:00', 'pending'),
+('Gamma-3', 'descri_3', 'type_C', '2025-02-07 09:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_emission_sources (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Emission Sources';
+INSERT IGNORE INTO esg_emission_sources (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 15, 'descri_1', 'type_A', '2025-01-12 10:00:00', 'done'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-12-11 05:00:00', 'done'),
+('Gamma-3', 32, 'descri_3', 'type_C', '2025-09-13 05:00:00', 'done'),
+('Delta-4', 21, 'descri_4', 'type_D', '2025-06-02 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS esg_energy_consumption (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Energy Consumption';
+INSERT IGNORE INTO esg_energy_consumption (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 30, 'descri_1', 'type_A', '2025-07-12 20:00:00', 'active'),
+('Beta-2', 24, 'descri_2', 'type_B', '2025-11-20 21:00:00', 'pending'),
+('Gamma-3', 51, 'descri_3', 'type_C', '2025-01-15 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS esg_energy_sources (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Energy Sources';
+INSERT IGNORE INTO esg_energy_sources (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-11-24 13:00:00', 'pending'),
+('Beta-2', 1, 'descri_2', 'type_B', '2025-13-25 06:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_water_usage (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Water Usage';
+INSERT IGNORE INTO esg_water_usage (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 97, 'descri_1', 'type_A', '2025-13-25 02:00:00', 'done'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-10-23 05:00:00', 'pending'),
+('Gamma-3', 42, 'descri_3', 'type_C', '2025-04-17 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_waste_generation (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Waste Generation';
+INSERT IGNORE INTO esg_waste_generation (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-09-27 16:00:00', 'done'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-11-26 12:00:00', 'done'),
+('Gamma-3', 51, 'descri_3', 'type_C', '2025-11-21 03:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS esg_waste_disposal (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Waste Disposal';
+INSERT IGNORE INTO esg_waste_disposal (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 59, 'descri_1', 'type_A', '2025-11-09 05:00:00', 'done'),
+('Beta-2', 91, 'descri_2', 'type_B', '2025-06-13 19:00:00', 'done'),
+('Gamma-3', 11, 'descri_3', 'type_C', '2025-12-09 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS esg_recycling_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Recycling Records';
+INSERT IGNORE INTO esg_recycling_records (name, carbon_emissions_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 31, '2025-06-17 03:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 48, '2025-12-20 04:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS esg_sustainability_goals (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Sustainability Goals';
+INSERT IGNORE INTO esg_sustainability_goals (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 54, 'descri_1', 'type_A', '2025-11-26 04:00:00', 'done'),
+('Beta-2', 50, 'descri_2', 'type_B', '2025-08-21 05:00:00', 'pending'),
+('Gamma-3', 82, 'descri_3', 'type_C', '2025-10-24 22:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS esg_sustainability_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Sustainability Metrics';
+INSERT IGNORE INTO esg_sustainability_metrics (name, carbon_emissions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 72, '2025-03-02', 4901.03, 1411.42, 'pending'),
+('Beta-2', 58, '2025-11-10', 545.52, 3596.44, 'active');
+
+CREATE TABLE IF NOT EXISTS esg_social_impact_projects (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Social Impact Projects';
+INSERT IGNORE INTO esg_social_impact_projects (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-04-16 12:00:00', 'done'),
+('Beta-2', 65, 'descri_2', 'type_B', '2025-12-27 15:00:00', 'pending'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-09-28 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS esg_community_investments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Community Investments';
+INSERT IGNORE INTO esg_community_investments (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 63, 'descri_1', 'type_A', '2025-03-02 02:00:00', 'done'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-04-01 09:00:00', 'active'),
+('Gamma-3', 36, 'descri_3', 'type_C', '2025-04-04 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS esg_diversity_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Diversity Metrics';
+INSERT IGNORE INTO esg_diversity_metrics (name, carbon_emissions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 100, '2025-08-11', 5660.28, 7726.98, 'pending'),
+('Beta-2', 71, '2025-09-10', 1140.86, 1150.81, 'done');
+
+CREATE TABLE IF NOT EXISTS esg_safety_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Safety Metrics';
+INSERT IGNORE INTO esg_safety_metrics (name, carbon_emissions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 70, '2025-01-22', 7601.68, 4418.81, 'active'),
+('Beta-2', 55, '2025-02-25', 7361.79, 6539.53, 'active'),
+('Gamma-3', 39, '2025-01-17', 4502.38, 3491.94, 'active');
+
+CREATE TABLE IF NOT EXISTS esg_supply_chain_ethics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Supply Chain Ethics';
+INSERT IGNORE INTO esg_supply_chain_ethics (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 16, 'descri_1', 'type_A', '2025-05-10 06:00:00', 'done'),
+('Beta-2', 76, 'descri_2', 'type_B', '2025-12-17 11:00:00', 'done'),
+('Gamma-3', 79, 'descri_3', 'type_C', '2025-11-16 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_environmental_audits (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Environmental Audits';
+INSERT IGNORE INTO esg_environmental_audits (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-04-22 06:00:00', 'active'),
+('Beta-2', 73, 'descri_2', 'type_B', '2025-06-12 17:00:00', 'pending'),
+('Gamma-3', 77, 'descri_3', 'type_C', '2025-10-24 05:00:00', 'pending'),
+('Delta-4', 91, 'descri_4', 'type_D', '2025-05-10 09:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS esg_carbon_offsets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Carbon Offsets';
+INSERT IGNORE INTO esg_carbon_offsets (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-12-12 03:00:00', 'active'),
+('Beta-2', 97, 'descri_2', 'type_B', '2025-08-15 01:00:00', 'pending'),
+('Gamma-3', 84, 'descri_3', 'type_C', '2025-03-09 22:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_renewable_energy_certs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Renewable Energy Certs';
+INSERT IGNORE INTO esg_renewable_energy_certs (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 19, 'descri_1', 'type_A', '2025-13-01 10:00:00', 'active'),
+('Beta-2', 98, 'descri_2', 'type_B', '2025-12-11 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS esg_esg_reports (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Esg Reports';
+INSERT IGNORE INTO esg_esg_reports (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 74, 'descri_1', 'type_A', '2025-11-16 08:00:00', 'done'),
+('Beta-2', 54, 'descri_2', 'type_B', '2025-07-25 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS esg_stakeholder_engagement (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    carbon_emissions_id          INT COMMENT 'FK to esg_carbon_emissions' COMMENT 'Ref esg_carbon_emissions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (carbon_emissions_id) REFERENCES esg_carbon_emissions(id)
+) COMMENT='ESG — Stakeholder Engagement';
+INSERT IGNORE INTO esg_stakeholder_engagement (name, carbon_emissions_id, description, category, created_at, status) VALUES
+('Alpha-1', 99, 'descri_1', 'type_A', '2025-02-20 12:00:00', 'done'),
+('Beta-2', 96, 'descri_2', 'type_B', '2025-05-03 22:00:00', 'pending'),
+('Gamma-3', 59, 'descri_3', 'type_C', '2025-09-26 10:00:00', 'done'),
+('Delta-4', 1, 'descri_4', 'type_D', '2025-02-20 23:00:00', 'pending');
+
+-- === R&D (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS rnd_research_projects (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='R&D — Research Projects';
+INSERT IGNORE INTO rnd_research_projects (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-12-05 22:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-02-05 17:00:00', 'pending'),
+('Gamma-3', 'descri_3', 'type_C', '2025-04-28 13:00:00', 'active'),
+('Delta-4', 'descri_4', 'type_D', '2025-09-02 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS rnd_experiments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Experiments';
+INSERT IGNORE INTO rnd_experiments (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 44, 'descri_1', 'type_A', '2025-10-01 18:00:00', 'active'),
+('Beta-2', 73, 'descri_2', 'type_B', '2025-09-25 10:00:00', 'done'),
+('Gamma-3', 98, 'descri_3', 'type_C', '2025-01-25 01:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_experiment_results (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Experiment Results';
+INSERT IGNORE INTO rnd_experiment_results (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 59, 'descri_1', 'type_A', '2025-01-09 03:00:00', 'active'),
+('Beta-2', 57, 'descri_2', 'type_B', '2025-08-10 00:00:00', 'pending'),
+('Gamma-3', 26, 'descri_3', 'type_C', '2025-12-17 04:00:00', 'done'),
+('Delta-4', 39, 'descri_4', 'type_D', '2025-03-26 08:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_prototypes (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Prototypes';
+INSERT IGNORE INTO rnd_prototypes (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 47, 'descri_1', 'type_A', '2025-05-17 02:00:00', 'pending'),
+('Beta-2', 86, 'descri_2', 'type_B', '2025-12-25 05:00:00', 'active'),
+('Gamma-3', 51, 'descri_3', 'type_C', '2025-11-13 09:00:00', 'done'),
+('Delta-4', 90, 'descri_4', 'type_D', '2025-04-08 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_prototype_tests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Prototype Tests';
+INSERT IGNORE INTO rnd_prototype_tests (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-02-21 00:00:00', 'active'),
+('Beta-2', 62, 'descri_2', 'type_B', '2025-02-12 04:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_patent_applications (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Patent Applications';
+INSERT IGNORE INTO rnd_patent_applications (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 67, 'descri_1', 'type_A', '2025-12-13 14:00:00', 'active'),
+('Beta-2', 2, 'descri_2', 'type_B', '2025-12-21 10:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_patent_citations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Patent Citations';
+INSERT IGNORE INTO rnd_patent_citations (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 89, 'descri_1', 'type_A', '2025-03-12 15:00:00', 'active'),
+('Beta-2', 30, 'descri_2', 'type_B', '2025-07-01 02:00:00', 'done'),
+('Gamma-3', 14, 'descri_3', 'type_C', '2025-02-25 10:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS rnd_publications (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Publications';
+INSERT IGNORE INTO rnd_publications (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-07-28 04:00:00', 'done'),
+('Beta-2', 87, 'descri_2', 'type_B', '2025-03-18 02:00:00', 'done'),
+('Gamma-3', 73, 'descri_3', 'type_C', '2025-01-05 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_research_grants (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Research Grants';
+INSERT IGNORE INTO rnd_research_grants (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-06-12 23:00:00', 'active'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-03-22 13:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_grant_milestones (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Grant Milestones';
+INSERT IGNORE INTO rnd_grant_milestones (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-04-28 02:00:00', 'active'),
+('Beta-2', 18, 'descri_2', 'type_B', '2025-03-08 18:00:00', 'done'),
+('Gamma-3', 50, 'descri_3', 'type_C', '2025-06-12 13:00:00', 'pending'),
+('Delta-4', 18, 'descri_4', 'type_D', '2025-05-15 08:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_lab_equipment (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Lab Equipment';
+INSERT IGNORE INTO rnd_lab_equipment (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 32, 'descri_1', 'type_A', '2025-10-04 19:00:00', 'done'),
+('Beta-2', 93, 'descri_2', 'type_B', '2025-11-04 09:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_lab_bookings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Lab Bookings';
+INSERT IGNORE INTO rnd_lab_bookings (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-06-15 06:00:00', 'done'),
+('Beta-2', 78, 'descri_2', 'type_B', '2025-09-09 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_reagent_inventory (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Reagent Inventory';
+INSERT IGNORE INTO rnd_reagent_inventory (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-12-23 01:00:00', 'active'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-07-02 03:00:00', 'active'),
+('Gamma-3', 64, 'descri_3', 'type_C', '2025-11-19 19:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_clinical_trials (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Clinical Trials';
+INSERT IGNORE INTO rnd_clinical_trials (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-07-17 10:00:00', 'active'),
+('Beta-2', 50, 'descri_2', 'type_B', '2025-10-12 13:00:00', 'pending'),
+('Gamma-3', 70, 'descri_3', 'type_C', '2025-12-14 05:00:00', 'pending'),
+('Delta-4', 99, 'descri_4', 'type_D', '2025-02-10 00:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS rnd_trial_participants (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Trial Participants';
+INSERT IGNORE INTO rnd_trial_participants (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-05-23 06:00:00', 'active'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-07-08 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS rnd_innovation_ideas (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Innovation Ideas';
+INSERT IGNORE INTO rnd_innovation_ideas (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 92, 'descri_1', 'type_A', '2025-09-05 13:00:00', 'pending'),
+('Beta-2', 90, 'descri_2', 'type_B', '2025-07-10 02:00:00', 'done'),
+('Gamma-3', 69, 'descri_3', 'type_C', '2025-10-24 19:00:00', 'active'),
+('Delta-4', 36, 'descri_4', 'type_D', '2025-02-15 09:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_idea_evaluations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Idea Evaluations';
+INSERT IGNORE INTO rnd_idea_evaluations (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 27, 'descri_1', 'type_A', '2025-03-24 17:00:00', 'pending'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-11-21 20:00:00', 'done'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-11-22 02:00:00', 'pending'),
+('Delta-4', 90, 'descri_4', 'type_D', '2025-08-28 23:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_technology_roadmaps (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Technology Roadmaps';
+INSERT IGNORE INTO rnd_technology_roadmaps (name, research_projects_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 32, '2025-02-17 13:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 59, '2025-11-06 19:00:00', 'Sample data row 2', 'create_2', 'active');
+
+CREATE TABLE IF NOT EXISTS rnd_research_partnerships (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Research Partnerships';
+INSERT IGNORE INTO rnd_research_partnerships (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-12-01 23:00:00', 'active'),
+('Beta-2', 16, 'descri_2', 'type_B', '2025-01-07 22:00:00', 'active'),
+('Gamma-3', 90, 'descri_3', 'type_C', '2025-01-06 05:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS rnd_technical_reviews (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    research_projects_id         INT COMMENT 'FK to rnd_research_projects' COMMENT 'Ref rnd_research_projects',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (research_projects_id) REFERENCES rnd_research_projects(id)
+) COMMENT='R&D — Technical Reviews';
+INSERT IGNORE INTO rnd_technical_reviews (name, research_projects_id, description, category, created_at, status) VALUES
+('Alpha-1', 67, 'descri_1', 'type_A', '2025-09-13 23:00:00', 'pending'),
+('Beta-2', 22, 'descri_2', 'type_B', '2025-07-23 04:00:00', 'done'),
+('Gamma-3', 100, 'descri_3', 'type_C', '2025-05-26 23:00:00', 'active');
+
+-- === BI (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS bi_kpi_definitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='BI — Kpi Definitions';
+INSERT IGNORE INTO bi_kpi_definitions (name, metric_date, value, target, status) VALUES
+('Alpha-1', '2025-06-04', 8072.20, 2726.81, 'active'),
+('Beta-2', '2025-05-23', 7125.40, 5770.17, 'active');
+
+CREATE TABLE IF NOT EXISTS bi_kpi_measurements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Kpi Measurements';
+INSERT IGNORE INTO bi_kpi_measurements (name, kpi_definitions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 59, '2025-09-10', 3607.28, 5000.60, 'done'),
+('Beta-2', 22, '2025-07-21', 1581.37, 7734.78, 'done'),
+('Gamma-3', 87, '2025-02-04', 2291.53, 5092.65, 'active');
+
+CREATE TABLE IF NOT EXISTS bi_dashboard_definitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Dashboard Definitions';
+INSERT IGNORE INTO bi_dashboard_definitions (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 32, 'descri_1', 'type_A', '2025-01-24 15:00:00', 'pending'),
+('Beta-2', 50, 'descri_2', 'type_B', '2025-03-21 05:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS bi_dashboard_widgets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Dashboard Widgets';
+INSERT IGNORE INTO bi_dashboard_widgets (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 92, 'descri_1', 'type_A', '2025-12-28 13:00:00', 'active'),
+('Beta-2', 42, 'descri_2', 'type_B', '2025-05-16 13:00:00', 'done'),
+('Gamma-3', 41, 'descri_3', 'type_C', '2025-05-27 02:00:00', 'done'),
+('Delta-4', 48, 'descri_4', 'type_D', '2025-03-06 16:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_data_sources (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Sources';
+INSERT IGNORE INTO bi_data_sources (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-04-03 16:00:00', 'active'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-02-08 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS bi_etl_jobs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Etl Jobs';
+INSERT IGNORE INTO bi_etl_jobs (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-02-17 17:00:00', 'pending'),
+('Beta-2', 2, 'descri_2', 'type_B', '2025-07-21 06:00:00', 'pending'),
+('Gamma-3', 73, 'descri_3', 'type_C', '2025-06-16 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_etl_job_runs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Etl Job Runs';
+INSERT IGNORE INTO bi_etl_job_runs (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 60, 'descri_1', 'type_A', '2025-07-21 18:00:00', 'pending'),
+('Beta-2', 99, 'descri_2', 'type_B', '2025-04-17 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_data_quality_rules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Quality Rules';
+INSERT IGNORE INTO bi_data_quality_rules (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 20, 'descri_1', 'type_A', '2025-01-04 13:00:00', 'active'),
+('Beta-2', 30, 'descri_2', 'type_B', '2025-10-26 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_data_quality_scores (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Quality Scores';
+INSERT IGNORE INTO bi_data_quality_scores (name, kpi_definitions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 2, '2025-06-04', 24.60, 6575.81, 'done'),
+('Beta-2', 94, '2025-06-18', 1048.35, 5302.32, 'active'),
+('Gamma-3', 54, '2025-09-28', 9611.28, 9724.89, 'active'),
+('Delta-4', 92, '2025-05-04', 939.24, 9212.61, 'done');
+
+CREATE TABLE IF NOT EXISTS bi_report_definitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Report Definitions';
+INSERT IGNORE INTO bi_report_definitions (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 90, 'descri_1', 'type_A', '2025-07-23 14:00:00', 'done'),
+('Beta-2', 11, 'descri_2', 'type_B', '2025-10-18 03:00:00', 'done'),
+('Gamma-3', 18, 'descri_3', 'type_C', '2025-11-19 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS bi_report_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Report Schedules';
+INSERT IGNORE INTO bi_report_schedules (name, kpi_definitions_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 73, 2024, 632.14, 6627.15, 'active'),
+('Beta-2', 31, 2025, 2923.55, 8509.78, 'pending'),
+('Gamma-3', 90, 2026, 8319.85, 3268.93, 'pending'),
+('Delta-4', 35, 2024, 2343.54, 9435.17, 'active');
+
+CREATE TABLE IF NOT EXISTS bi_report_distributions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Report Distributions';
+INSERT IGNORE INTO bi_report_distributions (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 14, 'descri_1', 'type_A', '2025-03-24 03:00:00', 'active'),
+('Beta-2', 58, 'descri_2', 'type_B', '2025-08-15 10:00:00', 'pending'),
+('Gamma-3', 16, 'descri_3', 'type_C', '2025-10-23 11:00:00', 'active'),
+('Delta-4', 58, 'descri_4', 'type_D', '2025-06-18 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS bi_data_catalogs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Catalogs';
+INSERT IGNORE INTO bi_data_catalogs (name, kpi_definitions_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 12, '2025-03-25 21:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 91, '2025-12-21 19:00:00', 'Sample data row 2', 'create_2', 'active');
+
+CREATE TABLE IF NOT EXISTS bi_data_lineage (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Lineage';
+INSERT IGNORE INTO bi_data_lineage (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-03-20 02:00:00', 'done'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-07-15 12:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_metric_alerts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Metric Alerts';
+INSERT IGNORE INTO bi_metric_alerts (name, kpi_definitions_id, metric_date, value, target, status) VALUES
+('Alpha-1', 87, '2025-06-14', 2608.81, 9905.87, 'active'),
+('Beta-2', 52, '2025-08-08', 5563.42, 5505.16, 'active');
+
+CREATE TABLE IF NOT EXISTS bi_alert_notifications (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Alert Notifications';
+INSERT IGNORE INTO bi_alert_notifications (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 14, 'descri_1', 'type_A', '2025-03-16 03:00:00', 'active'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-04-02 04:00:00', 'active'),
+('Gamma-3', 52, 'descri_3', 'type_C', '2025-07-23 21:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS bi_dimension_tables (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Dimension Tables';
+INSERT IGNORE INTO bi_dimension_tables (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 11, 'descri_1', 'type_A', '2025-10-19 18:00:00', 'pending'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-01-12 02:00:00', 'active'),
+('Gamma-3', 83, 'descri_3', 'type_C', '2025-08-04 04:00:00', 'active'),
+('Delta-4', 43, 'descri_4', 'type_D', '2025-03-07 01:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS bi_fact_tables (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Fact Tables';
+INSERT IGNORE INTO bi_fact_tables (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 22, 'descri_1', 'type_A', '2025-10-14 13:00:00', 'done'),
+('Beta-2', 51, 'descri_2', 'type_B', '2025-09-03 00:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS bi_cube_definitions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Cube Definitions';
+INSERT IGNORE INTO bi_cube_definitions (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 55, 'descri_1', 'type_A', '2025-03-05 11:00:00', 'active'),
+('Beta-2', 24, 'descri_2', 'type_B', '2025-05-01 08:00:00', 'pending'),
+('Gamma-3', 20, 'descri_3', 'type_C', '2025-01-18 19:00:00', 'done'),
+('Delta-4', 79, 'descri_4', 'type_D', '2025-05-14 20:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS bi_data_governance_policies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    kpi_definitions_id           INT COMMENT 'FK to bi_kpi_definitions' COMMENT 'Ref bi_kpi_definitions',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (kpi_definitions_id) REFERENCES bi_kpi_definitions(id)
+) COMMENT='BI — Data Governance Policies';
+INSERT IGNORE INTO bi_data_governance_policies (name, kpi_definitions_id, description, category, created_at, status) VALUES
+('Alpha-1', 53, 'descri_1', 'type_A', '2025-10-02 15:00:00', 'active'),
+('Beta-2', 12, 'descri_2', 'type_B', '2025-05-04 12:00:00', 'active'),
+('Gamma-3', 54, 'descri_3', 'type_C', '2025-04-19 20:00:00', 'done');
+
+-- === Accounting (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS acct_tax_filings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Accounting — Tax Filings';
+INSERT IGNORE INTO acct_tax_filings (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-11-15 17:00:00', 'active'),
+('Beta-2', 'descri_2', 'type_B', '2025-07-28 22:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS acct_tax_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Tax Schedules';
+INSERT IGNORE INTO acct_tax_schedules (name, tax_filings_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 70, 2024, 7815.76, 3446.56, 'done'),
+('Beta-2', 65, 2025, 3222.51, 2711.38, 'active'),
+('Gamma-3', 41, 2026, 5974.60, 302.71, 'pending');
+
+CREATE TABLE IF NOT EXISTS acct_withholding_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Withholding Records';
+INSERT IGNORE INTO acct_withholding_records (name, tax_filings_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 61, '2025-10-20 11:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 30, '2025-03-26 03:00:00', 'Sample data row 2', 'create_2', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_expense_categories (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Expense Categories';
+INSERT IGNORE INTO acct_expense_categories (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 31, 'descri_1', 'type_A', '2025-05-25 17:00:00', 'done'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-04-01 18:00:00', 'pending'),
+('Gamma-3', 46, 'descri_3', 'type_C', '2025-03-05 05:00:00', 'active'),
+('Delta-4', 76, 'descri_4', 'type_D', '2025-06-23 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_expense_policies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Expense Policies';
+INSERT IGNORE INTO acct_expense_policies (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 76, 'descri_1', 'type_A', '2025-01-15 22:00:00', 'done'),
+('Beta-2', 46, 'descri_2', 'type_B', '2025-10-11 18:00:00', 'active'),
+('Gamma-3', 73, 'descri_3', 'type_C', '2025-04-13 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_travel_requests (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Travel Requests';
+INSERT IGNORE INTO acct_travel_requests (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-09-28 01:00:00', 'active'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-04-08 19:00:00', 'active'),
+('Gamma-3', 3, 'descri_3', 'type_C', '2025-09-18 15:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_travel_itineraries (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Travel Itineraries';
+INSERT IGNORE INTO acct_travel_itineraries (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 79, 'descri_1', 'type_A', '2025-04-20 04:00:00', 'pending'),
+('Beta-2', 92, 'descri_2', 'type_B', '2025-04-07 10:00:00', 'active'),
+('Gamma-3', 3, 'descri_3', 'type_C', '2025-03-20 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_mileage_claims (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Mileage Claims';
+INSERT IGNORE INTO acct_mileage_claims (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 100, 'descri_1', 'type_A', '2025-02-01 16:00:00', 'pending'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-07-24 22:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_petty_cash_funds (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Petty Cash Funds';
+INSERT IGNORE INTO acct_petty_cash_funds (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 76, 'descri_1', 'type_A', '2025-02-24 10:00:00', 'pending'),
+('Beta-2', 42, 'descri_2', 'type_B', '2025-03-14 05:00:00', 'done'),
+('Gamma-3', 56, 'descri_3', 'type_C', '2025-11-20 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_petty_cash_transactions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Petty Cash Transactions';
+INSERT IGNORE INTO acct_petty_cash_transactions (name, tax_filings_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 23, '2025-13-27 17:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 79, '2025-07-15 07:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 76, '2025-03-06 12:00:00', 'Sample data row 3', 'create_3', 'pending');
+
+CREATE TABLE IF NOT EXISTS acct_asset_disposals (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Asset Disposals';
+INSERT IGNORE INTO acct_asset_disposals (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 89, 'descri_1', 'type_A', '2025-06-11 04:00:00', 'active'),
+('Beta-2', 94, 'descri_2', 'type_B', '2025-01-01 22:00:00', 'done'),
+('Gamma-3', 51, 'descri_3', 'type_C', '2025-10-11 01:00:00', 'active'),
+('Delta-4', 78, 'descri_4', 'type_D', '2025-06-23 19:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_lease_agreements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Lease Agreements';
+INSERT IGNORE INTO acct_lease_agreements (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 73, 'descri_1', 'type_A', '2025-02-26 15:00:00', 'active'),
+('Beta-2', 43, 'descri_2', 'type_B', '2025-02-12 07:00:00', 'pending'),
+('Gamma-3', 41, 'descri_3', 'type_C', '2025-03-02 20:00:00', 'active'),
+('Delta-4', 91, 'descri_4', 'type_D', '2025-12-08 20:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_lease_payments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Lease Payments';
+INSERT IGNORE INTO acct_lease_payments (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-01-06 08:00:00', 'active'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-12-19 02:00:00', 'pending'),
+('Gamma-3', 33, 'descri_3', 'type_C', '2025-02-28 23:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_loan_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Loan Records';
+INSERT IGNORE INTO acct_loan_records (name, tax_filings_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 50, '2025-08-01 23:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 22, '2025-08-16 15:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS acct_loan_payments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Loan Payments';
+INSERT IGNORE INTO acct_loan_payments (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 70, 'descri_1', 'type_A', '2025-07-25 03:00:00', 'pending'),
+('Beta-2', 74, 'descri_2', 'type_B', '2025-12-26 21:00:00', 'active'),
+('Gamma-3', 21, 'descri_3', 'type_C', '2025-08-08 02:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_investment_portfolios (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Investment Portfolios';
+INSERT IGNORE INTO acct_investment_portfolios (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 3, 'descri_1', 'type_A', '2025-06-24 08:00:00', 'active'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-06-08 05:00:00', 'pending'),
+('Gamma-3', 21, 'descri_3', 'type_C', '2025-02-11 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_investment_transactions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Investment Transactions';
+INSERT IGNORE INTO acct_investment_transactions (name, tax_filings_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 77, '2025-11-07 15:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 4, '2025-08-25 20:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 78, '2025-08-27 05:00:00', 'Sample data row 3', 'create_3', 'active');
+
+CREATE TABLE IF NOT EXISTS acct_dividend_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Dividend Records';
+INSERT IGNORE INTO acct_dividend_records (name, tax_filings_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 43, '2025-04-22 06:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 90, '2025-10-04 23:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS acct_insurance_premiums (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Insurance Premiums';
+INSERT IGNORE INTO acct_insurance_premiums (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-12-03 09:00:00', 'pending'),
+('Beta-2', 31, 'descri_2', 'type_B', '2025-02-22 01:00:00', 'pending'),
+('Gamma-3', 74, 'descri_3', 'type_C', '2025-10-02 15:00:00', 'active'),
+('Delta-4', 7, 'descri_4', 'type_D', '2025-07-17 00:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS acct_insurance_claims (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    tax_filings_id               INT COMMENT 'FK to acct_tax_filings' COMMENT 'Ref acct_tax_filings',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (tax_filings_id) REFERENCES acct_tax_filings(id)
+) COMMENT='Accounting — Insurance Claims';
+INSERT IGNORE INTO acct_insurance_claims (name, tax_filings_id, description, category, created_at, status) VALUES
+('Alpha-1', 38, 'descri_1', 'type_A', '2025-12-03 20:00:00', 'done'),
+('Beta-2', 62, 'descri_2', 'type_B', '2025-04-19 03:00:00', 'active');
+
+-- === Procurement (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS proc_rfq_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Procurement — Rfq Documents';
+INSERT IGNORE INTO proc_rfq_documents (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-03-04 20:00:00', 'pending'),
+('Beta-2', 'descri_2', 'type_B', '2025-02-14 15:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proc_rfq_responses (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Rfq Responses';
+INSERT IGNORE INTO proc_rfq_responses (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-09-18 15:00:00', 'done'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-02-19 20:00:00', 'done'),
+('Gamma-3', 50, 'descri_3', 'type_C', '2025-04-11 11:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_bid_evaluations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Bid Evaluations';
+INSERT IGNORE INTO proc_bid_evaluations (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 24, 'descri_1', 'type_A', '2025-08-05 01:00:00', 'pending'),
+('Beta-2', 57, 'descri_2', 'type_B', '2025-08-15 08:00:00', 'active'),
+('Gamma-3', 35, 'descri_3', 'type_C', '2025-10-09 01:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proc_framework_agreements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Framework Agreements';
+INSERT IGNORE INTO proc_framework_agreements (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-02-22 02:00:00', 'done'),
+('Beta-2', 45, 'descri_2', 'type_B', '2025-10-26 13:00:00', 'done'),
+('Gamma-3', 30, 'descri_3', 'type_C', '2025-10-04 01:00:00', 'pending'),
+('Delta-4', 67, 'descri_4', 'type_D', '2025-08-19 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proc_blanket_orders (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Blanket Orders';
+INSERT IGNORE INTO proc_blanket_orders (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 74, 'descri_1', 'type_A', '2025-05-09 15:00:00', 'pending'),
+('Beta-2', 11, 'descri_2', 'type_B', '2025-07-07 22:00:00', 'active'),
+('Gamma-3', 65, 'descri_3', 'type_C', '2025-10-13 16:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proc_blanket_releases (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Blanket Releases';
+INSERT IGNORE INTO proc_blanket_releases (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 80, 'descri_1', 'type_A', '2025-03-20 03:00:00', 'pending'),
+('Beta-2', 23, 'descri_2', 'type_B', '2025-03-02 06:00:00', 'active'),
+('Gamma-3', 17, 'descri_3', 'type_C', '2025-01-22 13:00:00', 'active'),
+('Delta-4', 88, 'descri_4', 'type_D', '2025-08-27 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proc_catalog_items (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Catalog Items';
+INSERT IGNORE INTO proc_catalog_items (name, rfq_documents_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 77, '2025-05-21 10:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 9, '2025-02-17 12:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS proc_catalog_prices (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Catalog Prices';
+INSERT IGNORE INTO proc_catalog_prices (name, rfq_documents_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 71, '2025-06-27 08:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 59, '2025-01-07 22:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 76, '2025-09-16 13:00:00', 'Sample data row 3', 'create_3', 'active');
+
+CREATE TABLE IF NOT EXISTS proc_vendor_onboarding (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Vendor Onboarding';
+INSERT IGNORE INTO proc_vendor_onboarding (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 20, 'descri_1', 'type_A', '2025-03-20 18:00:00', 'done'),
+('Beta-2', 75, 'descri_2', 'type_B', '2025-02-24 03:00:00', 'done'),
+('Gamma-3', 100, 'descri_3', 'type_C', '2025-02-24 09:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS proc_vendor_documents (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Vendor Documents';
+INSERT IGNORE INTO proc_vendor_documents (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 53, 'descri_1', 'type_A', '2025-05-24 12:00:00', 'done'),
+('Beta-2', 63, 'descri_2', 'type_B', '2025-10-13 19:00:00', 'pending'),
+('Gamma-3', 5, 'descri_3', 'type_C', '2025-03-05 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_vendor_contacts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Vendor Contacts';
+INSERT IGNORE INTO proc_vendor_contacts (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 80, 'descri_1', 'type_A', '2025-11-04 21:00:00', 'done'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-01-20 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_vendor_performance_kpis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Vendor Performance Kpis';
+INSERT IGNORE INTO proc_vendor_performance_kpis (name, rfq_documents_id, metric_date, value, target, status) VALUES
+('Alpha-1', 31, '2025-01-26', 7459.29, 9208.22, 'pending'),
+('Beta-2', 3, '2025-06-05', 8174.87, 3037.22, 'pending'),
+('Gamma-3', 63, '2025-12-21', 6850.99, 9724.27, 'active'),
+('Delta-4', 18, '2025-06-14', 9741.48, 4436.23, 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_sourcing_events (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Sourcing Events';
+INSERT IGNORE INTO proc_sourcing_events (name, rfq_documents_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 94, '2025-08-18 19:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 12, '2025-04-13 14:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 53, '2025-09-25 16:00:00', 'Sample data row 3', 'create_3', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_sourcing_awards (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Sourcing Awards';
+INSERT IGNORE INTO proc_sourcing_awards (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-03-26 02:00:00', 'pending'),
+('Beta-2', 91, 'descri_2', 'type_B', '2025-09-08 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proc_contract_milestones (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Contract Milestones';
+INSERT IGNORE INTO proc_contract_milestones (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 73, 'descri_1', 'type_A', '2025-01-15 05:00:00', 'active'),
+('Beta-2', 26, 'descri_2', 'type_B', '2025-01-02 07:00:00', 'active'),
+('Gamma-3', 59, 'descri_3', 'type_C', '2025-01-26 11:00:00', 'done'),
+('Delta-4', 26, 'descri_4', 'type_D', '2025-05-01 11:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_contract_deliverables (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Contract Deliverables';
+INSERT IGNORE INTO proc_contract_deliverables (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-11-18 03:00:00', 'done'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-05-12 11:00:00', 'pending'),
+('Gamma-3', 77, 'descri_3', 'type_C', '2025-08-05 05:00:00', 'pending'),
+('Delta-4', 76, 'descri_4', 'type_D', '2025-10-03 11:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_spend_analysis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Spend Analysis';
+INSERT IGNORE INTO proc_spend_analysis (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-12-17 02:00:00', 'pending'),
+('Beta-2', 4, 'descri_2', 'type_B', '2025-07-02 01:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS proc_commodity_codes (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Commodity Codes';
+INSERT IGNORE INTO proc_commodity_codes (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 100, 'descri_1', 'type_A', '2025-04-26 07:00:00', 'done'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-12-11 06:00:00', 'pending'),
+('Gamma-3', 84, 'descri_3', 'type_C', '2025-07-14 16:00:00', 'active'),
+('Delta-4', 100, 'descri_4', 'type_D', '2025-12-14 00:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_approved_vendor_list (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Approved Vendor List';
+INSERT IGNORE INTO proc_approved_vendor_list (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-03-05 19:00:00', 'active'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-05-18 19:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS proc_purchase_req_lines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    rfq_documents_id             INT COMMENT 'FK to proc_rfq_documents' COMMENT 'Ref proc_rfq_documents',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (rfq_documents_id) REFERENCES proc_rfq_documents(id)
+) COMMENT='Procurement — Purchase Req Lines';
+INSERT IGNORE INTO proc_purchase_req_lines (name, rfq_documents_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-11-22 08:00:00', 'pending'),
+('Beta-2', 49, 'descri_2', 'type_B', '2025-06-11 14:00:00', 'pending'),
+('Gamma-3', 28, 'descri_3', 'type_C', '2025-08-15 09:00:00', 'done'),
+('Delta-4', 67, 'descri_4', 'type_D', '2025-11-12 12:00:00', 'done');
+
+-- === Customer Success (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS cust_customer_tiers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Customer Success — Customer Tiers';
+INSERT IGNORE INTO cust_customer_tiers (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-01-04 16:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-07-24 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_tier_benefits (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Tier Benefits';
+INSERT IGNORE INTO cust_tier_benefits (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 78, 'descri_1', 'type_A', '2025-05-05 09:00:00', 'done'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-09-23 02:00:00', 'pending'),
+('Gamma-3', 36, 'descri_3', 'type_C', '2025-11-20 10:00:00', 'pending'),
+('Delta-4', 34, 'descri_4', 'type_D', '2025-12-28 22:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_customer_preferences (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Customer Preferences';
+INSERT IGNORE INTO cust_customer_preferences (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 25, 'descri_1', 'type_A', '2025-03-21 16:00:00', 'active'),
+('Beta-2', 8, 'descri_2', 'type_B', '2025-11-28 12:00:00', 'done'),
+('Gamma-3', 41, 'descri_3', 'type_C', '2025-12-13 04:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_comm_preferences (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Comm Preferences';
+INSERT IGNORE INTO cust_comm_preferences (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 84, 'descri_1', 'type_A', '2025-09-03 09:00:00', 'pending'),
+('Beta-2', 54, 'descri_2', 'type_B', '2025-07-12 12:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_subscription_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Subscription Plans';
+INSERT IGNORE INTO cust_subscription_plans (name, customer_tiers_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 75, 2024, 7082.90, 5724.13, 'active'),
+('Beta-2', 44, 2025, 7267.51, 2231.19, 'done');
+
+CREATE TABLE IF NOT EXISTS cust_subscription_billing (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Subscription Billing';
+INSERT IGNORE INTO cust_subscription_billing (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 61, 'descri_1', 'type_A', '2025-12-08 11:00:00', 'done'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-03-04 21:00:00', 'done'),
+('Gamma-3', 24, 'descri_3', 'type_C', '2025-06-11 03:00:00', 'pending'),
+('Delta-4', 17, 'descri_4', 'type_D', '2025-05-21 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_health_scores (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Health Scores';
+INSERT IGNORE INTO cust_health_scores (name, customer_tiers_id, metric_date, value, target, status) VALUES
+('Alpha-1', 88, '2025-06-04', 6547.15, 2230.09, 'active'),
+('Beta-2', 96, '2025-06-18', 4210.10, 8868.68, 'pending');
+
+CREATE TABLE IF NOT EXISTS cust_churn_predictions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Churn Predictions';
+INSERT IGNORE INTO cust_churn_predictions (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 75, 'descri_1', 'type_A', '2025-06-11 14:00:00', 'active'),
+('Beta-2', 61, 'descri_2', 'type_B', '2025-01-28 20:00:00', 'done'),
+('Gamma-3', 75, 'descri_3', 'type_C', '2025-11-10 02:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS cust_win_back_campaigns (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Win Back Campaigns';
+INSERT IGNORE INTO cust_win_back_campaigns (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-03-06 21:00:00', 'pending'),
+('Beta-2', 68, 'descri_2', 'type_B', '2025-06-13 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS cust_customer_journeys (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Customer Journeys';
+INSERT IGNORE INTO cust_customer_journeys (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 18, 'descri_1', 'type_A', '2025-04-19 10:00:00', 'pending'),
+('Beta-2', 73, 'descri_2', 'type_B', '2025-08-11 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS cust_touchpoint_analysis (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Touchpoint Analysis';
+INSERT IGNORE INTO cust_touchpoint_analysis (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 24, 'descri_1', 'type_A', '2025-02-14 15:00:00', 'pending'),
+('Beta-2', 81, 'descri_2', 'type_B', '2025-04-07 10:00:00', 'done'),
+('Gamma-3', 8, 'descri_3', 'type_C', '2025-01-03 14:00:00', 'pending'),
+('Delta-4', 27, 'descri_4', 'type_D', '2025-03-03 18:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS cust_customer_360_views (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Customer 360 Views';
+INSERT IGNORE INTO cust_customer_360_views (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 98, 'descri_1', 'type_A', '2025-02-18 04:00:00', 'done'),
+('Beta-2', 56, 'descri_2', 'type_B', '2025-11-17 13:00:00', 'pending'),
+('Gamma-3', 55, 'descri_3', 'type_C', '2025-09-21 12:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS cust_account_teams (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Account Teams';
+INSERT IGNORE INTO cust_account_teams (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 69, 'descri_1', 'type_A', '2025-04-19 23:00:00', 'pending'),
+('Beta-2', 2, 'descri_2', 'type_B', '2025-06-25 16:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS cust_account_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Account Plans';
+INSERT IGNORE INTO cust_account_plans (name, customer_tiers_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 87, 2024, 51.19, 7337.96, 'active'),
+('Beta-2', 89, 2025, 8770.20, 3127.49, 'active');
+
+CREATE TABLE IF NOT EXISTS cust_strategic_accounts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Strategic Accounts';
+INSERT IGNORE INTO cust_strategic_accounts (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-11-22 09:00:00', 'active'),
+('Beta-2', 9, 'descri_2', 'type_B', '2025-01-24 09:00:00', 'pending'),
+('Gamma-3', 59, 'descri_3', 'type_C', '2025-09-15 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_customer_portals (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Customer Portals';
+INSERT IGNORE INTO cust_customer_portals (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 56, 'descri_1', 'type_A', '2025-12-16 04:00:00', 'pending'),
+('Beta-2', 63, 'descri_2', 'type_B', '2025-07-16 06:00:00', 'active'),
+('Gamma-3', 52, 'descri_3', 'type_C', '2025-01-10 07:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS cust_portal_activity_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Portal Activity Logs';
+INSERT IGNORE INTO cust_portal_activity_logs (name, customer_tiers_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 17, '2025-04-25 23:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 76, '2025-09-07 05:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 47, '2025-13-01 20:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 49, '2025-11-20 08:00:00', 'Sample data row 4', 'create_4', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_self_service_tickets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Self Service Tickets';
+INSERT IGNORE INTO cust_self_service_tickets (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 7, 'descri_1', 'type_A', '2025-11-25 01:00:00', 'done'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-12-27 00:00:00', 'active'),
+('Gamma-3', 89, 'descri_3', 'type_C', '2025-02-04 13:00:00', 'pending'),
+('Delta-4', 49, 'descri_4', 'type_D', '2025-03-08 17:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS cust_knowledge_base_articles (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Knowledge Base Articles';
+INSERT IGNORE INTO cust_knowledge_base_articles (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 90, 'descri_1', 'type_A', '2025-03-23 06:00:00', 'done'),
+('Beta-2', 88, 'descri_2', 'type_B', '2025-11-15 00:00:00', 'pending'),
+('Gamma-3', 54, 'descri_3', 'type_C', '2025-12-03 03:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS cust_faq_categories (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    customer_tiers_id            INT COMMENT 'FK to cust_customer_tiers' COMMENT 'Ref cust_customer_tiers',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (customer_tiers_id) REFERENCES cust_customer_tiers(id)
+) COMMENT='Customer Success — Faq Categories';
+INSERT IGNORE INTO cust_faq_categories (name, customer_tiers_id, description, category, created_at, status) VALUES
+('Alpha-1', 35, 'descri_1', 'type_A', '2025-11-11 19:00:00', 'done'),
+('Beta-2', 18, 'descri_2', 'type_B', '2025-08-19 03:00:00', 'done'),
+('Gamma-3', 93, 'descri_3', 'type_C', '2025-11-09 03:00:00', 'pending'),
+('Delta-4', 15, 'descri_4', 'type_D', '2025-02-27 15:00:00', 'active');
+
+-- === Plant Ops (20 tables) ===
+
+CREATE TABLE IF NOT EXISTS plnt_plant_master (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Plant Ops — Plant Master';
+INSERT IGNORE INTO plnt_plant_master (name, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 2024, 2005.30, 2637.05, 'done'),
+('Beta-2', 2025, 9730.49, 3585.28, 'pending'),
+('Gamma-3', 2026, 2960.26, 403.62, 'pending'),
+('Delta-4', 2024, 9103.55, 6884.47, 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_plant_areas (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Plant Areas';
+INSERT IGNORE INTO plnt_plant_areas (name, plant_master_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 31, 2024, 37.35, 6718.94, 'active'),
+('Beta-2', 74, 2025, 6692.86, 1499.80, 'active'),
+('Gamma-3', 100, 2026, 5121.42, 7237.68, 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_production_lines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Production Lines';
+INSERT IGNORE INTO plnt_production_lines (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-04-07 14:00:00', 'pending'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-08-14 01:00:00', 'active'),
+('Gamma-3', 23, 'descri_3', 'type_C', '2025-01-21 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_line_stations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Line Stations';
+INSERT IGNORE INTO plnt_line_stations (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 41, 'descri_1', 'type_A', '2025-08-23 23:00:00', 'active'),
+('Beta-2', 13, 'descri_2', 'type_B', '2025-01-24 00:00:00', 'active'),
+('Gamma-3', 85, 'descri_3', 'type_C', '2025-12-24 05:00:00', 'pending'),
+('Delta-4', 46, 'descri_4', 'type_D', '2025-08-01 19:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_station_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Station Assignments';
+INSERT IGNORE INTO plnt_station_assignments (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-07-23 10:00:00', 'active'),
+('Beta-2', 15, 'descri_2', 'type_B', '2025-07-10 12:00:00', 'pending'),
+('Gamma-3', 35, 'descri_3', 'type_C', '2025-07-02 22:00:00', 'pending'),
+('Delta-4', 54, 'descri_4', 'type_D', '2025-12-25 05:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_shift_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Shift Schedules';
+INSERT IGNORE INTO plnt_shift_schedules (name, plant_master_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 90, 2024, 7266.12, 9814.89, 'active'),
+('Beta-2', 14, 2025, 4165.70, 5911.00, 'done');
+
+CREATE TABLE IF NOT EXISTS plnt_shift_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Shift Assignments';
+INSERT IGNORE INTO plnt_shift_assignments (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 57, 'descri_1', 'type_A', '2025-04-09 19:00:00', 'pending'),
+('Beta-2', 100, 'descri_2', 'type_B', '2025-07-16 19:00:00', 'active'),
+('Gamma-3', 88, 'descri_3', 'type_C', '2025-03-11 15:00:00', 'pending'),
+('Delta-4', 15, 'descri_4', 'type_D', '2025-08-15 14:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_downtime_events (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Downtime Events';
+INSERT IGNORE INTO plnt_downtime_events (name, plant_master_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 34, '2025-12-28 10:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 91, '2025-12-12 16:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS plnt_downtime_reasons (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Downtime Reasons';
+INSERT IGNORE INTO plnt_downtime_reasons (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 93, 'descri_1', 'type_A', '2025-10-10 07:00:00', 'done'),
+('Beta-2', 44, 'descri_2', 'type_B', '2025-09-14 16:00:00', 'done'),
+('Gamma-3', 90, 'descri_3', 'type_C', '2025-11-09 03:00:00', 'pending'),
+('Delta-4', 85, 'descri_4', 'type_D', '2025-05-16 15:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_oee_metrics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    metric_date                  DATE COMMENT 'Date',
+    value                        DECIMAL(14,4) COMMENT 'Value',
+    target                       DECIMAL(14,4) COMMENT 'Target',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Oee Metrics';
+INSERT IGNORE INTO plnt_oee_metrics (name, plant_master_id, metric_date, value, target, status) VALUES
+('Alpha-1', 87, '2025-11-21', 3854.53, 8391.10, 'done'),
+('Beta-2', 79, '2025-01-28', 126.32, 9343.44, 'done'),
+('Gamma-3', 61, '2025-09-02', 8694.59, 757.83, 'pending'),
+('Delta-4', 42, '2025-05-12', 3315.31, 2788.51, 'done');
+
+CREATE TABLE IF NOT EXISTS plnt_takt_time_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Takt Time Records';
+INSERT IGNORE INTO plnt_takt_time_records (name, plant_master_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 71, '2025-11-22 12:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 31, '2025-02-13 14:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_andon_alerts (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Andon Alerts';
+INSERT IGNORE INTO plnt_andon_alerts (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-02-18 15:00:00', 'pending'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-03-05 15:00:00', 'done'),
+('Gamma-3', 84, 'descri_3', 'type_C', '2025-01-10 03:00:00', 'pending'),
+('Delta-4', 53, 'descri_4', 'type_D', '2025-01-19 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS plnt_kanban_cards (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Kanban Cards';
+INSERT IGNORE INTO plnt_kanban_cards (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 12, 'descri_1', 'type_A', '2025-11-02 19:00:00', 'done'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-09-09 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_kanban_boards (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Kanban Boards';
+INSERT IGNORE INTO plnt_kanban_boards (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 86, 'descri_1', 'type_A', '2025-08-10 10:00:00', 'pending'),
+('Beta-2', 7, 'descri_2', 'type_B', '2025-04-03 14:00:00', 'pending'),
+('Gamma-3', 72, 'descri_3', 'type_C', '2025-11-10 19:00:00', 'pending'),
+('Delta-4', 92, 'descri_4', 'type_D', '2025-12-01 11:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS plnt_visual_mgmt_boards (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Visual Mgmt Boards';
+INSERT IGNORE INTO plnt_visual_mgmt_boards (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 15, 'descri_1', 'type_A', '2025-02-22 21:00:00', 'active'),
+('Beta-2', 1, 'descri_2', 'type_B', '2025-06-07 11:00:00', 'done'),
+('Gamma-3', 38, 'descri_3', 'type_C', '2025-10-01 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_gemba_walk_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Gemba Walk Records';
+INSERT IGNORE INTO plnt_gemba_walk_records (name, plant_master_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 14, '2025-01-24 05:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 18, '2025-07-14 03:00:00', 'Sample data row 2', 'create_2', 'pending'),
+('Gamma-3', 79, '2025-04-17 06:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 51, '2025-04-27 14:00:00', 'Sample data row 4', 'create_4', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_kaizen_suggestions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Kaizen Suggestions';
+INSERT IGNORE INTO plnt_kaizen_suggestions (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 44, 'descri_1', 'type_A', '2025-02-28 13:00:00', 'active'),
+('Beta-2', 82, 'descri_2', 'type_B', '2025-12-09 18:00:00', 'active'),
+('Gamma-3', 99, 'descri_3', 'type_C', '2025-08-07 14:00:00', 'done'),
+('Delta-4', 76, 'descri_4', 'type_D', '2025-09-07 04:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS plnt_suggestion_reviews (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Suggestion Reviews';
+INSERT IGNORE INTO plnt_suggestion_reviews (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 68, 'descri_1', 'type_A', '2025-01-25 17:00:00', 'pending'),
+('Beta-2', 75, 'descri_2', 'type_B', '2025-09-24 16:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_ci_projects (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Ci Projects';
+INSERT IGNORE INTO plnt_ci_projects (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 75, 'descri_1', 'type_A', '2025-03-05 23:00:00', 'active'),
+('Beta-2', 14, 'descri_2', 'type_B', '2025-07-03 21:00:00', 'done'),
+('Gamma-3', 78, 'descri_3', 'type_C', '2025-06-25 16:00:00', 'pending'),
+('Delta-4', 54, 'descri_4', 'type_D', '2025-11-04 22:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS plnt_ci_results (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    plant_master_id              INT COMMENT 'FK to plnt_plant_master' COMMENT 'Ref plnt_plant_master',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (plant_master_id) REFERENCES plnt_plant_master(id)
+) COMMENT='Plant Ops — Ci Results';
+INSERT IGNORE INTO plnt_ci_results (name, plant_master_id, description, category, created_at, status) VALUES
+('Alpha-1', 51, 'descri_1', 'type_A', '2025-06-08 09:00:00', 'pending'),
+('Beta-2', 18, 'descri_2', 'type_B', '2025-03-15 13:00:00', 'done'),
+('Gamma-3', 90, 'descri_3', 'type_C', '2025-09-11 09:00:00', 'done');
+
+-- === Operations (70 tables) ===
+
+CREATE TABLE IF NOT EXISTS ops_batch_jobs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status'
+) COMMENT='Operations — Batch Jobs';
+INSERT IGNORE INTO ops_batch_jobs (name, description, category, created_at, status) VALUES
+('Alpha-1', 'descri_1', 'type_A', '2025-06-21 22:00:00', 'done'),
+('Beta-2', 'descri_2', 'type_B', '2025-10-04 20:00:00', 'active'),
+('Gamma-3', 'descri_3', 'type_C', '2025-04-19 06:00:00', 'done'),
+('Delta-4', 'descri_4', 'type_D', '2025-05-09 21:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_batch_steps (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Batch Steps';
+INSERT IGNORE INTO ops_batch_steps (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 17, 'descri_1', 'type_A', '2025-13-28 20:00:00', 'active'),
+('Beta-2', 65, 'descri_2', 'type_B', '2025-10-26 22:00:00', 'done'),
+('Gamma-3', 42, 'descri_3', 'type_C', '2025-13-28 03:00:00', 'pending'),
+('Delta-4', 72, 'descri_4', 'type_D', '2025-09-22 18:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_mq_topics (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Mq Topics';
+INSERT IGNORE INTO ops_mq_topics (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-08-18 21:00:00', 'done'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-05-07 13:00:00', 'active'),
+('Gamma-3', 67, 'descri_3', 'type_C', '2025-02-27 00:00:00', 'pending'),
+('Delta-4', 19, 'descri_4', 'type_D', '2025-01-28 21:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_mq_subscriptions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Mq Subscriptions';
+INSERT IGNORE INTO ops_mq_subscriptions (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 35, 'descri_1', 'type_A', '2025-03-27 09:00:00', 'done'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-03-19 01:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_api_endpoints (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Api Endpoints';
+INSERT IGNORE INTO ops_api_endpoints (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 27, 'descri_1', 'type_A', '2025-10-26 01:00:00', 'pending'),
+('Beta-2', 58, 'descri_2', 'type_B', '2025-02-25 19:00:00', 'done'),
+('Gamma-3', 95, 'descri_3', 'type_C', '2025-10-08 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_api_usage_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Api Usage Logs';
+INSERT IGNORE INTO ops_api_usage_logs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 72, '2025-07-04 07:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 90, '2025-05-08 22:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 7, '2025-07-28 12:00:00', 'Sample data row 3', 'create_3', 'pending'),
+('Delta-4', 88, '2025-06-21 17:00:00', 'Sample data row 4', 'create_4', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_webhook_configs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Webhook Configs';
+INSERT IGNORE INTO ops_webhook_configs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 96, 'descri_1', 'type_A', '2025-05-17 06:00:00', 'done'),
+('Beta-2', 100, 'descri_2', 'type_B', '2025-08-03 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_webhook_deliveries (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Webhook Deliveries';
+INSERT IGNORE INTO ops_webhook_deliveries (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 91, 'descri_1', 'type_A', '2025-12-24 11:00:00', 'done'),
+('Beta-2', 70, 'descri_2', 'type_B', '2025-11-01 06:00:00', 'done'),
+('Gamma-3', 25, 'descri_3', 'type_C', '2025-06-11 14:00:00', 'active'),
+('Delta-4', 88, 'descri_4', 'type_D', '2025-02-11 05:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_doc_templates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Doc Templates';
+INSERT IGNORE INTO ops_doc_templates (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-03-06 12:00:00', 'active'),
+('Beta-2', 55, 'descri_2', 'type_B', '2025-05-03 17:00:00', 'pending'),
+('Gamma-3', 17, 'descri_3', 'type_C', '2025-03-27 18:00:00', 'pending'),
+('Delta-4', 1, 'descri_4', 'type_D', '2025-06-02 14:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_doc_versions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Doc Versions';
+INSERT IGNORE INTO ops_doc_versions (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 6, 'descri_1', 'type_A', '2025-03-23 10:00:00', 'done'),
+('Beta-2', 7, 'descri_2', 'type_B', '2025-11-13 19:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_workflow_defs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Workflow Defs';
+INSERT IGNORE INTO ops_workflow_defs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 63, 'descri_1', 'type_A', '2025-10-14 17:00:00', 'pending'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-13-27 10:00:00', 'done'),
+('Gamma-3', 29, 'descri_3', 'type_C', '2025-04-11 16:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_workflow_instances (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Workflow Instances';
+INSERT IGNORE INTO ops_workflow_instances (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 21, 'descri_1', 'type_A', '2025-08-17 17:00:00', 'done'),
+('Beta-2', 52, 'descri_2', 'type_B', '2025-02-20 11:00:00', 'active'),
+('Gamma-3', 28, 'descri_3', 'type_C', '2025-12-04 10:00:00', 'pending'),
+('Delta-4', 47, 'descri_4', 'type_D', '2025-06-11 06:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_workflow_steps (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Workflow Steps';
+INSERT IGNORE INTO ops_workflow_steps (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 61, 'descri_1', 'type_A', '2025-10-08 20:00:00', 'active'),
+('Beta-2', 15, 'descri_2', 'type_B', '2025-12-07 11:00:00', 'pending'),
+('Gamma-3', 31, 'descri_3', 'type_C', '2025-11-21 19:00:00', 'done'),
+('Delta-4', 32, 'descri_4', 'type_D', '2025-01-21 21:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_notif_templates (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Notif Templates';
+INSERT IGNORE INTO ops_notif_templates (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 15, 'descri_1', 'type_A', '2025-07-02 08:00:00', 'done'),
+('Beta-2', 93, 'descri_2', 'type_B', '2025-05-05 00:00:00', 'done'),
+('Gamma-3', 99, 'descri_3', 'type_C', '2025-07-24 16:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_notif_channels (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Notif Channels';
+INSERT IGNORE INTO ops_notif_channels (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 63, 'descri_1', 'type_A', '2025-01-23 09:00:00', 'done'),
+('Beta-2', 25, 'descri_2', 'type_B', '2025-06-25 16:00:00', 'active'),
+('Gamma-3', 13, 'descri_3', 'type_C', '2025-03-02 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_scheduled_tasks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Scheduled Tasks';
+INSERT IGNORE INTO ops_scheduled_tasks (name, batch_jobs_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 81, 2024, 664.00, 6705.98, 'active'),
+('Beta-2', 88, 2025, 4247.43, 1048.12, 'done');
+
+CREATE TABLE IF NOT EXISTS ops_task_exec_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Task Exec Logs';
+INSERT IGNORE INTO ops_task_exec_logs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 95, '2025-08-27 20:00:00', 'Sample data row 1', 'create_1', 'active'),
+('Beta-2', 96, '2025-12-16 04:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 59, '2025-06-02 01:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 10, '2025-01-28 05:00:00', 'Sample data row 4', 'create_4', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_feature_flags (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Feature Flags';
+INSERT IGNORE INTO ops_feature_flags (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 10, 'descri_1', 'type_A', '2025-10-15 07:00:00', 'pending'),
+('Beta-2', 53, 'descri_2', 'type_B', '2025-07-03 14:00:00', 'done'),
+('Gamma-3', 52, 'descri_3', 'type_C', '2025-08-26 10:00:00', 'active'),
+('Delta-4', 50, 'descri_4', 'type_D', '2025-12-09 03:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_ab_experiments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Ab Experiments';
+INSERT IGNORE INTO ops_ab_experiments (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-11-09 02:00:00', 'done'),
+('Beta-2', 75, 'descri_2', 'type_B', '2025-01-24 22:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_ab_results (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Ab Results';
+INSERT IGNORE INTO ops_ab_results (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 65, 'descri_1', 'type_A', '2025-02-27 09:00:00', 'done'),
+('Beta-2', 39, 'descri_2', 'type_B', '2025-11-03 02:00:00', 'pending'),
+('Gamma-3', 98, 'descri_3', 'type_C', '2025-08-01 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_geo_regions (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Geo Regions';
+INSERT IGNORE INTO ops_geo_regions (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 4, 'descri_1', 'type_A', '2025-09-19 05:00:00', 'done'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-03-14 23:00:00', 'pending'),
+('Gamma-3', 70, 'descri_3', 'type_C', '2025-06-12 20:00:00', 'active'),
+('Delta-4', 39, 'descri_4', 'type_D', '2025-12-11 23:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_geo_cities (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Geo Cities';
+INSERT IGNORE INTO ops_geo_cities (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-10-04 17:00:00', 'active'),
+('Beta-2', 16, 'descri_2', 'type_B', '2025-01-22 00:00:00', 'done'),
+('Gamma-3', 77, 'descri_3', 'type_C', '2025-07-06 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_timezone_defs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Timezone Defs';
+INSERT IGNORE INTO ops_timezone_defs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 40, 'descri_1', 'type_A', '2025-04-24 23:00:00', 'done'),
+('Beta-2', 93, 'descri_2', 'type_B', '2025-06-09 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_currency_master (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Currency Master';
+INSERT IGNORE INTO ops_currency_master (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-03-17 05:00:00', 'active'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-11-08 08:00:00', 'active'),
+('Gamma-3', 15, 'descri_3', 'type_C', '2025-04-09 21:00:00', 'done'),
+('Delta-4', 7, 'descri_4', 'type_D', '2025-10-02 14:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_language_packs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Language Packs';
+INSERT IGNORE INTO ops_language_packs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 10, 'descri_1', 'type_A', '2025-05-09 21:00:00', 'active'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-02-23 06:00:00', 'done'),
+('Gamma-3', 75, 'descri_3', 'type_C', '2025-09-26 10:00:00', 'pending'),
+('Delta-4', 17, 'descri_4', 'type_D', '2025-12-08 20:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_translation_keys (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Translation Keys';
+INSERT IGNORE INTO ops_translation_keys (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 37, 'descri_1', 'type_A', '2025-11-10 02:00:00', 'active'),
+('Beta-2', 41, 'descri_2', 'type_B', '2025-09-25 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_user_preferences (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — User Preferences';
+INSERT IGNORE INTO ops_user_preferences (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-06-17 22:00:00', 'done'),
+('Beta-2', 20, 'descri_2', 'type_B', '2025-10-10 18:00:00', 'pending'),
+('Gamma-3', 41, 'descri_3', 'type_C', '2025-08-24 05:00:00', 'active'),
+('Delta-4', 41, 'descri_4', 'type_D', '2025-05-15 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_system_params (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — System Params';
+INSERT IGNORE INTO ops_system_params (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 83, 'descri_1', 'type_A', '2025-08-28 08:00:00', 'pending'),
+('Beta-2', 18, 'descri_2', 'type_B', '2025-12-12 23:00:00', 'pending'),
+('Gamma-3', 62, 'descri_3', 'type_C', '2025-08-13 14:00:00', 'pending'),
+('Delta-4', 100, 'descri_4', 'type_D', '2025-06-17 15:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_health_checks (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Health Checks';
+INSERT IGNORE INTO ops_health_checks (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 23, 'descri_1', 'type_A', '2025-12-23 19:00:00', 'active'),
+('Beta-2', 36, 'descri_2', 'type_B', '2025-03-16 17:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_perf_baselines (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Perf Baselines';
+INSERT IGNORE INTO ops_perf_baselines (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 94, 'descri_1', 'type_A', '2025-11-13 02:00:00', 'done'),
+('Beta-2', 10, 'descri_2', 'type_B', '2025-01-10 16:00:00', 'done'),
+('Gamma-3', 4, 'descri_3', 'type_C', '2025-10-18 18:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_capacity_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Capacity Plans';
+INSERT IGNORE INTO ops_capacity_plans (name, batch_jobs_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 28, 2024, 9063.07, 5519.87, 'done'),
+('Beta-2', 70, 2025, 4725.85, 7753.45, 'pending'),
+('Gamma-3', 51, 2026, 2240.61, 7722.95, 'done'),
+('Delta-4', 38, 2024, 1347.34, 5015.72, 'active');
+
+CREATE TABLE IF NOT EXISTS ops_dr_plans (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Dr Plans';
+INSERT IGNORE INTO ops_dr_plans (name, batch_jobs_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 47, 2024, 5026.15, 6629.50, 'done'),
+('Beta-2', 88, 2025, 1666.61, 5145.71, 'pending'),
+('Gamma-3', 21, 2026, 1799.48, 9486.68, 'done');
+
+CREATE TABLE IF NOT EXISTS ops_backup_policies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Backup Policies';
+INSERT IGNORE INTO ops_backup_policies (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 95, 'descri_1', 'type_A', '2025-09-24 11:00:00', 'active'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-09-26 07:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_data_class_rules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Data Class Rules';
+INSERT IGNORE INTO ops_data_class_rules (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 48, 'descri_1', 'type_A', '2025-04-08 01:00:00', 'done'),
+('Beta-2', 27, 'descri_2', 'type_B', '2025-09-14 11:00:00', 'pending'),
+('Gamma-3', 61, 'descri_3', 'type_C', '2025-08-09 01:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_key_rotations (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Key Rotations';
+INSERT IGNORE INTO ops_key_rotations (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 42, 'descri_1', 'type_A', '2025-02-25 22:00:00', 'done'),
+('Beta-2', 82, 'descri_2', 'type_B', '2025-05-01 23:00:00', 'pending'),
+('Gamma-3', 75, 'descri_3', 'type_C', '2025-10-27 18:00:00', 'active'),
+('Delta-4', 49, 'descri_4', 'type_D', '2025-12-27 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_cert_mgmt (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Cert Mgmt';
+INSERT IGNORE INTO ops_cert_mgmt (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 84, 'descri_1', 'type_A', '2025-02-12 16:00:00', 'pending'),
+('Beta-2', 49, 'descri_2', 'type_B', '2025-04-03 16:00:00', 'pending'),
+('Gamma-3', 46, 'descri_3', 'type_C', '2025-06-09 15:00:00', 'pending'),
+('Delta-4', 78, 'descri_4', 'type_D', '2025-01-04 16:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_dns_records (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Dns Records';
+INSERT IGNORE INTO ops_dns_records (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 22, '2025-04-06 02:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 83, '2025-05-04 06:00:00', 'Sample data row 2', 'create_2', 'active'),
+('Gamma-3', 24, '2025-03-25 11:00:00', 'Sample data row 3', 'create_3', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_lb_configs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Lb Configs';
+INSERT IGNORE INTO ops_lb_configs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 16, 'descri_1', 'type_A', '2025-12-03 07:00:00', 'pending'),
+('Beta-2', 43, 'descri_2', 'type_B', '2025-02-03 15:00:00', 'done'),
+('Gamma-3', 62, 'descri_3', 'type_C', '2025-09-22 06:00:00', 'done'),
+('Delta-4', 21, 'descri_4', 'type_D', '2025-12-24 13:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_container_deploys (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Container Deploys';
+INSERT IGNORE INTO ops_container_deploys (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 6, 'descri_1', 'type_A', '2025-03-10 18:00:00', 'done'),
+('Beta-2', 21, 'descri_2', 'type_B', '2025-03-13 20:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_mesh_policies (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Mesh Policies';
+INSERT IGNORE INTO ops_mesh_policies (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 74, 'descri_1', 'type_A', '2025-03-20 01:00:00', 'active'),
+('Beta-2', 34, 'descri_2', 'type_B', '2025-04-09 16:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_rate_limits (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Rate Limits';
+INSERT IGNORE INTO ops_rate_limits (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 73, 'descri_1', 'type_A', '2025-11-19 00:00:00', 'done'),
+('Beta-2', 94, 'descri_2', 'type_B', '2025-12-03 09:00:00', 'active'),
+('Gamma-3', 28, 'descri_3', 'type_C', '2025-08-06 19:00:00', 'pending'),
+('Delta-4', 62, 'descri_4', 'type_D', '2025-03-04 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_oauth_clients (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Oauth Clients';
+INSERT IGNORE INTO ops_oauth_clients (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 19, 'descri_1', 'type_A', '2025-10-19 05:00:00', 'done'),
+('Beta-2', 85, 'descri_2', 'type_B', '2025-09-10 08:00:00', 'active'),
+('Gamma-3', 93, 'descri_3', 'type_C', '2025-12-16 10:00:00', 'pending'),
+('Delta-4', 77, 'descri_4', 'type_D', '2025-11-23 02:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_oauth_tokens (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Oauth Tokens';
+INSERT IGNORE INTO ops_oauth_tokens (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 50, 'descri_1', 'type_A', '2025-03-12 03:00:00', 'active'),
+('Beta-2', 26, 'descri_2', 'type_B', '2025-09-16 16:00:00', 'done'),
+('Gamma-3', 54, 'descri_3', 'type_C', '2025-03-21 19:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_saml_providers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Saml Providers';
+INSERT IGNORE INTO ops_saml_providers (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 61, 'descri_1', 'type_A', '2025-11-07 19:00:00', 'active'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-09-06 03:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_mfa_configs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Mfa Configs';
+INSERT IGNORE INTO ops_mfa_configs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 85, 'descri_1', 'type_A', '2025-03-11 19:00:00', 'done'),
+('Beta-2', 1, 'descri_2', 'type_B', '2025-12-12 20:00:00', 'pending'),
+('Gamma-3', 67, 'descri_3', 'type_C', '2025-08-20 11:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_login_audit (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Login Audit';
+INSERT IGNORE INTO ops_login_audit (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 68, '2025-08-24 07:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 99, '2025-07-28 11:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 95, '2025-12-21 18:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 55, '2025-03-13 08:00:00', 'Sample data row 4', 'create_4', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_permission_sets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Permission Sets';
+INSERT IGNORE INTO ops_permission_sets (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 11, 'descri_1', 'type_A', '2025-05-06 19:00:00', 'done'),
+('Beta-2', 53, 'descri_2', 'type_B', '2025-05-20 06:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_role_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Role Assignments';
+INSERT IGNORE INTO ops_role_assignments (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 96, 'descri_1', 'type_A', '2025-01-04 18:00:00', 'done'),
+('Beta-2', 16, 'descri_2', 'type_B', '2025-09-15 00:00:00', 'pending'),
+('Gamma-3', 84, 'descri_3', 'type_C', '2025-04-22 22:00:00', 'pending'),
+('Delta-4', 53, 'descri_4', 'type_D', '2025-07-18 03:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_resource_quotas (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Resource Quotas';
+INSERT IGNORE INTO ops_resource_quotas (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 84, 'descri_1', 'type_A', '2025-10-20 08:00:00', 'pending'),
+('Beta-2', 69, 'descri_2', 'type_B', '2025-08-21 18:00:00', 'pending'),
+('Gamma-3', 79, 'descri_3', 'type_C', '2025-05-02 21:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_cost_tags (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Cost Tags';
+INSERT IGNORE INTO ops_cost_tags (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 53, 'descri_1', 'type_A', '2025-10-03 17:00:00', 'pending'),
+('Beta-2', 23, 'descri_2', 'type_B', '2025-07-22 17:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_tag_defs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Tag Defs';
+INSERT IGNORE INTO ops_tag_defs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 33, 'descri_1', 'type_A', '2025-06-18 18:00:00', 'pending'),
+('Beta-2', 100, 'descri_2', 'type_B', '2025-13-26 12:00:00', 'done'),
+('Gamma-3', 18, 'descri_3', 'type_C', '2025-12-02 03:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_tag_assignments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Tag Assignments';
+INSERT IGNORE INTO ops_tag_assignments (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 58, 'descri_1', 'type_A', '2025-12-23 05:00:00', 'active'),
+('Beta-2', 28, 'descri_2', 'type_B', '2025-09-09 12:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_event_subs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Event Subs';
+INSERT IGNORE INTO ops_event_subs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 79, '2025-12-21 21:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 7, '2025-03-27 12:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 1, '2025-02-19 04:00:00', 'Sample data row 3', 'create_3', 'pending'),
+('Delta-4', 77, '2025-08-27 02:00:00', 'Sample data row 4', 'create_4', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_event_handlers (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Event Handlers';
+INSERT IGNORE INTO ops_event_handlers (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 29, '2025-07-22 02:00:00', 'Sample data row 1', 'create_1', 'done'),
+('Beta-2', 5, '2025-07-01 12:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 84, '2025-09-15 09:00:00', 'Sample data row 3', 'create_3', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_cron_schedules (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    fiscal_year                  INT COMMENT 'Year',
+    planned_value                DECIMAL(14,2) COMMENT 'Planned',
+    actual_value                 DECIMAL(14,2) DEFAULT 0 COMMENT 'Actual',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Cron Schedules';
+INSERT IGNORE INTO ops_cron_schedules (name, batch_jobs_id, fiscal_year, planned_value, actual_value, status) VALUES
+('Alpha-1', 8, 2024, 9456.76, 8203.26, 'done'),
+('Beta-2', 64, 2025, 4394.89, 2024.85, 'done'),
+('Gamma-3', 67, 2026, 2866.92, 345.72, 'done'),
+('Delta-4', 66, 2024, 5162.46, 2324.16, 'active');
+
+CREATE TABLE IF NOT EXISTS ops_cron_history (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Cron History';
+INSERT IGNORE INTO ops_cron_history (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 5, 'descri_1', 'type_A', '2025-07-17 07:00:00', 'done'),
+('Beta-2', 1, 'descri_2', 'type_B', '2025-03-25 02:00:00', 'pending'),
+('Gamma-3', 100, 'descri_3', 'type_C', '2025-07-09 11:00:00', 'done'),
+('Delta-4', 51, 'descri_4', 'type_D', '2025-07-12 18:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_file_buckets (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — File Buckets';
+INSERT IGNORE INTO ops_file_buckets (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-13-25 02:00:00', 'active'),
+('Beta-2', 71, 'descri_2', 'type_B', '2025-05-06 23:00:00', 'done'),
+('Gamma-3', 75, 'descri_3', 'type_C', '2025-06-11 11:00:00', 'pending'),
+('Delta-4', 29, 'descri_4', 'type_D', '2025-11-03 06:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_file_metadata (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — File Metadata';
+INSERT IGNORE INTO ops_file_metadata (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 74, 'descri_1', 'type_A', '2025-01-03 08:00:00', 'active'),
+('Beta-2', 53, 'descri_2', 'type_B', '2025-09-08 03:00:00', 'done'),
+('Gamma-3', 10, 'descri_3', 'type_C', '2025-09-06 09:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_img_proc_jobs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Img Proc Jobs';
+INSERT IGNORE INTO ops_img_proc_jobs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 66, 'descri_1', 'type_A', '2025-05-20 17:00:00', 'done'),
+('Beta-2', 33, 'descri_2', 'type_B', '2025-12-20 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_pdf_gen_jobs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Pdf Gen Jobs';
+INSERT IGNORE INTO ops_pdf_gen_jobs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 62, 'descri_1', 'type_A', '2025-05-13 10:00:00', 'pending'),
+('Beta-2', 88, 'descri_2', 'type_B', '2025-08-12 18:00:00', 'active'),
+('Gamma-3', 62, 'descri_3', 'type_C', '2025-02-04 08:00:00', 'active'),
+('Delta-4', 49, 'descri_4', 'type_D', '2025-11-17 07:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_email_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Email Logs';
+INSERT IGNORE INTO ops_email_logs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 30, '2025-06-22 13:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 67, '2025-10-23 00:00:00', 'Sample data row 2', 'create_2', 'done'),
+('Gamma-3', 34, '2025-05-16 09:00:00', 'Sample data row 3', 'create_3', 'active'),
+('Delta-4', 52, '2025-12-09 23:00:00', 'Sample data row 4', 'create_4', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_sms_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Sms Logs';
+INSERT IGNORE INTO ops_sms_logs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 71, '2025-04-08 15:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 46, '2025-04-28 18:00:00', 'Sample data row 2', 'create_2', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_push_notif_logs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    event_date                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Date',
+    description                  TEXT COMMENT 'Description',
+    created_by                   VARCHAR(80) COMMENT 'Creator',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Push Notif Logs';
+INSERT IGNORE INTO ops_push_notif_logs (name, batch_jobs_id, event_date, description, created_by, status) VALUES
+('Alpha-1', 96, '2025-12-14 06:00:00', 'Sample data row 1', 'create_1', 'pending'),
+('Beta-2', 95, '2025-04-19 07:00:00', 'Sample data row 2', 'create_2', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_in_app_msgs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — In App Msgs';
+INSERT IGNORE INTO ops_in_app_msgs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 34, 'descri_1', 'type_A', '2025-04-22 07:00:00', 'active'),
+('Beta-2', 32, 'descri_2', 'type_B', '2025-11-09 11:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_activity_feed (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Activity Feed';
+INSERT IGNORE INTO ops_activity_feed (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 16, 'descri_1', 'type_A', '2025-02-13 21:00:00', 'done'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-11-07 00:00:00', 'done');
+
+CREATE TABLE IF NOT EXISTS ops_feed_comments (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Feed Comments';
+INSERT IGNORE INTO ops_feed_comments (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 62, 'descri_1', 'type_A', '2025-07-23 19:00:00', 'pending'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-10-15 08:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_global_settings (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Global Settings';
+INSERT IGNORE INTO ops_global_settings (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 98, 'descri_1', 'type_A', '2025-09-10 08:00:00', 'pending'),
+('Beta-2', 29, 'descri_2', 'type_B', '2025-10-16 04:00:00', 'active');
+
+CREATE TABLE IF NOT EXISTS ops_tenant_configs (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Tenant Configs';
+INSERT IGNORE INTO ops_tenant_configs (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 55, 'descri_1', 'type_A', '2025-09-21 17:00:00', 'active'),
+('Beta-2', 65, 'descri_2', 'type_B', '2025-06-10 12:00:00', 'done'),
+('Gamma-3', 100, 'descri_3', 'type_C', '2025-03-06 14:00:00', 'active'),
+('Delta-4', 90, 'descri_4', 'type_D', '2025-09-14 14:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_feature_entitlements (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Feature Entitlements';
+INSERT IGNORE INTO ops_feature_entitlements (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 2, 'descri_1', 'type_A', '2025-01-07 21:00:00', 'active'),
+('Beta-2', 49, 'descri_2', 'type_B', '2025-10-18 03:00:00', 'pending'),
+('Gamma-3', 47, 'descri_3', 'type_C', '2025-11-06 08:00:00', 'active'),
+('Delta-4', 71, 'descri_4', 'type_D', '2025-05-23 07:00:00', 'pending');
+
+CREATE TABLE IF NOT EXISTS ops_usage_metering (
+    id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
+    name                         VARCHAR(120) COMMENT 'Name',
+    batch_jobs_id                INT COMMENT 'FK to ops_batch_jobs' COMMENT 'Ref ops_batch_jobs',
+    description                  VARCHAR(300) COMMENT 'Description',
+    category                     VARCHAR(50) COMMENT 'Category',
+    created_at                   DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Created',
+    status                       VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+    FOREIGN KEY (batch_jobs_id) REFERENCES ops_batch_jobs(id)
+) COMMENT='Operations — Usage Metering';
+INSERT IGNORE INTO ops_usage_metering (name, batch_jobs_id, description, category, created_at, status) VALUES
+('Alpha-1', 79, 'descri_1', 'type_A', '2025-06-08 11:00:00', 'active'),
+('Beta-2', 64, 'descri_2', 'type_B', '2025-08-22 06:00:00', 'pending'),
+('Gamma-3', 90, 'descri_3', 'type_C', '2025-07-23 11:00:00', 'pending');
+
+
+
+-- Update registration with correct table count
+USE lucid;
+UPDATE rc_datasources SET description = 'TPC-H Enterprise — 517-table enterprise database for Large-Scale Adaptive Schema Linking demo'
+WHERE name = 'tpch_enterprise';

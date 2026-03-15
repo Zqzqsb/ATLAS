@@ -34,6 +34,32 @@ export interface StorageStats {
   embeddingsTotal: number
 }
 
+// Chunk progress for forest-based chunked mode
+export interface ChunkClusterInfo {
+  index: number
+  tableCount: number
+  relationCount: number
+  tables: string[]
+  status: 'pending' | 'running' | 'success' | 'error'
+}
+
+export interface ChunkProgress {
+  isForestMode: boolean
+  clustersTotal: number
+  currentChunk: number       // -1 = not started, 0-indexed
+  completedChunks: number
+  erroredChunks: number
+  largestCluster: number
+  medianCluster: number
+  isolatedTables: number
+  // Per-chunk info for the current chunk
+  currentChunkTables: string[]
+  currentChunkTableCount: number
+  currentChunkRelationCount: number
+  // All clusters metadata for treemap
+  clusters: ChunkClusterInfo[]
+}
+
 // Persisted state shape (saved to sessionStorage)
 interface PersistedState {
   isRunning: boolean
@@ -89,17 +115,26 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     maxIterations: 15
   })
 
+  /** Threshold above which forest-based chunked onboarding is used (matches backend) */
+  const FOREST_THRESHOLD = 30
+
   /**
    * Compute recommended iteration counts based on database scale.
-   * Heuristic: ~3 iterations per table (explore + batch desc/synonyms + batch sample_values)
-   * plus ~5 overhead for business terms and edge cases.
+   * For large schemas (>30 tables), the backend uses forest-based chunked onboarding,
+   * so we compute per-chunk budgets instead of global ones.
    */
-  function computeRecommendedIterations(tableCount: number): { min: number; max: number } {
-    if (tableCount <= 0) return { min: 3, max: 15 }
+  function computeRecommendedIterations(tableCount: number): { min: number; max: number; isForest: boolean } {
+    if (tableCount <= 0) return { min: 3, max: 15, isForest: false }
+
+    const isForest = tableCount > FOREST_THRESHOLD
     const target = tableCount * 3 + 10
-    const min = Math.max(3, Math.ceil(target * 0.6))
-    const max = Math.max(15, Math.min(300, Math.ceil(target * 1.5)))
-    return { min, max }
+    let max = Math.max(15, Math.ceil(target * 1.5))
+    const perChunkCap = isForest ? 150 : 300
+    if (max > perChunkCap) max = perChunkCap
+    let min = Math.max(3, Math.ceil(target * 0.6))
+    // Ensure min ≤ max (fixes the bug where 517 tables → min=937 > max=300)
+    if (min > max) min = max
+    return { min, max, isForest }
   }
 
   /** Update config with recommended values based on table count (called when console opens) */
@@ -125,6 +160,22 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
   const storageStats = ref<StorageStats>(persisted?.storageStats ?? {
     tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
     termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
+  })
+
+  // Chunk progress (forest mode)
+  const chunkProgress = ref<ChunkProgress>({
+    isForestMode: false,
+    clustersTotal: 0,
+    currentChunk: -1,
+    completedChunks: 0,
+    erroredChunks: 0,
+    largestCluster: 0,
+    medianCluster: 0,
+    isolatedTables: 0,
+    currentChunkTables: [],
+    currentChunkTableCount: 0,
+    currentChunkRelationCount: 0,
+    clusters: [],
   })
 
   // Logs
@@ -204,12 +255,88 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
           agentState.value.message = data.message || ''
           if (data.data?.tables_total) storageStats.value.tablesTotal = data.data.tables_total
           if (data.data?.columns_total) storageStats.value.columnsTotal = data.data.columns_total
+          // Detect forest mode from backend
+          if (data.data?.mode === 'forest_chunked') {
+            chunkProgress.value.isForestMode = true
+            chunkProgress.value.clustersTotal = data.data.clusters_total || 0
+            chunkProgress.value.largestCluster = data.data.largest_cluster || 0
+            chunkProgress.value.medianCluster = data.data.median_cluster || 0
+            chunkProgress.value.isolatedTables = data.data.isolated_tables || 0
+            chunkProgress.value.currentChunk = -1
+            chunkProgress.value.completedChunks = 0
+            chunkProgress.value.erroredChunks = 0
+            // Populate per-cluster metadata for treemap visualization
+            if (Array.isArray(data.data.clusters)) {
+              chunkProgress.value.clusters = data.data.clusters.map((c: any) => ({
+                index: c.index ?? 0,
+                tableCount: c.table_count ?? 0,
+                relationCount: c.relation_count ?? 0,
+                tables: c.tables ?? [],
+                status: 'pending' as const
+              }))
+            } else {
+              chunkProgress.value.clusters = []
+            }
+          }
         } else if (agent === 'embedding') {
           embeddingState.value.status = 'running'
           embeddingState.value.message = data.message || ''
         }
         addLog('info', agent, data.message || 'Started')
         break
+
+      case 'chunk_start': {
+        const ci = data.data?.chunk_index ?? 0
+        const ct = data.data?.chunk_total ?? 0
+        chunkProgress.value.currentChunk = ci
+        chunkProgress.value.clustersTotal = ct
+        chunkProgress.value.currentChunkTables = data.data?.tables || []
+        chunkProgress.value.currentChunkTableCount = data.data?.table_count || 0
+        chunkProgress.value.currentChunkRelationCount = data.data?.relation_count || 0
+        // Update cluster status for treemap
+        if (chunkProgress.value.clusters[ci]) {
+          chunkProgress.value.clusters[ci].status = 'running'
+        }
+        // Reset per-chunk agent progress
+        agentState.value.iteration = 0
+        agentState.value.progress = 0
+        agentState.value.phase = 'chunk'
+        agentState.value.message = data.message || ''
+        addLog('info', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct}`)
+        break
+      }
+
+      case 'chunk_complete': {
+        const ci = data.data?.chunk_index ?? 0
+        chunkProgress.value.completedChunks++
+        const ct = chunkProgress.value.clustersTotal
+        // Update cluster status for treemap
+        if (chunkProgress.value.clusters[ci]) {
+          chunkProgress.value.clusters[ci].status = 'success'
+        }
+        // Update overall agent progress based on chunk completion
+        if (ct > 0) {
+          agentState.value.progress = Math.min(Math.round((chunkProgress.value.completedChunks / ct) * 100), 95)
+        }
+        addLog('success', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct} done`)
+        break
+      }
+
+      case 'chunk_error': {
+        const ci = data.data?.chunk_index ?? 0
+        chunkProgress.value.erroredChunks++
+        chunkProgress.value.completedChunks++ // count as processed
+        const ct = chunkProgress.value.clustersTotal
+        // Update cluster status for treemap
+        if (chunkProgress.value.clusters[ci]) {
+          chunkProgress.value.clusters[ci].status = 'error'
+        }
+        if (ct > 0) {
+          agentState.value.progress = Math.min(Math.round((chunkProgress.value.completedChunks / ct) * 100), 95)
+        }
+        addLog('error', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct} error: ${data.data?.error || 'unknown'}`)
+        break
+      }
 
       case 'agent_step': {
         const phase = data.phase || 'thought'
@@ -315,6 +442,12 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     storageStats.value = {
       tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
       termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
+    }
+    chunkProgress.value = {
+      isForestMode: false, clustersTotal: 0, currentChunk: -1, completedChunks: 0, erroredChunks: 0,
+      largestCluster: 0, medianCluster: 0, isolatedTables: 0,
+      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0,
+      clusters: [],
     }
 
     startTime.value = Date.now()
@@ -445,6 +578,12 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
       tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
       termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
     }
+    chunkProgress.value = {
+      isForestMode: false, clustersTotal: 0, currentChunk: -1, completedChunks: 0, erroredChunks: 0,
+      largestCluster: 0, medianCluster: 0, isolatedTables: 0,
+      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0,
+      clusters: [],
+    }
     clearPersistedState()
   }
 
@@ -478,7 +617,11 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     agentState,
     embeddingState,
     storageStats,
+    chunkProgress,
     logs,
+
+    // Constants
+    FOREST_THRESHOLD,
 
     // Computed
     overallProgress,

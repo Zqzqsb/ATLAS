@@ -75,6 +75,8 @@ func (h *Handler) OnboardingStream(c *gin.Context) {
 }
 
 // runOnboarding executes the onboarding process using the unified ReAct engine.
+// For large schemas (>30 tables), it uses forest-based chunked onboarding:
+// FK graph → connected components → per-subtree ReAct agents → merge.
 func (h *Handler) runOnboarding(ctx context.Context, connectionID, dbName, dbType string, events chan<- OnboardingEvent) {
 	defer close(events)
 	startTime := time.Now()
@@ -155,56 +157,149 @@ func (h *Handler) runOnboarding(ctx context.Context, connectionID, dbName, dbTyp
 		return
 	}
 
-	// Phase 5: Run ReAct onboarding agent
-	sendEvent(events, "phase_change", map[string]string{"phase": "analyzing", "message": "Agent exploring database with ReAct..."})
-
+	// Phase 5: Run ReAct onboarding agent(s)
 	repo := h.lakebaseService.GetRepository()
 	rcWriter := reacttools.NewLakebaseRCWriter(repo)
-
-	// Compute iterations based on table count (~3 per table + overhead)
 	tableCount := len(tables)
-	target := tableCount*3 + 10
-	maxIter := max(15, int(float64(target)*1.5))
-	if maxIter > 300 {
-		maxIter = 300
-	}
-	minIter := max(3, int(float64(target)*0.6))
 
-	engineCfg := scenarios.BuildOnboardingEngine(adapter, rcWriter, scenarios.OnboardingConfig{
-		DatasourceID:  ds.ID,
-		DBType:        dbType,
-		Tables:        tables,
-		Columns:       columns,
-		Relations:     relations,
-		MaxIterations: maxIter,
-		MinIterations: minIter,
-		StepCallback: func(step react.Step, eventType string) {
-			events <- OnboardingEvent{
-				Type: "react_" + eventType,
-				Data: map[string]interface{}{
-					"iteration":    step.Iteration,
-					"thought":      step.Thought,
-					"action":       step.Action,
-					"action_input": step.ActionInput,
-					"observation":  step.Observation,
-				},
-				Timestamp: time.Now().UnixMilli(),
+	const forestThreshold = 30
+
+	if tableCount <= forestThreshold {
+		// Small schema: single-agent onboarding (original path)
+		sendEvent(events, "phase_change", map[string]string{"phase": "analyzing", "message": "Agent exploring database with ReAct..."})
+
+		minIter, maxIter := scenarios.ComputeChunkBudget(tableCount)
+		engineCfg := scenarios.BuildOnboardingEngine(adapter, rcWriter, scenarios.OnboardingConfig{
+			DatasourceID:  ds.ID,
+			DBType:        dbType,
+			Tables:        tables,
+			Columns:       columns,
+			Relations:     relations,
+			MaxIterations: maxIter,
+			MinIterations: minIter,
+			StepCallback: func(step react.Step, eventType string) {
+				events <- OnboardingEvent{
+					Type: "react_" + eventType,
+					Data: map[string]interface{}{
+						"iteration":    step.Iteration,
+						"thought":      step.Thought,
+						"action":       step.Action,
+						"action_input": step.ActionInput,
+						"observation":  step.Observation,
+					},
+					Timestamp: time.Now().UnixMilli(),
+				}
+			},
+		})
+
+		engine := react.New(llmModel, engineCfg)
+		result, err := engine.Execute(ctx, "")
+		if err != nil {
+			sendEvent(events, "error", map[string]string{"message": fmt.Sprintf("ReAct agent failed: %v", err)})
+			return
+		}
+
+		sendEvent(events, "react_complete", map[string]interface{}{
+			"iterations": result.Iterations,
+			"duration":   result.Duration.Milliseconds(),
+			"output":     result.Output,
+		})
+	} else {
+		// Large schema: forest-based chunked onboarding
+		sendEvent(events, "phase_change", map[string]string{
+			"phase":   "forest_decompose",
+			"message": fmt.Sprintf("Decomposing %d tables into FK-based clusters...", tableCount),
+		})
+
+		forestResult := scenarios.ForestDecompose(tables, columns, relations)
+
+		// Merge isolated (single-table, no FK) clusters into batches of 15
+		clusters := scenarios.MergeIsolatedTables(forestResult.Clusters, 15)
+
+		sendEvent(events, "forest_result", map[string]interface{}{
+			"total_tables":   forestResult.TotalTables,
+			"clusters":       len(clusters),
+			"largest_cluster": forestResult.LargestSize,
+			"median_cluster":  forestResult.MedianSize,
+			"isolated_tables": forestResult.IsolatedCount,
+		})
+
+		totalIterations := 0
+		var lastErr error
+
+		for ci, cluster := range clusters {
+			clusterTableNames := make([]string, len(cluster.Tables))
+			for i, t := range cluster.Tables {
+				clusterTableNames[i] = t.TableName
 			}
-		},
-	})
 
-	engine := react.New(llmModel, engineCfg)
-	result, err := engine.Execute(ctx, "")
-	if err != nil {
-		sendEvent(events, "error", map[string]string{"message": fmt.Sprintf("ReAct agent failed: %v", err)})
-		return
+			sendEvent(events, "chunk_start", map[string]interface{}{
+				"chunk_index":  ci,
+				"chunk_total":  len(clusters),
+				"tables":       clusterTableNames,
+				"table_count":  len(cluster.Tables),
+				"relation_count": len(cluster.Relations),
+			})
+
+			minIter, maxIter := scenarios.ComputeChunkBudget(len(cluster.Tables))
+
+			engineCfg := scenarios.BuildOnboardingEngine(adapter, rcWriter, scenarios.OnboardingConfig{
+				DatasourceID:  ds.ID,
+				DBType:        dbType,
+				Tables:        cluster.Tables,
+				Columns:       cluster.Columns,
+				Relations:     cluster.Relations,
+				MaxIterations: maxIter,
+				MinIterations: minIter,
+				StepCallback: func(step react.Step, eventType string) {
+					events <- OnboardingEvent{
+						Type: "react_" + eventType,
+						Data: map[string]interface{}{
+							"chunk":        ci,
+							"iteration":    step.Iteration,
+							"thought":      step.Thought,
+							"action":       step.Action,
+							"action_input": step.ActionInput,
+							"observation":  step.Observation,
+						},
+						Timestamp: time.Now().UnixMilli(),
+					}
+				},
+			})
+
+			engine := react.New(llmModel, engineCfg)
+			result, err := engine.Execute(ctx, "")
+			if err != nil {
+				sendEvent(events, "chunk_error", map[string]interface{}{
+					"chunk_index": ci,
+					"error":       err.Error(),
+				})
+				lastErr = err
+				continue // Continue with next chunk even if one fails
+			}
+
+			totalIterations += result.Iterations
+
+			sendEvent(events, "chunk_complete", map[string]interface{}{
+				"chunk_index": ci,
+				"iterations":  result.Iterations,
+				"duration":    result.Duration.Milliseconds(),
+			})
+		}
+
+		if lastErr != nil {
+			sendEvent(events, "warning", map[string]string{
+				"message": fmt.Sprintf("Some chunks had errors (last: %v), but onboarding continued", lastErr),
+			})
+		}
+
+		sendEvent(events, "react_complete", map[string]interface{}{
+			"iterations":   totalIterations,
+			"chunks":       len(clusters),
+			"duration":     time.Since(startTime).Milliseconds(),
+			"output":       fmt.Sprintf("Forest-based onboarding completed: %d clusters, %d total iterations", len(clusters), totalIterations),
+		})
 	}
-
-	sendEvent(events, "react_complete", map[string]interface{}{
-		"iterations": result.Iterations,
-		"duration":   result.Duration.Milliseconds(),
-		"output":     result.Output,
-	})
 
 	// Phase 6: Generate embeddings
 	sendEvent(events, "phase_change", map[string]string{"phase": "embedding", "message": "Generating embeddings..."})
@@ -220,9 +315,9 @@ func (h *Handler) runOnboarding(ctx context.Context, connectionID, dbName, dbTyp
 
 	// Phase 7: Create change log
 	changeDetail, _ := json.Marshal(map[string]interface{}{
-		"tables":     syncResult.TablesCount,
-		"columns":    syncResult.ColumnsCount,
-		"iterations": result.Iterations,
+		"tables":  syncResult.TablesCount,
+		"columns": syncResult.ColumnsCount,
+		"mode":    func() string { if tableCount > forestThreshold { return "forest_chunked" }; return "single_agent" }(),
 	})
 	h.lakebaseService.CreateChangeLog(ctx, &lakebase.ChangeLog{
 		DatasourceID:  ds.ID,
@@ -239,7 +334,6 @@ func (h *Handler) runOnboarding(ctx context.Context, connectionID, dbName, dbTyp
 		"datasource_id": ds.ID,
 		"tables":        syncResult.TablesCount,
 		"columns":       syncResult.ColumnsCount,
-		"iterations":    result.Iterations,
 	})
 }
 

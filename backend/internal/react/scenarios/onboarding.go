@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"lucid/internal/adapter"
@@ -22,6 +23,221 @@ type OnboardingConfig struct {
 	MaxIterations int
 	MinIterations int
 	StepCallback  react.StepCallback
+}
+
+// TableCluster represents a connected component (subtree) in the FK graph.
+// Each cluster is a group of tables connected by foreign-key relations.
+type TableCluster struct {
+	ID        int // Cluster index (0-based)
+	Tables    []*lakebase.TableInfo
+	Columns   []*lakebase.ColumnInfo
+	Relations []*lakebase.Relation
+}
+
+// ForestDecomposeResult holds the output of forest decomposition.
+type ForestDecomposeResult struct {
+	Clusters     []*TableCluster
+	TotalTables  int
+	LargestSize  int
+	MedianSize   int
+	IsolatedCount int // Tables with no FK relations
+}
+
+// ForestDecompose builds an undirected FK graph from relations and decomposes
+// it into connected components (a forest of table clusters).
+//
+// Algorithm:
+//  1. Build adjacency list from FK relations (both directions).
+//  2. Run BFS/DFS to find connected components.
+//  3. Sort components by size (largest first).
+//  4. Assign tables, columns, and intra-cluster relations to each cluster.
+func ForestDecompose(
+	tables []*lakebase.TableInfo,
+	columns []*lakebase.ColumnInfo,
+	relations []*lakebase.Relation,
+) *ForestDecomposeResult {
+	// Build table name → index mapping
+	tableIdx := make(map[string]int, len(tables))
+	for i, t := range tables {
+		tableIdx[t.TableName] = i
+	}
+
+	// Build undirected adjacency list from FK relations
+	adj := make(map[string]map[string]bool, len(tables))
+	for _, t := range tables {
+		adj[t.TableName] = make(map[string]bool)
+	}
+	for _, r := range relations {
+		if _, ok := adj[r.FromTable]; ok {
+			if _, ok2 := adj[r.ToTable]; ok2 {
+				adj[r.FromTable][r.ToTable] = true
+				adj[r.ToTable][r.FromTable] = true
+			}
+		}
+	}
+
+	// BFS to find connected components
+	visited := make(map[string]bool, len(tables))
+	var components [][]string
+
+	for _, t := range tables {
+		if visited[t.TableName] {
+			continue
+		}
+		// BFS from this table
+		component := []string{}
+		queue := []string{t.TableName}
+		visited[t.TableName] = true
+
+		for len(queue) > 0 {
+			cur := queue[0]
+			queue = queue[1:]
+			component = append(component, cur)
+
+			for neighbor := range adj[cur] {
+				if !visited[neighbor] {
+					visited[neighbor] = true
+					queue = append(queue, neighbor)
+				}
+			}
+		}
+		components = append(components, component)
+	}
+
+	// Sort components by size descending
+	sort.Slice(components, func(i, j int) bool {
+		return len(components[i]) > len(components[j])
+	})
+
+	// Build column lookup by table name
+	colByTable := make(map[string][]*lakebase.ColumnInfo, len(tables))
+	for _, c := range columns {
+		colByTable[c.TableName] = append(colByTable[c.TableName], c)
+	}
+
+	// Build clusters
+	clusters := make([]*TableCluster, 0, len(components))
+	isolatedCount := 0
+
+	for i, comp := range components {
+		compSet := make(map[string]bool, len(comp))
+		for _, tn := range comp {
+			compSet[tn] = true
+		}
+
+		// Collect tables
+		clusterTables := make([]*lakebase.TableInfo, 0, len(comp))
+		for _, tn := range comp {
+			if idx, ok := tableIdx[tn]; ok {
+				clusterTables = append(clusterTables, tables[idx])
+			}
+		}
+
+		// Collect columns for these tables
+		clusterColumns := make([]*lakebase.ColumnInfo, 0)
+		for _, tn := range comp {
+			clusterColumns = append(clusterColumns, colByTable[tn]...)
+		}
+
+		// Collect intra-cluster relations
+		clusterRelations := make([]*lakebase.Relation, 0)
+		for _, r := range relations {
+			if compSet[r.FromTable] && compSet[r.ToTable] {
+				clusterRelations = append(clusterRelations, r)
+			}
+		}
+
+		if len(comp) == 1 && len(clusterRelations) == 0 {
+			isolatedCount++
+		}
+
+		clusters = append(clusters, &TableCluster{
+			ID:        i,
+			Tables:    clusterTables,
+			Columns:   clusterColumns,
+			Relations: clusterRelations,
+		})
+	}
+
+	// Calculate median size
+	sizes := make([]int, len(clusters))
+	largest := 0
+	for i, c := range clusters {
+		sizes[i] = len(c.Tables)
+		if sizes[i] > largest {
+			largest = sizes[i]
+		}
+	}
+	sort.Ints(sizes)
+	median := 0
+	if len(sizes) > 0 {
+		median = sizes[len(sizes)/2]
+	}
+
+	return &ForestDecomposeResult{
+		Clusters:      clusters,
+		TotalTables:   len(tables),
+		LargestSize:   largest,
+		MedianSize:    median,
+		IsolatedCount: isolatedCount,
+	}
+}
+
+// MergeIsolatedTables groups isolated tables (single-table clusters with no FK)
+// into batches of the given size for more efficient onboarding.
+func MergeIsolatedTables(clusters []*TableCluster, batchSize int) []*TableCluster {
+	if batchSize <= 0 {
+		batchSize = 15
+	}
+
+	var connected []*TableCluster
+	var isolated []*TableCluster
+
+	for _, c := range clusters {
+		if len(c.Tables) == 1 && len(c.Relations) == 0 {
+			isolated = append(isolated, c)
+		} else {
+			connected = append(connected, c)
+		}
+	}
+
+	// Merge isolated tables into batches
+	for i := 0; i < len(isolated); i += batchSize {
+		end := i + batchSize
+		if end > len(isolated) {
+			end = len(isolated)
+		}
+		batch := &TableCluster{
+			ID: len(connected),
+		}
+		for _, iso := range isolated[i:end] {
+			batch.Tables = append(batch.Tables, iso.Tables...)
+			batch.Columns = append(batch.Columns, iso.Columns...)
+		}
+		connected = append(connected, batch)
+	}
+
+	// Re-number cluster IDs
+	for i, c := range connected {
+		c.ID = i
+	}
+
+	return connected
+}
+
+// ComputeChunkBudget calculates min/max iteration budgets for a table cluster.
+func ComputeChunkBudget(tableCount int) (minIter, maxIter int) {
+	target := tableCount*3 + 10
+	maxIter = max(15, int(float64(target)*1.5))
+	if maxIter > 150 { // per-chunk cap (smaller than global 300)
+		maxIter = 150
+	}
+	minIter = max(3, int(float64(target)*0.6))
+	// Ensure minIter <= maxIter
+	if minIter > maxIter {
+		minIter = maxIter
+	}
+	return minIter, maxIter
 }
 
 // BuildOnboardingEngine creates a ReAct EngineConfig for database onboarding.

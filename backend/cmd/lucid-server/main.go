@@ -73,7 +73,14 @@ func main() {
 		if modelKey == "" {
 			modelKey = llmCfg.DefaultModel
 		} else {
-			llmCfg.DefaultModel = modelKey
+			// Validate that the configured key actually exists in llm_config.json
+			if _, lookupErr := llmCfg.GetModel(modelKey); lookupErr != nil {
+				slog.Warn("Configured default_model not found in llm_config.json, falling back",
+					"configured", modelKey, "fallback", llmCfg.DefaultModel)
+				modelKey = llmCfg.DefaultModel
+			} else {
+				llmCfg.DefaultModel = modelKey
+			}
 		}
 		llmModel, err = llmCfg.CreateLLMByKey(modelKey)
 		if err != nil {

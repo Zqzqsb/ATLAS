@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NModal, NButton, NInputNumber, NProgress, NSwitch, useMessage } from 'naive-ui'
-import { useContextGenerationStore, type ChunkClusterInfo } from '@/stores/contextGeneration'
+import { useContextGenerationStore, type ChunkClusterInfo, type ForestClusterPreview } from '@/stores/contextGeneration'
 
 const props = defineProps<{
   show: boolean
@@ -161,6 +161,7 @@ const treemapRects = computed(() => {
 function cellBg(status: string): string {
   switch (status) {
     case 'success': return '#86efac'  // green-300
+    case 'skipped': return '#bae6fd'  // sky-200 (lighter blue — already done)
     case 'running': return '#fcd34d'  // amber-300
     case 'error':   return '#fca5a5'  // red-300
     default:        return '#cbd5e1'  // slate-300 (pending)
@@ -170,6 +171,7 @@ function cellBg(status: string): string {
 function cellBorder(status: string): string {
   switch (status) {
     case 'success': return '#22c55e'  // green-500
+    case 'skipped': return '#38bdf8'  // sky-400
     case 'running': return '#f59e0b'  // amber-500
     case 'error':   return '#ef4444'  // red-500
     default:        return '#94a3b8'  // slate-400
@@ -179,6 +181,7 @@ function cellBorder(status: string): string {
 function cellText(status: string): string {
   switch (status) {
     case 'success': return '#14532d'  // green-900
+    case 'skipped': return '#0c4a6e'  // sky-900
     case 'running': return '#78350f'  // amber-900
     case 'error':   return '#7f1d1d'  // red-900
     default:        return '#0f172a'  // slate-900
@@ -279,10 +282,118 @@ function handleCancel() {
 
 function handleClose() {
   store.closeConsole()
+  store.clearForestPreview()
   showModal.value = false
   if (store.isComplete) {
     emit('complete')
   }
+}
+
+// ----- Forest Preview (before generation) -----
+
+// Fetch forest preview when console opens for large schemas
+watch(() => props.show, (visible) => {
+  if (visible && !store.isRunning && !store.isComplete && props.tableCount && props.tableCount > store.FOREST_THRESHOLD) {
+    store.fetchForestPreview(props.databaseId)
+  }
+}, { immediate: true })
+
+interface PreviewTreemapRect {
+  cluster: ForestClusterPreview
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function squarifyPreview(items: ForestClusterPreview[], containerW: number, containerH: number): PreviewTreemapRect[] {
+  if (items.length === 0 || containerW <= 0 || containerH <= 0) return []
+  const totalArea = containerW * containerH
+  const totalValue = items.reduce((s, c) => s + Math.max(c.table_count, 1), 0)
+  if (totalValue === 0) return []
+  const areas: number[] = items.map(c => (Math.max(c.table_count, 1) / totalValue) * totalArea)
+  const raw: { idx: number; x: number; y: number; w: number; h: number }[] = []
+  function getArea(idx: number): number { return areas[idx] ?? 0 }
+  function worst(row: number[], side: number): number {
+    if (row.length === 0 || side <= 0) return Infinity
+    let sum = 0, lo = Infinity, hi = -Infinity
+    for (const idx of row) { const a = getArea(idx); sum += a; if (a < lo) lo = a; if (a > hi) hi = a }
+    if (sum === 0) return Infinity
+    const s2 = side * side, r2 = sum * sum
+    return Math.max((s2 * hi) / r2, r2 / (s2 * lo))
+  }
+  const order: number[] = Array.from({ length: items.length }, (_, i) => i).sort((a, b) => getArea(b) - getArea(a))
+  function recurse(rem: number[], x: number, y: number, w: number, h: number) {
+    if (rem.length === 0) return
+    if (rem.length === 1) { raw.push({ idx: rem[0]!, x, y, w, h }); return }
+    const isWide = w >= h
+    const side = isWide ? h : w
+    const first = rem[0]!
+    const row: number[] = [first]
+    let rowArea = getArea(first)
+    let best = worst(row, side)
+    let i = 1
+    for (; i < rem.length; i++) {
+      const c = rem[i]!
+      const nr = [...row, c]
+      const nw = worst(nr, side)
+      if (nw <= best) { row.push(c); rowArea += getArea(c); best = nw } else { break }
+    }
+    if (isWide) {
+      const colW = rowArea / h; let cy = y
+      for (const idx of row) { const itemA = getArea(idx); const itemH = itemA / colW; raw.push({ idx, x, y: cy, w: colW, h: itemH }); cy += itemH }
+      recurse(rem.slice(i), x + colW, y, Math.max(w - colW, 0), h)
+    } else {
+      const rowH = rowArea / w; let cx = x
+      for (const idx of row) { const itemA = getArea(idx); const itemW = itemA / rowH; raw.push({ idx, x: cx, y, w: itemW, h: rowH }); cx += itemW }
+      recurse(rem.slice(i), x, y + rowH, w, Math.max(h - rowH, 0))
+    }
+  }
+  recurse(order, 0, 0, containerW, containerH)
+  const half = GAP / 2
+  return raw.map(r => ({ cluster: items[r.idx]!, x: r.x + half, y: r.y + half, w: Math.max(r.w - GAP, 1), h: Math.max(r.h - GAP, 1) }))
+}
+
+const PREVIEW_TREEMAP_W = 760
+const PREVIEW_TREEMAP_H = 180
+
+const previewTreemapRects = computed(() => {
+  const fp = store.forestPreview
+  if (!fp || !fp.clusters || fp.clusters.length === 0) return []
+  return squarifyPreview(fp.clusters, PREVIEW_TREEMAP_W, PREVIEW_TREEMAP_H)
+})
+
+function previewCellBg(cluster: ForestClusterPreview): string {
+  return cluster.will_skip ? '#bae6fd' : '#fde68a' // sky-200 for skip, amber-200 for need
+}
+function previewCellBorder(cluster: ForestClusterPreview): string {
+  return cluster.will_skip ? '#38bdf8' : '#f59e0b' // sky-400 for skip, amber-500 for need
+}
+function previewCellText(cluster: ForestClusterPreview): string {
+  return cluster.will_skip ? '#0c4a6e' : '#78350f' // sky-900, amber-900
+}
+function previewCellLabel(rect: PreviewTreemapRect): string {
+  const { cluster, w, h } = rect
+  const idx = `#${cluster.index + 1}`
+  const pct = Math.round(cluster.coverage_ratio * 100)
+  if (w >= 80 && h >= 36) return `${idx} · ${cluster.table_count}t\n${pct}%`
+  if (w >= 50 && h >= 24) return `${idx} · ${cluster.table_count}t`
+  if (w >= 22 && h >= 16) return idx
+  return ''
+}
+
+// Preview tooltip
+const hoveredPreviewCluster = ref<ForestClusterPreview | null>(null)
+const previewTooltipPos = ref({ x: 0, y: 0 })
+function onPreviewCellEnter(e: MouseEvent, cluster: ForestClusterPreview) {
+  hoveredPreviewCluster.value = cluster
+  previewTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+function onPreviewCellMove(e: MouseEvent) {
+  previewTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+function onPreviewCellLeave() {
+  hoveredPreviewCluster.value = null
 }
 </script>
 
@@ -341,6 +452,107 @@ function handleClose() {
           </p>
         </div>
 
+        <!-- Forest Preview Treemap (loaded from backend) -->
+        <div v-if="store.forestPreviewLoading" class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
+          <span class="text-sm text-slate-600 font-medium">🔍 Analyzing schema decomposition...</span>
+        </div>
+        <div v-else-if="store.forestPreviewError" class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+          <span class="text-xs text-red-700 font-medium">⚠️ Failed to load preview: {{ store.forestPreviewError }}</span>
+        </div>
+        <div v-else-if="store.forestPreview" class="mb-4 p-4 rounded-lg bg-white border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-base">🗺️</span>
+              <span class="font-bold text-sm text-slate-800">Chunk Preview</span>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-bold">
+              <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                {{ store.forestPreview.clusters_need }} to generate
+              </span>
+              <span v-if="store.forestPreview.clusters_skip > 0" class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300">
+                {{ store.forestPreview.clusters_skip }} will skip
+              </span>
+              <span class="text-slate-500">
+                {{ store.forestPreview.clusters_total }} total
+              </span>
+            </div>
+          </div>
+
+          <!-- Preview Treemap -->
+          <div class="treemap-wrap">
+            <div class="treemap-container" :style="{ width: PREVIEW_TREEMAP_W + 'px', height: PREVIEW_TREEMAP_H + 'px' }">
+              <div
+                v-for="(rect, i) in previewTreemapRects"
+                :key="i"
+                class="treemap-cell"
+                :class="{ 'treemap-cell--skipped': rect.cluster.will_skip }"
+                :style="{
+                  left: rect.x + 'px',
+                  top: rect.y + 'px',
+                  width: rect.w + 'px',
+                  height: rect.h + 'px',
+                  '--bg': previewCellBg(rect.cluster),
+                  '--border': previewCellBorder(rect.cluster),
+                  '--text': previewCellText(rect.cluster),
+                }"
+                @mouseenter="(e) => onPreviewCellEnter(e, rect.cluster)"
+                @mousemove="onPreviewCellMove"
+                @mouseleave="onPreviewCellLeave"
+              >
+                <span v-if="previewCellLabel(rect)" class="treemap-label">{{ previewCellLabel(rect) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview Tooltip -->
+          <Teleport to="body">
+            <Transition name="tip">
+              <div
+                v-if="hoveredPreviewCluster"
+                class="treemap-tooltip"
+                :style="{ left: previewTooltipPos.x + 14 + 'px', top: previewTooltipPos.y + 14 + 'px' }"
+              >
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-bold text-xs text-slate-800">Cluster #{{ hoveredPreviewCluster.index + 1 }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                    :class="hoveredPreviewCluster.will_skip ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'"
+                  >{{ hoveredPreviewCluster.will_skip ? 'will skip' : 'needs generation' }}</span>
+                </div>
+                <div class="text-xs font-semibold text-slate-600">
+                  {{ hoveredPreviewCluster.table_count }} tables · {{ hoveredPreviewCluster.relation_count }} FK
+                </div>
+                <div class="text-[10px] text-slate-500 mt-0.5">
+                  Coverage: {{ Math.round(hoveredPreviewCluster.coverage_ratio * 100) }}% ({{ hoveredPreviewCluster.tables_with_context }}/{{ hoveredPreviewCluster.table_count }} tables)
+                  <span v-if="hoveredPreviewCluster.coverage_ratio >= 0.9" class="text-sky-600 font-bold">✓ ≥90%</span>
+                  <span v-else class="text-amber-600 font-bold">&lt;90%</span>
+                </div>
+                <div class="text-[10px] text-slate-500">
+                  Columns: {{ hoveredPreviewCluster.columns_with_context }}/{{ hoveredPreviewCluster.columns_total }}
+                </div>
+                <div class="text-[10px] text-slate-500">
+                  Budget: {{ hoveredPreviewCluster.min_iter }}–{{ hoveredPreviewCluster.max_iter }} iterations
+                </div>
+                <div v-if="hoveredPreviewCluster.tables.length > 0" class="text-[10px] font-medium text-slate-500 mt-1 max-w-56 leading-tight">
+                  {{ hoveredPreviewCluster.tables.length <= 6 ? hoveredPreviewCluster.tables.join(', ') : hoveredPreviewCluster.tables.slice(0, 5).join(', ') + ` … +${hoveredPreviewCluster.tables.length - 5}` }}
+                </div>
+              </div>
+            </Transition>
+          </Teleport>
+
+          <!-- Preview Legend -->
+          <div class="flex items-center justify-between mt-3">
+            <div class="flex gap-3 text-xs font-bold text-slate-700">
+              <span class="flex items-center gap-1.5"><span class="legend-dot" style="background: #fde68a; border-color: #f59e0b;" /> Needs Generation</span>
+              <span class="flex items-center gap-1.5"><span class="legend-dot" style="background: #bae6fd; border-color: #38bdf8;" /> Will Skip (has context)</span>
+            </div>
+            <div class="flex gap-3 text-xs font-bold text-slate-500">
+              <span>Largest {{ store.forestPreview.largest_cluster }}t</span>
+              <span>Median {{ store.forestPreview.median_cluster }}t</span>
+              <span v-if="store.forestPreview.isolated_tables > 0">Isolated {{ store.forestPreview.isolated_tables }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Single-agent mode: show manual iteration config -->
         <template v-if="!props.tableCount || props.tableCount <= store.FOREST_THRESHOLD">
           <div class="grid grid-cols-2 gap-4 mb-4">
@@ -380,10 +592,10 @@ function handleClose() {
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <span class="text-base">🌲</span>
-              <span class="font-bold text-slate-800 text-sm">Forest Chunked Mode</span>
+              <span class="font-bold text-sm" style="color: #1a1a1a;">Forest Chunked Mode</span>
             </div>
             <div class="flex items-center gap-3 text-xs">
-              <span class="text-slate-700 font-bold">
+              <span class="font-bold" style="color: #1a1a1a;">
                 {{ store.chunkProgress.completedChunks }}/{{ store.chunkProgress.clustersTotal }} clusters
               </span>
               <span v-if="store.chunkProgress.erroredChunks > 0" class="text-red-600 font-bold">({{ store.chunkProgress.erroredChunks }} err)</span>
@@ -400,6 +612,7 @@ function handleClose() {
                 :class="{
                   'treemap-cell--running': rect.cluster.status === 'running',
                   'treemap-cell--done':    rect.cluster.status === 'success',
+                  'treemap-cell--skipped': rect.cluster.status === 'skipped',
                   'treemap-cell--error':   rect.cluster.status === 'error',
                 }"
                 :style="{
@@ -433,6 +646,7 @@ function handleClose() {
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                     :class="{
                       'bg-green-100 text-green-700': hoveredCluster.status === 'success',
+                      'bg-sky-100 text-sky-700': hoveredCluster.status === 'skipped',
                       'bg-amber-100 text-amber-700': hoveredCluster.status === 'running',
                       'bg-red-100 text-red-700': hoveredCluster.status === 'error',
                       'bg-slate-200 text-slate-700': hoveredCluster.status === 'pending',
@@ -441,6 +655,10 @@ function handleClose() {
                 </div>
                 <div class="text-xs font-semibold text-slate-600">
                   {{ hoveredCluster.tableCount }} tables · {{ hoveredCluster.relationCount }} FK
+                </div>
+                <div v-if="hoveredCluster.coverageRatio > 0" class="text-[10px] text-slate-500 mt-0.5">
+                  Coverage: {{ Math.round(hoveredCluster.coverageRatio * 100) }}%
+                  <span v-if="hoveredCluster.coverageRatio >= 0.9" class="text-sky-600 font-bold">✓ ≥90%</span>
                 </div>
                 <div v-if="hoveredCluster.tables.length > 0" class="text-[10px] font-medium text-slate-500 mt-1 max-w-56 leading-tight">
                   {{ hoveredCluster.tables.length <= 6 ? hoveredCluster.tables.join(', ') : hoveredCluster.tables.slice(0, 5).join(', ') + ` … +${hoveredCluster.tables.length - 5}` }}
@@ -451,13 +669,14 @@ function handleClose() {
 
           <!-- Legend + Stats row -->
           <div class="flex items-center justify-between mt-3">
-            <div class="flex gap-3 text-xs text-slate-900 font-bold">
+            <div class="flex gap-3 text-xs font-bold" style="color: #1a1a1a;">
               <span class="flex items-center gap-1.5"><span class="legend-dot" :style="{ background: cellBg('success'), borderColor: cellBorder('success') }" /> Done</span>
+              <span class="flex items-center gap-1.5"><span class="legend-dot" :style="{ background: cellBg('skipped'), borderColor: cellBorder('skipped') }" /> Skipped</span>
               <span class="flex items-center gap-1.5"><span class="legend-dot legend-dot--pulse" :style="{ background: cellBg('running'), borderColor: cellBorder('running') }" /> Active</span>
               <span class="flex items-center gap-1.5"><span class="legend-dot" :style="{ background: cellBg('pending'), borderColor: cellBorder('pending') }" /> Pending</span>
               <span class="flex items-center gap-1.5"><span class="legend-dot" :style="{ background: cellBg('error'), borderColor: cellBorder('error') }" /> Error</span>
             </div>
-            <div class="flex gap-3 text-xs text-slate-700 font-semibold">
+            <div class="flex gap-3 text-xs font-bold" style="color: #1a1a1a;">
               <span>Largest {{ store.chunkProgress.largestCluster }}t</span>
               <span>Median {{ store.chunkProgress.medianCluster }}t</span>
               <span v-if="store.chunkProgress.isolatedTables > 0">Isolated {{ store.chunkProgress.isolatedTables }}</span>
@@ -549,7 +768,10 @@ function handleClose() {
                 color="#059669"
                 :height="8"
               >
-                <span class="text-xs font-bold text-slate-800">{{ store.storageStats.tablesUpdated }}/{{ store.storageStats.tablesTotal }}</span>
+                <span class="text-xs font-bold text-slate-800">
+                  {{ store.storageStats.tablesUpdated }}/{{ store.storageStats.tablesTotal }}
+                  <span v-if="store.storageStats.tablesExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.tablesExisting }} pre)</span>
+                </span>
               </NProgress>
             </div>
             <div>
@@ -559,7 +781,10 @@ function handleClose() {
                 color="#059669"
                 :height="8"
               >
-                <span class="text-xs font-bold text-slate-800">{{ store.storageStats.columnsUpdated }}/{{ store.storageStats.columnsTotal }}</span>
+                <span class="text-xs font-bold text-slate-800">
+                  {{ store.storageStats.columnsUpdated }}/{{ store.storageStats.columnsTotal }}
+                  <span v-if="store.storageStats.columnsExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.columnsExisting }} pre)</span>
+                </span>
               </NProgress>
             </div>
           </div>
@@ -685,6 +910,18 @@ function handleClose() {
   box-shadow: inset 0 0 6px rgba(255,255,255,0.4);
 }
 
+/* Skipped: diagonal stripe pattern to visually distinguish from "done" */
+.treemap-cell--skipped {
+  box-shadow: inset 0 0 6px rgba(255,255,255,0.4);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 3px,
+    rgba(255,255,255,0.35) 3px,
+    rgba(255,255,255,0.35) 5px
+  );
+}
+
 /* Error: red inner glow */
 .treemap-cell--error {
   box-shadow: inset 0 0 6px rgba(255,255,255,0.4);
@@ -693,12 +930,13 @@ function handleClose() {
 .treemap-label {
   font-size: 11px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.2;
   color: var(--text);
   text-shadow: 0 1px 1px rgba(255,255,255,0.4);
   pointer-events: none;
   user-select: none;
-  white-space: nowrap;
+  white-space: pre-line;
+  text-align: center;
 }
 
 /* Legend dots */

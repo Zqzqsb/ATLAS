@@ -602,6 +602,122 @@ type GenerateContextEvent struct {
 	Timestamp int64       `json:"timestamp"` // unix timestamp ms
 }
 
+// PreviewForestChunks returns forest decomposition and context coverage for each cluster
+// without actually running generation. Used by the frontend to show a preview before starting.
+// GET /api/v1/lakebase/datasources/:id/generate-context/preview
+func (h *Handler) PreviewForestChunks(c *gin.Context) {
+	if h.lakebaseService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Lake-base service not configured"})
+		return
+	}
+
+	ds, dsID, ok := h.resolveDatasource(c)
+	if !ok {
+		return
+	}
+	ctx := c.Request.Context()
+	_ = ds
+
+	tables, err := h.lakebaseService.GetTablesByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tables: " + err.Error()})
+		return
+	}
+	columns, err := h.lakebaseService.GetColumnsByDatasource(ctx, dsID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get columns: " + err.Error()})
+		return
+	}
+	relations, _ := h.lakebaseService.GetRelationsByDatasource(ctx, dsID)
+
+	const forestThreshold = 30
+	tableCount := len(tables)
+
+	if tableCount <= forestThreshold {
+		c.JSON(http.StatusOK, gin.H{
+			"mode":        "single_agent",
+			"table_count": tableCount,
+		})
+		return
+	}
+
+	forestResult := scenarios.ForestDecompose(tables, columns, relations)
+	clusters := scenarios.MergeIsolatedTables(forestResult.Clusters, 15)
+
+	type clusterPreview struct {
+		Index          int      `json:"index"`
+		TableCount     int      `json:"table_count"`
+		RelationCount  int      `json:"relation_count"`
+		Tables         []string `json:"tables"`
+		TablesWithCtx  int      `json:"tables_with_context"`    // tables that have description
+		ColumnsTotal   int      `json:"columns_total"`
+		ColumnsWithCtx int      `json:"columns_with_context"`   // columns that have description
+		WillSkip       bool     `json:"will_skip"`              // >=90% tables have context
+		CoverageRatio  float64  `json:"coverage_ratio"`         // table description coverage 0.0-1.0
+		MinIter        int      `json:"min_iter"`
+		MaxIter        int      `json:"max_iter"`
+	}
+
+	previews := make([]clusterPreview, len(clusters))
+	totalSkip := 0
+	totalNeed := 0
+
+	for i, cl := range clusters {
+		tableNames := make([]string, len(cl.Tables))
+		tablesWithCtx := 0
+		for j, t := range cl.Tables {
+			tableNames[j] = t.TableName
+			if t.Description.Valid && t.Description.String != "" {
+				tablesWithCtx++
+			}
+		}
+
+		colsTotal := len(cl.Columns)
+		colsWithCtx := 0
+		for _, col := range cl.Columns {
+			if col.Description.Valid && col.Description.String != "" {
+				colsWithCtx++
+			}
+		}
+
+		willSkip := clusterHasContext(cl)
+		if willSkip {
+			totalSkip++
+		} else {
+			totalNeed++
+		}
+
+		chunkMin, chunkMax := scenarios.ComputeChunkBudget(len(cl.Tables))
+
+		previews[i] = clusterPreview{
+			Index:          i,
+			TableCount:     len(cl.Tables),
+			RelationCount:  len(cl.Relations),
+			Tables:         tableNames,
+			TablesWithCtx:  tablesWithCtx,
+			ColumnsTotal:   colsTotal,
+			ColumnsWithCtx: colsWithCtx,
+			WillSkip:       willSkip,
+			CoverageRatio:  func() float64 { if len(cl.Tables) == 0 { return 1.0 }; return float64(tablesWithCtx) / float64(len(cl.Tables)) }(),
+			MinIter:        chunkMin,
+			MaxIter:        chunkMax,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"mode":            "forest_chunked",
+		"table_count":     tableCount,
+		"column_count":    len(columns),
+		"clusters_total":  len(clusters),
+		"clusters_skip":   totalSkip,
+		"clusters_need":   totalNeed,
+		"largest_cluster": forestResult.LargestSize,
+		"median_cluster":  forestResult.MedianSize,
+		"isolated_tables": forestResult.IsolatedCount,
+		"clusters":        previews,
+	})
+}
+
 // GenerateRichContextStream generates Rich Context using a ReAct agent with SSE progress streaming.
 // The agent autonomously explores the database via execute_sql and writes context via set_rich_context.
 // POST /api/v1/lakebase/datasources/:id/generate-context/stream
@@ -798,15 +914,30 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 	if tableCount <= forestThreshold {
 		// === Small schema: single-agent path (original) ===
+		// Count existing context for progress baseline
+		tablesExisting := 0
+		for _, t := range tables {
+			if t.Description.Valid && t.Description.String != "" {
+				tablesExisting++
+			}
+		}
+		columnsExisting := 0
+		for _, col := range columns {
+			if col.Description.Valid && col.Description.String != "" {
+				columnsExisting++
+			}
+		}
 		sendEvent("agent_start", GenerateContextEvent{
 			Agent:   "rc_gen",
 			Phase:   "init",
 			Status:  "running",
 			Message: fmt.Sprintf("Starting ReAct Rich Context generation for %s (%d tables, %d columns)", ds.Name, len(tables), len(columns)),
 			Data: map[string]interface{}{
-				"tables_total":  len(tables),
-				"columns_total": len(columns),
-				"mode":          "single_agent",
+				"tables_total":    len(tables),
+				"columns_total":   len(columns),
+				"tables_existing": tablesExisting,
+				"columns_existing": columnsExisting,
+				"mode":            "single_agent",
 			},
 		})
 
@@ -861,11 +992,40 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 			for j, t := range cl.Tables {
 				tableNames[j] = t.TableName
 			}
+			// Compute coverage so frontend can show initial skip status in treemap
+			withCtx := 0
+			for _, t := range cl.Tables {
+				if t.Description.Valid && t.Description.String != "" {
+					withCtx++
+				}
+			}
+			coverage := 0.0
+			if len(cl.Tables) > 0 {
+				coverage = float64(withCtx) / float64(len(cl.Tables))
+			}
+			willSkip := !req.Force && clusterHasContext(cl)
 			clustersMeta[i] = map[string]interface{}{
 				"index":          i,
 				"table_count":    len(cl.Tables),
 				"relation_count": len(cl.Relations),
 				"tables":         tableNames,
+				"will_skip":      willSkip,
+				"coverage_ratio": coverage,
+			}
+		}
+
+		// Count existing context (tables/columns that already have descriptions)
+		// so frontend progress bars can include pre-existing data in their totals.
+		tablesWithExistingCtx := 0
+		for _, t := range tables {
+			if t.Description.Valid && t.Description.String != "" {
+				tablesWithExistingCtx++
+			}
+		}
+		columnsWithExistingCtx := 0
+		for _, col := range columns {
+			if col.Description.Valid && col.Description.String != "" {
+				columnsWithExistingCtx++
 			}
 		}
 
@@ -877,6 +1037,8 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 			Data: map[string]interface{}{
 				"tables_total":    tableCount,
 				"columns_total":   len(columns),
+				"tables_existing": tablesWithExistingCtx,
+				"columns_existing": columnsWithExistingCtx,
 				"mode":            "forest_chunked",
 				"clusters_total":  len(clusters),
 				"largest_cluster": forestResult.LargestSize,
@@ -888,27 +1050,56 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 
 		setupEmbeddingCallback(rcWriter)
 
+		var skippedChunks int
 		for ci, cluster := range clusters {
 			clusterTableNames := make([]string, len(cluster.Tables))
 			for i, t := range cluster.Tables {
 				clusterTableNames[i] = t.TableName
 			}
 
+		// Skip chunks where >=90% tables already have descriptions (unless Force is set)
+			if !req.Force && clusterHasContext(cluster) {
+				skippedChunks++
+				// Count tables with context for the skip message
+				tablesWithCtx := 0
+				for _, t := range cluster.Tables {
+					if t.Description.Valid && t.Description.String != "" {
+						tablesWithCtx++
+					}
+				}
+				sendEvent("chunk_complete", GenerateContextEvent{
+					Agent:   "rc_gen",
+					Phase:   "chunk",
+					Status:  "skipped",
+					Message: fmt.Sprintf("⏭ Chunk %d/%d skipped: %d/%d tables have context (≥90%%)", ci+1, len(clusters), tablesWithCtx, len(cluster.Tables)),
+					Data: map[string]interface{}{
+						"chunk_index": ci,
+						"chunk_total": len(clusters),
+						"skipped":     true,
+						"iterations":  0,
+						"duration":    0,
+					},
+				})
+				continue
+			}
+
+			chunkMin, chunkMax := scenarios.ComputeChunkBudget(len(cluster.Tables))
+
 			sendEvent("chunk_start", GenerateContextEvent{
 				Agent:   "rc_gen",
 				Phase:   "chunk",
 				Status:  "running",
-				Message: fmt.Sprintf("🌲 Chunk %d/%d: %d tables (%d relations)", ci+1, len(clusters), len(cluster.Tables), len(cluster.Relations)),
+				Message: fmt.Sprintf("🌲 Chunk %d/%d: %d tables (%d relations), budget %d-%d iters", ci+1, len(clusters), len(cluster.Tables), len(cluster.Relations), chunkMin, chunkMax),
 				Data: map[string]interface{}{
 					"chunk_index":    ci,
 					"chunk_total":    len(clusters),
 					"tables":         clusterTableNames,
 					"table_count":    len(cluster.Tables),
 					"relation_count": len(cluster.Relations),
+					"max_iterations": chunkMax,
+					"min_iterations": chunkMin,
 				},
 			})
-
-			chunkMin, chunkMax := scenarios.ComputeChunkBudget(len(cluster.Tables))
 
 			engineCfg := scenarios.BuildRCGenEngine(businessDB, rcWriter, scenarios.RCGenConfig{
 				DatasourceID:  dsID,
@@ -955,13 +1146,18 @@ func (h *Handler) GenerateRichContextStream(c *gin.Context) {
 			})
 		}
 
+		doneMsg := fmt.Sprintf("Forest-based generation completed: %d clusters, %d total iterations", len(clusters), totalIterations)
+		if skippedChunks > 0 {
+			doneMsg = fmt.Sprintf("Forest-based generation completed: %d clusters (%d skipped), %d total iterations", len(clusters), skippedChunks, totalIterations)
+		}
 		sendEvent("agent_done", GenerateContextEvent{
 			Agent:   "rc_gen",
 			Status:  "success",
-			Message: fmt.Sprintf("Forest-based generation completed: %d clusters, %d total iterations", len(clusters), totalIterations),
+			Message: doneMsg,
 			Data: map[string]interface{}{
 				"iterations":     totalIterations,
 				"clusters":       len(clusters),
+				"skipped_chunks": skippedChunks,
 				"duration":       time.Since(startTime).Seconds(),
 			},
 		})
@@ -1080,6 +1276,26 @@ func (h *Handler) sendRCGenStep(
 			Data:    buildData(nil),
 		})
 	}
+}
+
+// clusterHasContext returns true if enough tables in the cluster already have
+// non-empty descriptions, indicating it can be skipped.
+// Uses a 90% threshold: for a 70-table cluster, 63+ tables with context = skip.
+// This accommodates LLM agents that may miss a few tables in large clusters.
+func clusterHasContext(cluster *scenarios.TableCluster) bool {
+	const skipThreshold = 0.9 // 90% of tables must have context
+
+	if len(cluster.Tables) == 0 {
+		return true
+	}
+	withCtx := 0
+	for _, t := range cluster.Tables {
+		if t.Description.Valid && t.Description.String != "" {
+			withCtx++
+		}
+	}
+	ratio := float64(withCtx) / float64(len(cluster.Tables))
+	return ratio >= skipThreshold
 }
 
 // ===========================================

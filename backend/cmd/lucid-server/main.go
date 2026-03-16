@@ -259,6 +259,7 @@ func main() {
 		api.POST("/lakebase/datasources/:id/sync-schema", h.SyncSchema)
 		api.POST("/lakebase/datasources/:id/embeddings", h.GenerateEmbeddings)
 		api.POST("/lakebase/datasources/:id/generate-context", h.GenerateRichContextStream)
+		api.GET("/lakebase/datasources/:id/generate-context/preview", h.PreviewForestChunks)
 		api.DELETE("/lakebase/datasources/:id", h.DeleteDatasource)
 		api.DELETE("/lakebase/datasources/:id/prune", h.PruneContext)
 		api.POST("/lakebase/datasources/:id/context", h.AddContext)

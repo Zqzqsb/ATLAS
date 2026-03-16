@@ -750,6 +750,9 @@ function onPreviewCellLeave() {
               <div class="text-xs text-slate-700 font-medium mt-1">
                 {{ store.embeddingState.message }}
               </div>
+              <div v-if="store.storageStats.embeddingsStreamed > 0" class="text-[10px] text-purple-600 font-semibold mt-0.5">
+                🧬 {{ store.storageStats.embeddingsStreamed }} vectors written
+              </div>
             </div>
           </div>
         </div>
@@ -763,36 +766,35 @@ function onPreviewCellLeave() {
           <div class="grid grid-cols-2 gap-4 mb-2">
             <div>
               <div class="text-xs font-semibold text-slate-700 mb-1">Table Descriptions</div>
-              <NProgress
-                :percentage="store.storageStats.tablesTotal ? (store.storageStats.tablesUpdated / store.storageStats.tablesTotal) * 100 : 0"
-                color="#059669"
-                :height="8"
-              >
-                <span class="text-xs font-bold text-slate-800">
+              <div class="dual-progress-bar" :style="{ '--total': store.storageStats.tablesTotal || 1 }">
+                <div class="dual-progress-track">
+                  <div class="dual-progress-existed" :style="{ width: store.storageStats.tablesTotal ? (store.storageStats.tablesExisting / store.storageStats.tablesTotal * 100) + '%' : '0%' }" />
+                  <div class="dual-progress-new" :style="{ width: store.storageStats.tablesTotal ? (store.storageStats.tablesUpdated / store.storageStats.tablesTotal * 100) + '%' : '0%' }" />
+                </div>
+                <span class="text-xs font-bold text-slate-800 ml-2 whitespace-nowrap">
                   {{ store.storageStats.tablesUpdated }}/{{ store.storageStats.tablesTotal }}
-                  <span v-if="store.storageStats.tablesExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.tablesExisting }} pre)</span>
+                  <span v-if="store.storageStats.tablesExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.tablesExisting }} existed)</span>
                 </span>
-              </NProgress>
+              </div>
             </div>
             <div>
               <div class="text-xs font-semibold text-slate-700 mb-1">Column Descriptions</div>
-              <NProgress
-                :percentage="store.storageStats.columnsTotal ? (store.storageStats.columnsUpdated / store.storageStats.columnsTotal) * 100 : 0"
-                color="#059669"
-                :height="8"
-              >
-                <span class="text-xs font-bold text-slate-800">
+              <div class="dual-progress-bar" :style="{ '--total': store.storageStats.columnsTotal || 1 }">
+                <div class="dual-progress-track">
+                  <div class="dual-progress-existed" :style="{ width: store.storageStats.columnsTotal ? (store.storageStats.columnsExisting / store.storageStats.columnsTotal * 100) + '%' : '0%' }" />
+                  <div class="dual-progress-new" :style="{ width: store.storageStats.columnsTotal ? (store.storageStats.columnsUpdated / store.storageStats.columnsTotal * 100) + '%' : '0%' }" />
+                </div>
+                <span class="text-xs font-bold text-slate-800 ml-2 whitespace-nowrap">
                   {{ store.storageStats.columnsUpdated }}/{{ store.storageStats.columnsTotal }}
-                  <span v-if="store.storageStats.columnsExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.columnsExisting }} pre)</span>
+                  <span v-if="store.storageStats.columnsExisting > 0" class="text-slate-500 font-normal ml-0.5">({{ store.storageStats.columnsExisting }} existed)</span>
                 </span>
-              </NProgress>
+              </div>
             </div>
           </div>
           <div class="flex gap-4 text-xs font-semibold text-slate-700">
             <span v-if="store.storageStats.sampleValuesAdded > 0">📋 Sample Values: {{ store.storageStats.sampleValuesAdded }}</span>
             <span v-if="store.storageStats.synonymsAdded > 0">🔗 Synonyms: {{ store.storageStats.synonymsAdded }}</span>
             <span v-if="store.storageStats.termsAdded > 0">📖 Terms: {{ store.storageStats.termsAdded }}</span>
-            <span v-if="store.storageStats.embeddingsStreamed > 0">🧬 Embeddings: {{ store.storageStats.embeddingsStreamed }}</span>
           </div>
         </div>
 
@@ -969,4 +971,38 @@ function onPreviewCellLeave() {
 .tip-enter-active { transition: opacity 0.15s ease; }
 .tip-leave-active { transition: opacity 0.1s ease; }
 .tip-enter-from, .tip-leave-to { opacity: 0; }
+
+/* ---------- Dual-color progress bar ---------- */
+.dual-progress-bar {
+  display: flex;
+  align-items: center;
+}
+.dual-progress-track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2e8f0; /* slate-200 */
+  overflow: hidden;
+}
+/* Existed layer: light teal, sits behind the "new" layer */
+.dual-progress-existed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #99f6e4; /* teal-200 */
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+/* New layer: solid green, overlaps from 0 to updatedPct */
+.dual-progress-new {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #059669; /* emerald-600 */
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
 </style>

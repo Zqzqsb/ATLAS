@@ -24,9 +24,11 @@ export interface LogEntry {
 // Storage stats interface
 export interface StorageStats {
   tablesTotal: number
-  tablesUpdated: number
+  tablesUpdated: number      // includes pre-existing + newly written
   columnsTotal: number
-  columnsUpdated: number
+  columnsUpdated: number     // includes pre-existing + newly written
+  tablesExisting: number     // baseline: tables with context before this run
+  columnsExisting: number    // baseline: columns with context before this run
   termsAdded: number
   sampleValuesAdded: number
   synonymsAdded: number
@@ -40,7 +42,8 @@ export interface ChunkClusterInfo {
   tableCount: number
   relationCount: number
   tables: string[]
-  status: 'pending' | 'running' | 'success' | 'error'
+  status: 'pending' | 'running' | 'success' | 'error' | 'skipped'
+  coverageRatio: number  // 0.0-1.0, table description coverage (from agent_start)
 }
 
 export interface ChunkProgress {
@@ -56,8 +59,37 @@ export interface ChunkProgress {
   currentChunkTables: string[]
   currentChunkTableCount: number
   currentChunkRelationCount: number
+  currentChunkMaxIter: number  // per-chunk iteration budget from backend
   // All clusters metadata for treemap
   clusters: ChunkClusterInfo[]
+}
+
+// Forest preview (returned by GET .../generate-context/preview)
+export interface ForestClusterPreview {
+  index: number
+  table_count: number
+  relation_count: number
+  tables: string[]
+  tables_with_context: number
+  columns_total: number
+  columns_with_context: number
+  will_skip: boolean
+  coverage_ratio: number  // 0.0-1.0, table description coverage
+  min_iter: number
+  max_iter: number
+}
+
+export interface ForestPreview {
+  mode: string
+  table_count: number
+  column_count: number
+  clusters_total: number
+  clusters_skip: number
+  clusters_need: number
+  largest_cluster: number
+  median_cluster: number
+  isolated_tables: number
+  clusters: ForestClusterPreview[]
 }
 
 // Persisted state shape (saved to sessionStorage)
@@ -127,12 +159,29 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     if (tableCount <= 0) return { min: 3, max: 15, isForest: false }
 
     const isForest = tableCount > FOREST_THRESHOLD
+
+    if (isForest) {
+      // In forest mode, backend uses per-chunk budgets from ComputeChunkBudget.
+      // Show estimated range for the largest possible chunk as reference.
+      // Dynamic cap: ≤10t→60, ≤25t→150, ≤50t→300, >50t→500
+      const largestChunkEst = Math.min(tableCount, 70) // typical max cluster size
+      const target = largestChunkEst * 3 + 10
+      let cap = 60
+      if (largestChunkEst > 50) cap = 500
+      else if (largestChunkEst > 25) cap = 300
+      else if (largestChunkEst > 10) cap = 150
+      let max = Math.max(15, Math.ceil(target * 1.5))
+      if (max > cap) max = cap
+      let min = Math.max(3, Math.ceil(target * 0.6))
+      if (min > max) min = max
+      return { min, max, isForest }
+    }
+
+    // Non-forest (small schema): global budget
     const target = tableCount * 3 + 10
     let max = Math.max(15, Math.ceil(target * 1.5))
-    const perChunkCap = isForest ? 150 : 300
-    if (max > perChunkCap) max = perChunkCap
+    if (max > 300) max = 300
     let min = Math.max(3, Math.ceil(target * 0.6))
-    // Ensure min ≤ max (fixes the bug where 517 tables → min=937 > max=300)
     if (min > max) min = max
     return { min, max, isForest }
   }
@@ -147,6 +196,32 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     }
   }
 
+  /** Fetch forest decomposition preview from backend (for large schemas) */
+  async function fetchForestPreview(dbId: string) {
+    forestPreviewLoading.value = true
+    forestPreviewError.value = ''
+    forestPreview.value = null
+    try {
+      const resp = await fetch(`/api/v1/lakebase/datasources/${dbId}/generate-context/preview`)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      if (data.mode === 'forest_chunked') {
+        forestPreview.value = data as ForestPreview
+      }
+    } catch (e: any) {
+      forestPreviewError.value = e.message || 'Failed to load preview'
+    } finally {
+      forestPreviewLoading.value = false
+    }
+  }
+
+  /** Clear any previous preview (e.g. when console closes) */
+  function clearForestPreview() {
+    forestPreview.value = null
+    forestPreviewError.value = ''
+    forestPreviewLoading.value = false
+  }
+
   // Agent states
   const agentState = ref<AgentState>(persisted?.agentState ?? {
     id: 'rc_gen', status: 'pending', phase: '', progress: 0, iteration: 0, message: ''
@@ -159,6 +234,7 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
   // Storage stats
   const storageStats = ref<StorageStats>(persisted?.storageStats ?? {
     tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
+    tablesExisting: 0, columnsExisting: 0,
     termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
   })
 
@@ -175,8 +251,14 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     currentChunkTables: [],
     currentChunkTableCount: 0,
     currentChunkRelationCount: 0,
+    currentChunkMaxIter: 0,
     clusters: [],
   })
+
+  // Forest preview (populated before generation starts)
+  const forestPreview = ref<ForestPreview | null>(null)
+  const forestPreviewLoading = ref(false)
+  const forestPreviewError = ref('')
 
   // Logs
   const logs = ref<LogEntry[]>(persisted?.logs ?? [])
@@ -201,9 +283,10 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     return `${secs}s`
   })
 
+  // Total writes this session (exclude pre-existing baseline)
   const totalContextWrites = computed(() => {
-    return storageStats.value.tablesUpdated +
-      storageStats.value.columnsUpdated +
+    return (storageStats.value.tablesUpdated - storageStats.value.tablesExisting) +
+      (storageStats.value.columnsUpdated - storageStats.value.columnsExisting) +
       storageStats.value.termsAdded +
       storageStats.value.sampleValuesAdded +
       storageStats.value.synonymsAdded
@@ -255,6 +338,14 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
           agentState.value.message = data.message || ''
           if (data.data?.tables_total) storageStats.value.tablesTotal = data.data.tables_total
           if (data.data?.columns_total) storageStats.value.columnsTotal = data.data.columns_total
+          // Include pre-existing context counts as baseline so progress bars
+          // reflect the full picture (skipped clusters already have descriptions)
+          const tablesExisting = data.data?.tables_existing || 0
+          const columnsExisting = data.data?.columns_existing || 0
+          storageStats.value.tablesExisting = tablesExisting
+          storageStats.value.columnsExisting = columnsExisting
+          if (tablesExisting > 0) storageStats.value.tablesUpdated = tablesExisting
+          if (columnsExisting > 0) storageStats.value.columnsUpdated = columnsExisting
           // Detect forest mode from backend
           if (data.data?.mode === 'forest_chunked') {
             chunkProgress.value.isForestMode = true
@@ -266,13 +357,16 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
             chunkProgress.value.completedChunks = 0
             chunkProgress.value.erroredChunks = 0
             // Populate per-cluster metadata for treemap visualization
+            // Backend now sends will_skip + coverage_ratio per cluster,
+            // so clusters that already have context show as 'skipped' immediately.
             if (Array.isArray(data.data.clusters)) {
               chunkProgress.value.clusters = data.data.clusters.map((c: any) => ({
                 index: c.index ?? 0,
                 tableCount: c.table_count ?? 0,
                 relationCount: c.relation_count ?? 0,
                 tables: c.tables ?? [],
-                status: 'pending' as const
+                status: (c.will_skip ? 'skipped' : 'pending') as 'pending' | 'skipped',
+                coverageRatio: c.coverage_ratio ?? 0,
               }))
             } else {
               chunkProgress.value.clusters = []
@@ -293,32 +387,39 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
         chunkProgress.value.currentChunkTables = data.data?.tables || []
         chunkProgress.value.currentChunkTableCount = data.data?.table_count || 0
         chunkProgress.value.currentChunkRelationCount = data.data?.relation_count || 0
+        chunkProgress.value.currentChunkMaxIter = data.data?.max_iterations || 0
         // Update cluster status for treemap
         if (chunkProgress.value.clusters[ci]) {
           chunkProgress.value.clusters[ci].status = 'running'
         }
         // Reset per-chunk agent progress
         agentState.value.iteration = 0
-        agentState.value.progress = 0
         agentState.value.phase = 'chunk'
         agentState.value.message = data.message || ''
+        // In forest mode, set progress to reflect completed chunks (don't reset to 0)
+        if (chunkProgress.value.isForestMode && ct > 0) {
+          agentState.value.progress = Math.min(Math.round((chunkProgress.value.completedChunks / ct) * 100), 95)
+        } else {
+          agentState.value.progress = 0
+        }
         addLog('info', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct}`)
         break
       }
 
       case 'chunk_complete': {
         const ci = data.data?.chunk_index ?? 0
+        const isSkipped = data.status === 'skipped' || data.data?.skipped === true
         chunkProgress.value.completedChunks++
         const ct = chunkProgress.value.clustersTotal
         // Update cluster status for treemap
         if (chunkProgress.value.clusters[ci]) {
-          chunkProgress.value.clusters[ci].status = 'success'
+          chunkProgress.value.clusters[ci].status = isSkipped ? 'skipped' : 'success'
         }
         // Update overall agent progress based on chunk completion
         if (ct > 0) {
           agentState.value.progress = Math.min(Math.round((chunkProgress.value.completedChunks / ct) * 100), 95)
         }
-        addLog('success', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct} done`)
+        addLog(isSkipped ? 'info' : 'success', 'rc_gen', data.message || `Chunk ${ci + 1}/${ct} done`)
         break
       }
 
@@ -346,7 +447,14 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
           agentState.value.iteration = iter
           agentState.value.phase = phase
           agentState.value.message = data.message || ''
-          if (config.value.maxIterations > 0) {
+          // Forest mode: two-level progress = (completedChunks + intra-chunk fraction) / totalChunks
+          if (chunkProgress.value.isForestMode && chunkProgress.value.clustersTotal > 0) {
+            const ct = chunkProgress.value.clustersTotal
+            const chunkMaxIter = chunkProgress.value.currentChunkMaxIter
+            const intraChunkFraction = chunkMaxIter > 0 ? Math.min(iter / chunkMaxIter, 1.0) : 0
+            const overallFraction = (chunkProgress.value.completedChunks + intraChunkFraction) / ct
+            agentState.value.progress = Math.min(Math.round(overallFraction * 100), 95)
+          } else if (config.value.maxIterations > 0) {
             agentState.value.progress = Math.min(Math.round((iter / config.value.maxIterations) * 100), 95)
           }
         } else if (agent === 'embedding' && phase === 'embedding') {
@@ -356,10 +464,20 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
             storageStats.value.embeddingsStreamed = embSoFar
             if (embTotal > 0) {
               storageStats.value.embeddingsTotal = embTotal
-              embeddingState.value.progress = Math.min(Math.round((embSoFar / embTotal) * 100), 95)
+            }
+            // Use a stable denominator for progress: max(embTotal, estimated total)
+            // Estimated: each table produces ~2 embeddings (table desc + column average)
+            // Only count tables that need processing (exclude pre-existing context)
+            // This prevents progress from jumping to 95% when embSoFar catches up to embTotal temporarily
+            const tablesToProcess = Math.max(0, storageStats.value.tablesTotal - storageStats.value.tablesExisting)
+            const estimatedTotal = tablesToProcess > 0
+              ? Math.max(embTotal, tablesToProcess * 2)
+              : embTotal
+            if (estimatedTotal > 0) {
+              embeddingState.value.progress = Math.min(Math.round((embSoFar / estimatedTotal) * 100), 95)
             }
             embeddingState.value.message = embTotal > 0
-              ? `Embedded ${embSoFar}/${embTotal}`
+              ? `Embedded ${embSoFar}/${embTotal}${estimatedTotal > embTotal ? ' (ongoing)' : ''}`
               : `Streamed ${embSoFar} embeddings`
           }
           addLog('storage', 'embedding', data.message || '')
@@ -441,12 +559,13 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     embeddingState.value = { id: 'embedding', status: 'pending', phase: '', progress: 0, iteration: 0, message: '' }
     storageStats.value = {
       tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
+      tablesExisting: 0, columnsExisting: 0,
       termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
     }
     chunkProgress.value = {
       isForestMode: false, clustersTotal: 0, currentChunk: -1, completedChunks: 0, erroredChunks: 0,
       largestCluster: 0, medianCluster: 0, isolatedTables: 0,
-      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0,
+      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0, currentChunkMaxIter: 0,
       clusters: [],
     }
 
@@ -455,7 +574,12 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
       elapsedTime.value = Date.now() - startTime.value
     }, 100)
 
-    addLog('info', 'system', `Starting generation, iterations: ${config.value.minIterations}-${config.value.maxIterations}...`)
+    const isForest = forestPreview.value && forestPreview.value.clusters_total > 0
+    if (isForest) {
+      addLog('info', 'system', `Starting forest-chunked generation (${forestPreview.value!.clusters_total} chunks, per-chunk budget dynamic by table count)...`)
+    } else {
+      addLog('info', 'system', `Starting generation, iterations: ${config.value.minIterations}-${config.value.maxIterations}...`)
+    }
     persist()
 
     const url = `/api/v1/lakebase/datasources/${dbId}/generate-context`
@@ -576,12 +700,13 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     embeddingState.value = { id: 'embedding', status: 'pending', phase: '', progress: 0, iteration: 0, message: '' }
     storageStats.value = {
       tablesTotal: 0, tablesUpdated: 0, columnsTotal: 0, columnsUpdated: 0,
+      tablesExisting: 0, columnsExisting: 0,
       termsAdded: 0, sampleValuesAdded: 0, synonymsAdded: 0, embeddingsStreamed: 0, embeddingsTotal: 0
     }
     chunkProgress.value = {
       isForestMode: false, clustersTotal: 0, currentChunk: -1, completedChunks: 0, erroredChunks: 0,
       largestCluster: 0, medianCluster: 0, isolatedTables: 0,
-      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0,
+      currentChunkTables: [], currentChunkTableCount: 0, currentChunkRelationCount: 0, currentChunkMaxIter: 0,
       clusters: [],
     }
     clearPersistedState()
@@ -628,6 +753,11 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     formattedElapsed,
     totalContextWrites,
 
+    // Forest preview
+    forestPreview,
+    forestPreviewLoading,
+    forestPreviewError,
+
     // Actions
     startGeneration,
     minimize,
@@ -639,6 +769,8 @@ export const useContextGenerationStore = defineStore('contextGeneration', () => 
     addLog,
     handleEvent,
     updateRecommendedConfig,
-    computeRecommendedIterations
+    computeRecommendedIterations,
+    fetchForestPreview,
+    clearForestPreview
   }
 })

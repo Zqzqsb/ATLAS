@@ -226,12 +226,27 @@ func MergeIsolatedTables(clusters []*TableCluster, batchSize int) []*TableCluste
 }
 
 // ComputeChunkBudget calculates min/max iteration budgets for a table cluster.
+// Budget scales with table count: ~7 iterations per table for large clusters
+// (explore schema + sample data + set table desc + set column descs).
 func ComputeChunkBudget(tableCount int) (minIter, maxIter int) {
 	target := tableCount*3 + 10
 	maxIter = max(15, int(float64(target)*1.5))
-	if maxIter > 150 { // per-chunk cap (smaller than global 300)
-		maxIter = 150
+
+	// Dynamic per-chunk cap: scales with table count
+	// ≤10 tables → cap 60, ≤25 tables → cap 150, ≤50 tables → cap 300, >50 → cap 500
+	cap := 60
+	switch {
+	case tableCount > 50:
+		cap = 500
+	case tableCount > 25:
+		cap = 300
+	case tableCount > 10:
+		cap = 150
 	}
+	if maxIter > cap {
+		maxIter = cap
+	}
+
 	minIter = max(3, int(float64(target)*0.6))
 	// Ensure minIter <= maxIter
 	if minIter > maxIter {

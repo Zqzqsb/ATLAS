@@ -114,7 +114,7 @@ onUnmounted(() => {
             :class="currentStage >= 1 ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'"
           >
             <div class="i-lucide-layout-grid" />
-            All Tables ({{ allTables.length }})
+            All Tables
           </div>
         </div>
 
@@ -125,7 +125,7 @@ onUnmounted(() => {
             :class="currentStage >= 2 ? 'bg-violet-100 text-violet-700' : 'bg-gray-50 text-gray-400'"
           >
             <div class="i-lucide-radar" />
-            Stage 1: HNSW ({{ stage1Results.length || '?' }})
+            Stage 1: HNSW Recall
           </div>
         </div>
 
@@ -136,7 +136,7 @@ onUnmounted(() => {
             :class="currentStage >= 4 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-50 text-gray-400'"
           >
             <div class="i-lucide-brain" />
-            Stage 2: LLM ({{ stage2Results.length || '?' }})
+            Stage 2: LLM Refine
           </div>
         </div>
       </div>
@@ -269,7 +269,7 @@ onUnmounted(() => {
               <!-- Summary metrics -->
               <div class="mt-4 pt-3 border-t border-emerald-200/50 grid grid-cols-2 gap-3">
                 <div class="text-center">
-                  <div class="text-lg font-bold text-emerald-700">30 → 3</div>
+                  <div class="text-lg font-bold text-emerald-700">90%+ Reduced</div>
                   <div class="text-xs text-gray-500">Tables Filtered</div>
                 </div>
                 <div class="text-center">

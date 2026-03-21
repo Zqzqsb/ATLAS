@@ -6,7 +6,7 @@ const animStep = ref(0)
 const containerRef = ref<HTMLElement>()
 const activeLayer = ref(-1)
 
-// LUCID unified layers (abstract, no rc_* table names)
+// ATLAS unified layers (abstract, no rc_* table names)
 const unifiedLayers = [
   {
     name: 'Schema Metadata',
@@ -155,12 +155,12 @@ onUnmounted(() => {
     <!-- Main visualization -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
 
-      <!-- ==================== LEFT: LUCID Unified ==================== -->
+<!-- ==================== LEFT: ATLAS Unified ==================== -->
       <div class="relative flex flex-col">
         <div class="text-center mb-4">
           <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold border border-emerald-200 shadow-sm">
             <div class="i-lucide-check-circle text-emerald-500" />
-            LUCID — Single Engine
+            ATLAS — Single Engine
           </span>
         </div>
 

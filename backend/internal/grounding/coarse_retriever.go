@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"lucid/internal/embedding"
@@ -73,7 +72,13 @@ type RetrievalResult struct {
 	ExecutionLogs []ExecutionLog // Logs for transparency
 }
 
-// Retrieve performs speculative parallel retrieval across all signal types
+// Retrieve performs unified vector retrieval and splits results by signal type.
+//
+// MariaDB HNSW is a global index — adding a WHERE entity_type filter causes the
+// index scan to return only the N nearest neighbours overall, then post-filters
+// by type.  When one type dominates, the filtered set for minority types can be
+// empty.  To work around this we issue a single large SearchSimilar query
+// (without type filter) and bucket the results in application code.
 func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (*RetrievalResult, error) {
 	start := time.Now()
 	log := logger.With("component", "coarse_retriever")
@@ -103,82 +108,103 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		}
 	}
 
-	// Speculative parallel retrieval — each goroutine pushes its result as soon as it completes.
-	// If a ProgressCallback is set, it fires per signal-type so the handler can stream incremental SSE.
-	var wg sync.WaitGroup
-	type retrievalResultWithLog struct {
-		signalType SignalType
-		signals    []*RetrievalSignal
-		log        ExecutionLog
-	}
-	resultCh := make(chan retrievalResultWithLog, len(signalTypes))
-	errCh := make(chan error, len(signalTypes))
-
+	// Build a set of desired entity types for quick lookup
+	wantedEntityTypes := make(map[lakebase.EntityType]SignalType, len(signalTypes))
 	for _, st := range signalTypes {
-		wg.Add(1)
-		go func(signalType SignalType) {
-			defer wg.Done()
-			
-			searchStart := time.Now()
-			signals, err := r.retrieveByType(ctx, req.DatasourceID, signalType, queryVector)
-			searchDuration := time.Since(searchStart)
-			
-			if err != nil {
-				log.Error("[Retrieve] Signal search failed",
-					"signal_type", signalType,
-					"error", err,
-				)
-				errCh <- err
-				return
-			}
-
-			log.Debug("[Retrieve] Signal search completed",
-				"signal_type", signalType,
-				"results", len(signals),
-				"duration", searchDuration.Round(time.Millisecond),
-			)
-			
-			// Build execution log for transparency
-			entityType := mapSignalToEntityType(signalType)
-			log := ExecutionLog{
-				Phase: "vector_search",
-				SQL: fmt.Sprintf("SELECT id, entity_text, VEC_DISTANCE_COSINE(embedding, ?) AS distance FROM rc_embeddings WHERE datasource_id = %d AND entity_type = '%s' ORDER BY distance ASC LIMIT %d",
-					req.DatasourceID, entityType, r.config.ProbesPerType),
-				Params:      []interface{}{"[query_vector..."},
-				ResultCount: len(signals),
-				Duration:    searchDuration,
-				Summary:     fmt.Sprintf("Vector search for %s: found %d results in %v", signalType, len(signals), searchDuration.Round(time.Millisecond)),
-			}
-
-			// Fire per-signal-type callback so handler can push incremental SSE
-			if req.ProgressCallback != nil {
-				req.ProgressCallback(signalType, signals, log)
-			}
-			
-			resultCh <- retrievalResultWithLog{signalType: signalType, signals: signals, log: log}
-		}(st)
+		et := mapSignalToEntityType(st)
+		wantedEntityTypes[et] = st
 	}
 
-	// Wait for all goroutines to complete
-	wg.Wait()
-	close(resultCh)
-	close(errCh)
+	// Unified HNSW search — no entity_type filter so the index scan is not
+	// prematurely truncated.  We fetch ProbesPerType * len(types) * 2 rows to
+	// ensure every type has enough candidates after bucketing.
+	totalTopK := r.config.ProbesPerType * len(signalTypes) * 2
+	if totalTopK < 200 {
+		totalTopK = 200
+	}
 
-	// Check for errors
-	select {
-	case err := <-errCh:
-		if err != nil {
-			return nil, err
+	searchStart := time.Now()
+	results, err := r.vectorRepo.SearchSimilar(ctx, req.DatasourceID, queryVector, totalTopK)
+	searchDuration := time.Since(searchStart)
+	if err != nil {
+		log.Error("[Retrieve] Unified vector search failed", "error", err)
+		return nil, fmt.Errorf("unified vector search failed: %w", err)
+	}
+	log.Debug("[Retrieve] Unified search completed",
+		"total_results", len(results),
+		"duration", searchDuration.Round(time.Millisecond),
+	)
+
+	// Bucket results by entity type → signal type
+	buckets := make(map[SignalType][]*RetrievalSignal)
+	for _, result := range results {
+		signalType, ok := wantedEntityTypes[lakebase.EntityType(result.EntityType)]
+		if !ok {
+			continue // entity_type not in the requested set
 		}
-	default:
+
+		score := float32(1.0 - result.Distance)
+		sig := &RetrievalSignal{
+			ID:           result.ID,
+			SignalType:   signalType,
+			DatasourceID: req.DatasourceID,
+			EntityName:   result.EntityText,
+			Content:      result.EntityText,
+			Distance:     float32(result.Distance),
+			Score:        score,
+		}
+
+		// For column signals, parse structured entity text
+		if signalType == SignalTypeColumn {
+			if tbl, col, dataType, desc, ok := parseColumnEntity(result.EntityText); ok {
+				sig.SourceTable = tbl
+				sig.SourceColumn = col
+				sig.Metadata = dataType
+				if desc != "" {
+					sig.Content = desc
+				}
+				sig.EntityName = tbl + "." + col
+			}
+		}
+
+		// Cap per-type at ProbesPerType
+		if len(buckets[signalType]) < r.config.ProbesPerType {
+			buckets[signalType] = append(buckets[signalType], sig)
+		}
 	}
 
-	// Collect and merge results
+	// Post-process: deduplicate columns
+	if cols, ok := buckets[SignalTypeColumn]; ok {
+		buckets[SignalTypeColumn] = deduplicateColumnSignals(cols)
+	}
+
+	// Build per-type execution logs & fire progress callbacks
 	var allSignals []*RetrievalSignal
 	var executionLogs []ExecutionLog
-	for result := range resultCh {
-		allSignals = append(allSignals, result.signals...)
-		executionLogs = append(executionLogs, result.log)
+	for _, st := range signalTypes {
+		signals := buckets[st]
+		entityType := mapSignalToEntityType(st)
+
+		execLog := ExecutionLog{
+			Phase: "vector_search",
+			SQL: fmt.Sprintf(
+				"SELECT id, entity_text, VEC_DISTANCE_COSINE(embedding, ?) AS distance "+
+					"FROM rc_embeddings WHERE datasource_id = %d ORDER BY distance ASC LIMIT %d "+
+					"/* bucketed by entity_type = '%s' */",
+				req.DatasourceID, totalTopK, entityType),
+			Params:      []interface{}{"[query_vector...]"},
+			ResultCount: len(signals),
+			Duration:    searchDuration / time.Duration(len(signalTypes)), // approximate per-type
+			Summary: fmt.Sprintf("Vector search for %s: found %d results (unified query, %v total)",
+				st, len(signals), searchDuration.Round(time.Millisecond)),
+		}
+		executionLogs = append(executionLogs, execLog)
+
+		if req.ProgressCallback != nil {
+			req.ProgressCallback(st, signals, execLog)
+		}
+
+		allSignals = append(allSignals, signals...)
 	}
 
 	// Sort by score (descending)
@@ -219,64 +245,6 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 	}, nil
 }
 
-// retrieveByType searches for signals of a specific type
-func (r *CoarseRetriever) retrieveByType(
-	ctx context.Context,
-	dsID int64,
-	signalType SignalType,
-	queryVector []float32,
-) ([]*RetrievalSignal, error) {
-	// Map signal type to entity type
-	entityType := mapSignalToEntityType(signalType)
-
-	// Perform vector search
-	results, err := r.vectorRepo.SearchSimilarByType(ctx, dsID, entityType, queryVector, r.config.ProbesPerType)
-	if err != nil {
-		return nil, fmt.Errorf("vector search failed for %s: %w", signalType, err)
-	}
-
-	// Convert to RetrievalSignal
-	var signals []*RetrievalSignal
-	for _, result := range results {
-		score := float32(1.0 - result.Distance)
-		if score < r.config.MinScore {
-			continue
-		}
-
-		sig := &RetrievalSignal{
-			ID:           result.ID,
-			SignalType:   signalType,
-			DatasourceID: dsID,
-			EntityName:   result.EntityText,
-			Content:      result.EntityText,
-			Distance:     float32(result.Distance),
-			Score:        score,
-		}
-
-		// For column signals, parse "Column table.col (type): desc..." to populate SourceTable/SourceColumn
-		if signalType == SignalTypeColumn {
-			if tbl, col, dataType, desc, ok := parseColumnEntity(result.EntityText); ok {
-				sig.SourceTable = tbl
-				sig.SourceColumn = col
-				sig.Metadata = dataType // store parsed data type
-				if desc != "" {
-					sig.Content = desc // store RC description (without prefix)
-				}
-				sig.EntityName = tbl + "." + col // normalise to "table.column"
-			}
-		}
-
-		signals = append(signals, sig)
-	}
-
-	// Deduplicate column signals by table.column — keep highest score
-	if signalType == SignalTypeColumn {
-		signals = deduplicateColumnSignals(signals)
-	}
-
-	return signals, nil
-}
-
 // deduplicateColumnSignals keeps only the highest-score signal per table.column pair.
 func deduplicateColumnSignals(signals []*RetrievalSignal) []*RetrievalSignal {
 	best := make(map[string]*RetrievalSignal) // key = "table.column"
@@ -310,11 +278,13 @@ func mapSignalToEntityType(signalType SignalType) lakebase.EntityType {
 	case SignalTypeColumn:
 		return lakebase.EntityTypeColumn
 	case SignalTypeContext:
-		return lakebase.EntityTypeContext
+		// Prefer "term" (domain glossary) which has actual embeddings;
+		// fall back covers onboarding flows that store as "context".
+		return lakebase.EntityTypeTerm
 	case SignalTypeSQLTemplate:
 		return lakebase.EntityTypeQuery
 	case SignalTypeDomainKnowledge:
-		return lakebase.EntityTypeContext
+		return lakebase.EntityTypeTerm
 	case SignalTypeRelationship:
 		return lakebase.EntityTypeRelationship
 	default:

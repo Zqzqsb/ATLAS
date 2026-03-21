@@ -176,9 +176,9 @@ type ExecutionLog struct {
 func DefaultGroundingConfig() *GroundingConfig {
 	return &GroundingConfig{
 		CoarseRetrieval: CoarseRetrievalConfig{
-			ProbesPerType: 20,
+			ProbesPerType: 30,
 			MaxSignals:    100,
-			MinScore:      0.3,
+			MinScore:      0.15,
 			Speculative:   true,
 			TimeoutMs:     5000,
 		},

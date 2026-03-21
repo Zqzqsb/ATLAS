@@ -172,11 +172,16 @@ func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, q
 	}
 
 	vectorStr := vectorToString(queryVector)
+	// Use IGNORE INDEX to force brute-force scan. MariaDB HNSW navigates from
+	// the entry-point; when the query vector is distant from all stored vectors
+	// (NL query vs structured entity text), the graph traversal terminates early
+	// and returns very few results even with high ef_search. Brute-force is
+	// acceptable for ~5k embeddings.
 	query := `
 		SELECT id, datasource_id, entity_type, entity_id, entity_text,
 		       embedding_model, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
-		FROM rc_embeddings
+		FROM rc_embeddings IGNORE INDEX (idx_embedding_hnsw)
 		WHERE datasource_id = ? AND is_deleted = 0
 		ORDER BY distance ASC
 		LIMIT ?
@@ -196,7 +201,7 @@ func (r *MySQLVectorRepository) SearchSimilarByType(ctx context.Context, dsID in
 		SELECT id, datasource_id, entity_type, entity_id, entity_text,
 		       embedding_model, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
-		FROM rc_embeddings
+		FROM rc_embeddings IGNORE INDEX (idx_embedding_hnsw)
 		WHERE datasource_id = ? AND entity_type = ? AND is_deleted = 0
 		ORDER BY distance ASC
 		LIMIT ?
@@ -206,7 +211,19 @@ func (r *MySQLVectorRepository) SearchSimilarByType(ctx context.Context, dsID in
 }
 
 func (r *MySQLVectorRepository) searchEmbeddings(ctx context.Context, query string, args ...interface{}) ([]*EmbeddingWithDistance, error) {
-	rows, err := r.pool.QueryContext(ctx, query, args...)
+	db, err := r.pool.DB()
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: pool unavailable: %w", err)
+	}
+
+	// Acquire a single connection for query execution.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to acquire connection: %w", err)
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("lakebase: failed to search embeddings: %w", err)
 	}

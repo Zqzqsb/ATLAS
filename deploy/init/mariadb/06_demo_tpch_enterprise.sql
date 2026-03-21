@@ -639,7 +639,12 @@ INSERT INTO invoices (order_id, invoice_no, invoice_date, due_date, amount, tax_
 (7,  'INV-2024-0007', '1996-01-15', '1996-02-15', 252004.18, 32453.03, 'paid',    '1996-02-10'),
 (34, 'INV-2024-0034', '1998-07-25', '1998-08-25', 58949.67,  7592.32,  'overdue', NULL),
 (36, 'INV-2024-0036', '1995-11-08', '1995-12-08', 173665.47, 22366.83, 'paid',    '1995-12-01'),
-(39, 'INV-2024-0039', '1996-09-25', '1996-10-25', 219707.84, 28288.07, 'sent',    NULL);
+(39, 'INV-2024-0039', '1996-09-25', '1996-10-25', 219707.84, 28288.07, 'sent',    NULL),
+(4,  'INV-2024-0004', '1995-10-15', '1995-11-15', 32151.78,  4143.54,  'overdue', NULL),
+(32, 'INV-2024-0032', '1995-07-20', '1995-08-20', 208660.75, 26881.45, 'overdue', NULL),
+(35, 'INV-2024-0035', '1995-10-28', '1995-11-28', 73426.50,  9456.53,  'overdue', NULL),
+(64, 'INV-2024-0064', '1994-07-20', '1994-08-20', 20613.67,  2654.06,  'overdue', NULL),
+(66, 'INV-2024-0066', '1994-01-25', '1994-02-25', 79258.24,  10206.70, 'sent',    NULL);
 
 CREATE TABLE payments (
     payment_id     INT PRIMARY KEY AUTO_INCREMENT,
@@ -970,9 +975,16 @@ CREATE TABLE IF NOT EXISTS hr_recruitment_requisitions (
     FOREIGN KEY (departments_id) REFERENCES hr_departments(id)
 ) COMMENT='HR — Recruitment Requisitions';
 INSERT IGNORE INTO hr_recruitment_requisitions (name, departments_id, description, category, created_at, status) VALUES
-('Alpha-1', 36, 'descri_1', 'type_A', '2025-03-24 06:00:00', 'pending'),
-('Beta-2', 14, 'descri_2', 'type_B', '2025-02-20 12:00:00', 'active'),
-('Gamma-3', 46, 'descri_3', 'type_C', '2025-06-09 19:00:00', 'pending');
+('Senior Backend Engineer', 2, 'Hiring senior Go/Python engineer for cloud platform team', 'technical', '2025-01-10 09:00:00', 'open'),
+('Marketing Specialist', 3, 'Content marketing role for APAC region campaigns', 'marketing', '2025-01-15 10:00:00', 'open'),
+('Data Analyst', 4, 'Business intelligence analyst for finance department', 'analytical', '2025-02-01 08:30:00', 'open'),
+('DevOps Engineer', 2, 'Infrastructure and CI/CD pipeline management', 'technical', '2025-02-10 11:00:00', 'open'),
+('Product Manager', 1, 'Product manager for enterprise SaaS platform', 'management', '2025-01-20 14:00:00', 'open'),
+('HR Coordinator', 3, 'Recruitment and onboarding coordination', 'administrative', '2025-03-01 09:00:00', 'pending'),
+('QA Lead', 2, 'Quality assurance team lead for mobile apps', 'technical', '2025-02-15 10:00:00', 'closed'),
+('Sales Representative', 1, 'B2B sales for manufacturing clients', 'sales', '2025-01-05 08:00:00', 'closed'),
+('UX Designer', 2, 'User experience designer for customer portal', 'design', '2025-02-20 13:00:00', 'open'),
+('Logistics Coordinator', 4, 'Warehouse operations and supply chain support', 'operations', '2025-03-05 07:30:00', 'pending');
 
 CREATE TABLE IF NOT EXISTS hr_candidates (
     id                           INT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',

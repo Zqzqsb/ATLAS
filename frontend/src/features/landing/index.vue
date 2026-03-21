@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { NButton, NSpin, useMessage } from 'naive-ui'
 import { useDatabaseStore } from '@/stores/database'
-import lucidLogo from '@/assets/lucid-logo.svg'
+import atlasLogo from '@/assets/atlas-logo.svg'
 import DatabaseCard from './DatabaseCard.vue'
 import SpiderDatasetCard from './SpiderDatasetCard.vue'
 import TpchEnterpriseCard from './TpchEnterpriseCard.vue'
@@ -86,13 +86,13 @@ async function handleAddDatabase(config: DatabaseConfig) {
         <!-- Header -->
         <div class="text-center mb-14">
           <div class="flex items-center justify-center gap-3 mb-6">
-            <img :src="lucidLogo" alt="LUCID" class="w-20 h-20 rounded-2xl shadow-2xl shadow-primary-500/30 ring-4 ring-white/50" />
+<img :src="atlasLogo" alt="ATLAS" class="w-20 h-20 rounded-2xl shadow-2xl shadow-primary-500/30 ring-4 ring-white/50" />
           </div>
           <h1 class="text-5xl font-extrabold text-gray-900 tracking-tight mb-4 drop-shadow-sm">
-            LUCID
+            ATLAS
           </h1>
           <p class="text-xl text-gray-600 font-medium max-w-3xl mx-auto mb-4">
-            Lakebase-Unified Context-aware Intelligence for Data
+            Adaptive Text-to-SQL with Lifecycle-Aware Self-Maintaining Context
           </p>
           <div class="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-white/60 backdrop-blur-sm border border-white/80 shadow-lg shadow-gray-200/50">
             <span class="text-sm font-semibold text-gray-600">Agent Self-Maintaining</span>

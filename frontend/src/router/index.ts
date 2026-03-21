@@ -8,7 +8,7 @@ const router = createRouter({
       path: '/',
       name: 'Landing',
       component: () => import('@/features/landing/index.vue'),
-      meta: { title: 'LUCID - My Databases' }
+      meta: { title: 'ATLAS - My Databases' }
     },
 
     // Feature Showcase
@@ -16,7 +16,7 @@ const router = createRouter({
       path: '/features',
       name: 'Features',
       component: () => import('@/features/showcase/index.vue'),
-      meta: { title: 'LUCID - Feature Showcase' }
+      meta: { title: 'ATLAS - Feature Showcase' }
     },
 
     // Workspace - Database specific
@@ -38,7 +38,7 @@ const router = createRouter({
 // Navigation guards
 router.beforeEach((to, from, next) => {
   // Update document title
-  document.title = (to.meta.title as string) || 'LUCID'
+  document.title = (to.meta.title as string) || 'ATLAS'
   next()
 })
 

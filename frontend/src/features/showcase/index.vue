@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import lucidLogo from '@/assets/lucid-logo.svg'
+import atlasLogo from '@/assets/atlas-logo.svg'
 import LakebaseViz from './LakebaseViz.vue'
 import SchemaLinkingViz from './SchemaLinkingViz.vue'
 import ContextLifecycleViz from './ContextLifecycleViz.vue'
@@ -11,7 +11,7 @@ const router = useRouter()
 
 /* ─── Section metadata ─── */
 const sections = [
-  { id: 'hero', label: 'LUCID' },
+{ id: 'hero', label: 'ATLAS' },
   { id: 'lakebase', label: 'Lakebase' },
   { id: 'linking', label: 'Linking' },
   { id: 'lifecycle', label: 'Context' },
@@ -290,7 +290,7 @@ function goHome() {
 
       <div class="relative max-w-4xl mx-auto px-6 text-center">
         <div class="flex items-center justify-center mb-6">
-          <img :src="lucidLogo" alt="LUCID" class="w-16 h-16 rounded-xl shadow-xl shadow-primary-500/20" />
+<img :src="atlasLogo" alt="ATLAS" class="w-16 h-16 rounded-xl shadow-xl shadow-primary-500/20" />
         </div>
 
         <h1 class="text-5xl md:text-6xl font-extrabold text-gray-900 tracking-tight mb-5">
@@ -298,11 +298,11 @@ function goHome() {
             Four Innovations
           </span>
           <br>
-          <span class="text-gray-800 text-3xl md:text-4xl font-bold">that Power LUCID</span>
+<span class="text-gray-800 text-3xl md:text-4xl font-bold">that Power ATLAS</span>
         </h1>
 
         <p class="text-lg text-gray-500 max-w-2xl mx-auto mb-10">
-          A Lakebase-Unified Context-aware Intelligence system for Text-to-SQL,
+          A lifecycle-aware self-maintaining Text-to-SQL system,
           built entirely inside MariaDB with native VECTOR + HNSW support.
         </p>
 
@@ -380,7 +380,7 @@ function goHome() {
       <div class="max-w-4xl mx-auto px-6 text-center">
         <h2 class="text-4xl font-bold text-white mb-4">Ready to Explore?</h2>
         <p class="text-gray-400 mb-10 text-lg">
-          Connect your database and experience LUCID's intelligent Text-to-SQL pipeline
+          Connect your database and experience ATLAS's intelligent Text-to-SQL pipeline
         </p>
         <div class="flex items-center justify-center gap-4">
           <button

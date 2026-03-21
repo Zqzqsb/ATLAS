@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
-import lucidLogo from '@/assets/lucid-logo.svg'
+import atlasLogo from '@/assets/atlas-logo.svg'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,9 +27,9 @@ function goHome() {
         class="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
         @click="goHome"
       >
-        <img :src="lucidLogo" alt="LUCID" class="w-8 h-8 rounded-lg shadow-sm ring-1 ring-gray-900/5" />
+<img :src="atlasLogo" alt="ATLAS" class="w-8 h-8 rounded-lg shadow-sm ring-1 ring-gray-900/5" />
         <div class="flex flex-col leading-none mt-0.5">
-          <span class="font-extrabold text-[17px] text-gray-900 tracking-tight">LUCID</span>
+<span class="font-extrabold text-[17px] text-gray-900 tracking-tight">ATLAS</span>
         </div>
       </div>
 

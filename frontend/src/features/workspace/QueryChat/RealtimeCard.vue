@@ -97,12 +97,12 @@ const colorClasses = computed(() => {
       class="card-header px-5 transition-colors duration-200" 
       :class="[
         active 
-          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-3.5 border-b` 
+          ? `${colorClasses.border} bg-gradient-to-r ${colorClasses.gradient} py-2.5 border-b` 
           : completed 
-            ? `border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-3 border-b ${isCollapsible ? 'cursor-pointer select-none hover:from-emerald-50 hover:to-emerald-50/20' : ''}` 
+            ? `border-emerald-100 bg-gradient-to-r from-emerald-50/60 to-white py-2.5 border-b ${isCollapsible ? 'cursor-pointer select-none hover:from-emerald-50 hover:to-emerald-50/20' : ''}` 
             : pending 
-              ? 'bg-gray-50/30 py-3' 
-              : 'py-3.5'
+              ? 'bg-gray-50/30 py-2.5' 
+              : 'py-2.5'
       ]"
       @click="toggleExpand"
     >
@@ -111,14 +111,14 @@ const colorClasses = computed(() => {
           <!-- Step number badge for idle/pending; icon for active/completed -->
           <div 
             v-if="isIdle && stepNumber"
-            class="w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold shadow-sm shrink-0"
+            class="w-6 h-6 rounded-full flex items-center justify-center border text-[10px] font-bold shadow-sm shrink-0"
             :class="colorClasses.step"
           >
             {{ stepNumber }}
           </div>
           <div 
             v-else
-            class="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm shrink-0"
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm shrink-0"
             :class="active ? `${colorClasses.iconBg} ring-1 ring-${props.color || 'blue'}-200` : completed ? 'bg-emerald-50 ring-1 ring-emerald-200' : pending ? `${colorClasses.iconBg} opacity-60` : 'bg-gray-50 border border-gray-100'"
           >
             <div 
@@ -184,7 +184,7 @@ const colorClasses = computed(() => {
 
     <!-- Content: only shown when active or completed AND expanded -->
     <Transition name="card-content">
-    <div v-if="showContent" class="card-content px-5 py-4">
+    <div v-if="showContent" class="card-content px-5 py-3">
       <slot name="content" />
     </div>
     </Transition>

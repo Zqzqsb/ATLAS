@@ -1,5 +1,5 @@
 /**
- * LUCID Frontend SSR Server
+ * ATLAS Frontend SSR Server
  * 
  * This server:
  * 1. Pre-fetches initial data from backend on page load (SSR)
@@ -185,7 +185,7 @@ app.use(async (req, res, next) => {
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 LUCID Frontend Server running on port ${PORT}`);
+  console.log(`🚀 ATLAS Frontend Server running on port ${PORT}`);
   console.log(`   Backend URL: ${BACKEND_URL}`);
   console.log(`   Static files: ${distPath}`);
 });

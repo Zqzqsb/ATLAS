@@ -61,14 +61,14 @@ function startSubStageAnimation() {
   resetSubStages()
   // T+0ms: stage 1 appears (doing)
   subStage1Visible.value = true
-  // T+1200ms: stage 1 → done
-  subStageTimers.push(setTimeout(() => { subStage1Done.value = true }, 1200))
-  // T+1800ms: stage 2 appears (doing)
-  subStageTimers.push(setTimeout(() => { subStage2Visible.value = true }, 1800))
-  // T+3200ms: stage 2 → done
-  subStageTimers.push(setTimeout(() => { subStage2Done.value = true }, 3200))
-  // T+3800ms: stage 3 appears (doing — stays doing until real data arrives)
-  subStageTimers.push(setTimeout(() => { subStage3Visible.value = true }, 3800))
+  // T+2500ms: stage 1 → done  (vector retrieval is slower, give it more visual time)
+  subStageTimers.push(setTimeout(() => { subStage1Done.value = true }, 2500))
+  // T+3200ms: stage 2 appears (doing)
+  subStageTimers.push(setTimeout(() => { subStage2Visible.value = true }, 3200))
+  // T+4600ms: stage 2 → done
+  subStageTimers.push(setTimeout(() => { subStage2Done.value = true }, 4600))
+  // T+5200ms: stage 3 appears (doing — stays doing until real data arrives)
+  subStageTimers.push(setTimeout(() => { subStage3Visible.value = true }, 5200))
 }
 
 // Delayed step reveal — steps that arrive while animation is playing get queued
@@ -80,7 +80,7 @@ function scheduleStepReveal(totalSteps: number) {
   if (stepRevealTimer) clearTimeout(stepRevealTimer)
   if (visibleStepCount.value >= totalSteps) return
   // Base delay: if stage 3 hasn't appeared yet, wait for it; otherwise short stagger
-  const baseDelay = subStage3Visible.value ? 400 : 4500
+  const baseDelay = subStage3Visible.value ? 400 : 5900
   stepRevealTimer = setTimeout(() => {
     if (visibleStepCount.value < totalSteps) {
       visibleStepCount.value++
@@ -168,6 +168,8 @@ function resetTimings() {
   }
   expandedSteps.value.clear()
   resetSubStages()
+  showAllVectorTables.value = false
+  showAllVectorColumns.value = false
 }
 
 // Query options
@@ -248,13 +250,13 @@ const exampleQuestions = computed(() => {
   // TPC-H Enterprise (510-table large-scale demo)
   if (dbName.includes('tpch') || dbName.includes('enterprise')) {
     return [
-      'Which supplier has the highest profit?',
+      'Which supplier has the highest account balance?',
       'Which parts in the East warehouse are low on stock?',
       'What are the lowest-rated products?',
       'Which orders have shipping delays over 3 days?',
       'List all open recruitment requisitions',
-      'Which employees have expiring certifications?',
-      'Show overdue accounts payable invoices',
+      'Which employees got the highest performance ratings?',
+      'Show overdue invoices that have not been paid',
     ]
   }
 
@@ -422,6 +424,8 @@ const sqlGenerationStage = computed(() => {
 // ---- Auto-scroll: keep latest content visible, bottom-anchored ----
 const executionAreaRef = ref<HTMLElement | null>(null)
 const vectorSearchRef = ref<HTMLElement | null>(null)
+const showAllVectorTables = ref(false)
+const showAllVectorColumns = ref(false)
 const schemaLinkingRef = ref<HTMLElement | null>(null)
 const sqlGenerationRef = ref<HTMLElement | null>(null)
 const queryResultRef = ref<HTMLElement | null>(null)
@@ -856,7 +860,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               v-model:value="question"
               type="textarea"
               :autosize="{ minRows: 3, maxRows: 8 }"
-              placeholder="e.g. Which supplier has the highest profit?"
+              placeholder="e.g. Which supplier has the highest account balance?"
               :disabled="isExecuting"
               class="query-input"
               @keydown.ctrl.enter="handleExecute"
@@ -929,7 +933,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- RIGHT: Execution Pipeline -->
       <div ref="executionAreaRef" class="execution-area p-6 xl:p-8 overflow-y-auto bg-slate-50/30">
     <!-- Real-time Execution Cards (vertical stack) -->
-    <div class="execution-pipeline space-y-4 mb-8">
+    <div class="execution-pipeline space-y-3 mb-8">
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <div ref="vectorSearchRef" class="scroll-mt-4">
       <RealtimeCard
@@ -960,17 +964,17 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <div class="i-lucide-table-2 text-sm text-blue-400" />
               <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Analyzing {{ workspaceStore.skeletonTables.length }} tables...</span>
             </div>
-            <div class="space-y-2">
+            <div class="space-y-1.5">
               <div
-                v-for="table in workspaceStore.skeletonTables.slice(0, 8)"
+                v-for="table in workspaceStore.skeletonTables.slice(0, 6)"
                 :key="'sk-' + table"
-                class="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-100"
+                class="flex items-center justify-between px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-100"
               >
-                <span class="text-sm text-gray-400 font-medium">{{ table }}</span>
+                <span class="text-xs text-gray-400 font-medium">{{ table }}</span>
                 <div class="w-16 h-1.5 rounded-full bg-gray-100" />
               </div>
-              <div v-if="workspaceStore.skeletonTables.length > 8" class="text-xs text-gray-400 text-center">
-                +{{ workspaceStore.skeletonTables.length - 8 }} more tables
+              <div v-if="workspaceStore.skeletonTables.length > 6" class="text-xs text-gray-400 text-center">
+                +{{ workspaceStore.skeletonTables.length - 6 }} more tables
               </div>
             </div>
           </div>
@@ -981,37 +985,74 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
             </div>
           </div>
-          <div v-else-if="workspaceStore.groundingResult" class="space-y-3">
+          <div v-else-if="workspaceStore.groundingResult" class="space-y-2.5">
 
-            <!-- Candidate tables with descriptions -->
-            <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item space-y-1.5" style="--stagger: 0">
-              <div
-                v-for="(table, ti) in workspaceStore.groundingResult.tables"
-                :key="table.name"
-                class="table-pill flex items-start gap-2 px-2 py-1 rounded-lg bg-blue-50/70 border border-blue-100"
-                :style="{ animationDelay: (ti * 60) + 'ms' }"
-              >
-                <div class="i-lucide-table-2 text-[11px] text-blue-400 mt-0.5 shrink-0" />
-                <div class="min-w-0">
-                  <span class="text-[11px] font-bold text-blue-700">{{ table.name }}</span>
-                  <span v-if="table.description" class="text-[11px] text-gray-500 ml-1.5">{{ table.description }}</span>
-                </div>
+            <!-- Candidate tables — compact tag grid (collapsible when > 6) -->
+            <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item" style="--stagger: 0">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <div class="i-lucide-table-2 text-[10px] text-blue-400" />
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Candidate Tables</span>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="(table, ti) in (showAllVectorTables ? workspaceStore.groundingResult.tables : workspaceStore.groundingResult.tables.slice(0, 6))"
+                  :key="table.name"
+                  class="table-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-100/80 hover:border-blue-300 hover:shadow-sm transition-all cursor-default"
+                  :style="{ animationDelay: (ti * 40) + 'ms' }"
+                  :title="table.description || table.name"
+                >
+                  <div class="w-1 h-1 rounded-full bg-blue-400 shrink-0" />
+                  <span class="text-[10.5px] font-semibold text-blue-700">{{ table.name }}</span>
+                </span>
+                <button
+                  v-if="workspaceStore.groundingResult.tables.length > 6 && !showAllVectorTables"
+                  class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-dashed border-blue-200 text-[10px] text-blue-500 hover:text-blue-700 hover:bg-blue-100/60 transition-colors cursor-pointer"
+                  @click="showAllVectorTables = true"
+                >
+                  <div class="i-lucide-chevrons-down text-[9px]" />
+                  +{{ workspaceStore.groundingResult.tables.length - 6 }} more
+                </button>
+                <button
+                  v-if="showAllVectorTables && workspaceStore.groundingResult.tables.length > 6"
+                  class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-dashed border-blue-200 text-[10px] text-blue-500 hover:text-blue-700 hover:bg-blue-100/60 transition-colors cursor-pointer"
+                  @click="showAllVectorTables = false"
+                >
+                  <div class="i-lucide-chevrons-up text-[9px]" /> Less
+                </button>
               </div>
             </div>
 
-            <!-- Retrieved columns (compact, grouped by table) -->
+            <!-- Retrieved columns — compact pills (collapsible when > 12) -->
             <div v-if="workspaceStore.groundingResult.columns?.length" class="stagger-item" style="--stagger: 1">
-              <div class="flex flex-wrap gap-1">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <div class="i-lucide-columns-3 text-[10px] text-cyan-400" />
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Candidate Columns</span>
+              </div>
+              <div class="flex flex-wrap gap-0.5">
                 <span
-                  v-for="(col, ci) in workspaceStore.groundingResult.columns"
+                  v-for="(col, ci) in (showAllVectorColumns ? workspaceStore.groundingResult.columns : workspaceStore.groundingResult.columns.slice(0, 12))"
                   :key="col.table + '.' + col.column"
-                  class="column-pill inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-cyan-50/80 border border-cyan-100 text-[10px]"
-                  :style="{ animationDelay: (ci * 30) + 'ms' }"
+                  class="column-pill inline-flex items-center gap-0.5 px-1.5 py-px rounded bg-cyan-50/80 border border-cyan-100/80 text-[9.5px] hover:border-cyan-300 transition-colors"
+                  :style="{ animationDelay: (ci * 25) + 'ms' }"
                   :title="[col.table + '.' + col.column, col.dataType, col.description].filter(Boolean).join(' — ')"
                 >
                   <span class="text-cyan-500 font-medium">{{ col.table }}</span><span class="text-gray-300">.</span><span class="text-cyan-700 font-semibold">{{ col.column }}</span>
                   <span v-if="col.dataType" class="text-gray-400">{{ col.dataType }}</span>
                 </span>
+                <button
+                  v-if="workspaceStore.groundingResult.columns.length > 12 && !showAllVectorColumns"
+                  class="inline-flex items-center gap-0.5 px-1.5 py-px rounded bg-cyan-50/60 border border-dashed border-cyan-200 text-[9.5px] text-cyan-500 hover:text-cyan-700 hover:bg-cyan-100/60 transition-colors cursor-pointer"
+                  @click="showAllVectorColumns = true"
+                >
+                  +{{ workspaceStore.groundingResult.columns.length - 12 }} more
+                </button>
+                <button
+                  v-if="showAllVectorColumns && workspaceStore.groundingResult.columns.length > 12"
+                  class="inline-flex items-center gap-0.5 px-1.5 py-px rounded bg-cyan-50/60 border border-dashed border-cyan-200 text-[9.5px] text-cyan-500 hover:text-cyan-700 hover:bg-cyan-100/60 transition-colors cursor-pointer"
+                  @click="showAllVectorColumns = false"
+                >
+                  <div class="i-lucide-chevrons-up text-[9px]" /> Less
+                </button>
               </div>
             </div>
 

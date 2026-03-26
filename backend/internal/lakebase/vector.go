@@ -165,18 +165,21 @@ func (r *MySQLVectorRepository) DeleteEmbeddingsByDatasource(ctx context.Context
 	return err
 }
 
-// SearchSimilar performs HNSW vector similarity search
+// SearchSimilar performs vector similarity search scoped to a single datasource.
+//
+// MariaDB's HNSW index is a global graph; adding WHERE predicates causes the
+// engine to traverse the graph and post-filter, which can return far fewer
+// results than requested when the target partition is semantically distant from
+// the HNSW entry-point. We therefore use a scoped brute-force scan restricted
+// to the target datasource. With a composite index on (datasource_id, is_deleted),
+// the engine only touches rows belonging to the target datasource, keeping
+// latency proportional to partition size rather than total table size.
 func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error) {
 	if len(queryVector) != DefaultEmbeddingDimension {
 		return nil, fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(queryVector))
 	}
 
 	vectorStr := vectorToString(queryVector)
-	// Use IGNORE INDEX to force brute-force scan. MariaDB HNSW navigates from
-	// the entry-point; when the query vector is distant from all stored vectors
-	// (NL query vs structured entity text), the graph traversal terminates early
-	// and returns very few results even with high ef_search. Brute-force is
-	// acceptable for ~5k embeddings.
 	query := `
 		SELECT id, datasource_id, entity_type, entity_id, entity_text,
 		       embedding_model, created_at, updated_at,
@@ -190,7 +193,7 @@ func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, q
 	return r.searchEmbeddings(ctx, query, vectorStr, dsID, topK)
 }
 
-// SearchSimilarByType performs HNSW search filtered by entity type
+// SearchSimilarByType performs brute-force search filtered by datasource and entity type.
 func (r *MySQLVectorRepository) SearchSimilarByType(ctx context.Context, dsID int64, entityType EntityType, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error) {
 	if len(queryVector) != DefaultEmbeddingDimension {
 		return nil, fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(queryVector))

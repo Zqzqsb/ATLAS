@@ -13,45 +13,45 @@ USE spider_tvshow;
 -- ============================================================
 CREATE TABLE TV_Channel (
     id INT PRIMARY KEY,
-    series_name VARCHAR(200) COMMENT 'TV series name',
-    Country VARCHAR(100) COMMENT 'Country of origin',
-    Language VARCHAR(50) COMMENT 'Primary language',
-    Content VARCHAR(500) COMMENT 'Content description',
-    Pixel_aspect_ratio_PAR VARCHAR(20) COMMENT 'Pixel aspect ratio',
-    Hight_definition_TV VARCHAR(10) COMMENT 'HD support: yes/no',
-    Pay_per_view_PPV VARCHAR(10) COMMENT 'Pay per view: yes/no',
-    Package_Option VARCHAR(100) COMMENT 'Package option'
-) COMMENT='TV Channel information';
+    series_name VARCHAR(200),
+    Country VARCHAR(100),
+    Language VARCHAR(50),
+    Content VARCHAR(500),
+    Pixel_aspect_ratio_PAR VARCHAR(20),
+    Hight_definition_TV VARCHAR(10),
+    Pay_per_view_PPV VARCHAR(10),
+    Package_Option VARCHAR(100)
+);
 
 -- ============================================================
 -- Table: TV_series
 -- ============================================================
 CREATE TABLE TV_series (
     id INT PRIMARY KEY,
-    Episode VARCHAR(100) COMMENT 'Episode identifier',
-    Air_Date VARCHAR(50) COMMENT 'Original air date',
-    Rating DECIMAL(3,1) COMMENT 'Episode rating (0-10)',
-    Share DECIMAL(4,1) COMMENT 'Market share percentage',
-    18_49_Rating_Share VARCHAR(20) COMMENT 'Rating share for 18-49 demographic',
-    Viewers_m DECIMAL(5,2) COMMENT 'Viewers in millions',
-    Weekly_Rank INT COMMENT 'Weekly ranking',
-    Channel INT COMMENT 'Channel ID',
+    Episode VARCHAR(100),
+    Air_Date VARCHAR(50),
+    Rating DECIMAL(3,1),
+    Share DECIMAL(4,1),
+    18_49_Rating_Share VARCHAR(20),
+    Viewers_m DECIMAL(5,2),
+    Weekly_Rank INT,
+    Channel INT,
     FOREIGN KEY (Channel) REFERENCES TV_Channel(id)
-) COMMENT='TV series episode information';
+);
 
 -- ============================================================
 -- Table: Cartoon
 -- ============================================================
 CREATE TABLE Cartoon (
     id INT PRIMARY KEY,
-    Title VARCHAR(200) COMMENT 'Cartoon title',
-    Directed_by VARCHAR(100) COMMENT 'Director name',
-    Written_by VARCHAR(200) COMMENT 'Writer names',
-    Original_air_date VARCHAR(50) COMMENT 'Original air date',
-    Production_code VARCHAR(20) COMMENT 'Production code',
-    Channel INT COMMENT 'Channel ID',
+    Title VARCHAR(200),
+    Directed_by VARCHAR(100),
+    Written_by VARCHAR(200),
+    Original_air_date VARCHAR(50),
+    Production_code VARCHAR(20),
+    Channel INT,
     FOREIGN KEY (Channel) REFERENCES TV_Channel(id)
-) COMMENT='Cartoon information';
+);
 
 -- ============================================================
 -- Insert sample data: TV_Channel

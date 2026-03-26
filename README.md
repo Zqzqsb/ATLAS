@@ -1,200 +1,182 @@
-# LUCID
+# ATLAS
 
-**L**akebase-**U**nified **C**ontext-aware **I**ntelligence for **D**ata
+**A**daptive **T**ext-to-SQL with **L**ifecycle-**A**ware **S**elf-maintaining Context
 
-A self-contained Text-to-SQL system with native vector search capabilities, designed for VLDB 2025/2026 Demo Track.
+> VLDB 2026 Demo Track
+
+ATLAS is a self-contained Text-to-SQL system that co-locates schema metadata, semantic annotations, and vector embeddings entirely within a single RDBMS. Three Docker containers, one command, no external engines.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
+[![BIRD EX](https://img.shields.io/badge/BIRD_dev-75.55%25_EX-brightgreen)](#evaluation)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## Four Innovations
+
+### 1. Unified In-Database Storage
+
+Schema, Rich Context, relationship graphs, vector embeddings (HNSW), and change audit logs all live in dedicated `rc_*` tables within a single MariaDB 12 instance. One SQL query combines vector similarity with relational filters — no external vector store, no consistency issues, full ACID guarantees.
+
+### 2. Two-Stage Adaptive Schema Linking
+
+- **Small schema** (≤30 tables): full schema goes directly to the LLM for one-shot linking.
+- **Large schema** (>30 tables): vector retrieval narrows 500+ tables to ~20 candidates in sub-second time; LLM then refines to the truly relevant tables. The two stages run concurrently via an atomic slot, hiding retrieval latency entirely.
+
+### 3. Rich Context Lifecycle
+
+Rich Context is not static annotation — it flows through three phases:
+
+| Phase | What happens |
+|-------|-------------|
+| **Onboarding** | ReAct agent samples data, generates descriptions/synonyms/business rules per column, embeds into HNSW |
+| **Inference** | Vector retrieval injects relevant context into LLM prompt for disambiguation |
+| **Evolution** | DDL changes detected → stale context marked → LLM regenerates → vectors re-embedded |
+
+For large schemas (>30 tables), a **forest-based chunked** strategy decomposes the FK graph into connected subtrees for parallel agent processing.
+
+### 4. Agent-Driven Self-Maintenance
+
+A coordinator–executor architecture keeps context synchronized with live schema:
+
+1. **DDL Detector** diffs `information_schema` against context tables
+2. **Coordinator** marks affected entries as stale and plans tasks
+3. **Executor** invokes LLM to regenerate descriptions and re-embed
+4. **Change Logger** records all modifications with before/after diffs
+
+## Evaluation
+
+**BIRD dev set** (1,534 questions, 11 databases, DeepSeek-V3):
+
+| Configuration | EX (%) | Avg Iters |
+|---|---|---|
+| **Full ATLAS pipeline** | **75.55** | 3.37 |
+| − ReAct Loop (one-shot + RC) | 68.71 | 1.00 |
+| − Business rules & value mappings | 72.04 | 3.62 |
+| − Sample values & synonyms | 70.86 | 3.91 |
+| Schema only (no Rich Context) | 65.45 | 4.49 |
+| Baseline (direct generation) | 58.93 | 1.00 |
+
+**System-level ablation** on TPC-H Enterprise (500+ tables, 30 cross-domain queries):
+
+| Configuration | Recall@20 | EX (%) | Latency (s) |
+|---|---|---|---|
+| Full ATLAS pipeline | **93.3** | **70.0** | 4.8 |
+| − Adaptive Linking | — (overflow) | — | timeout |
+| − Vector Search | 66.7 | 50.0 | 5.6 |
+| − ReAct Loop | 93.3 | 56.7 | 2.3 |
+| − Rich Context | 80.0 | 53.3 | 4.9 |
+
+> Detailed ablation results: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     ATLAS System                         │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│   Frontend (Vue3)  ──→  Backend (Go)  ──→  MariaDB 12   │
+│     :19000               :19001             :19010       │
+│                                                          │
+│   Three Pipelines:                                       │
+│   ┌─────────────┐  ┌──────────┐  ┌──────────────────┐   │
+│   │ Onboarding  │  │ Inference│  │ Self-Maintenance  │   │
+│   │ (generate)  │  │ (consume)│  │ (refresh)         │   │
+│   └──────┬──────┘  └────┬─────┘  └────────┬─────────┘   │
+│          │              │                  │              │
+│   ┌──────▼──────────────▼──────────────────▼─────────┐   │
+│   │     Unified In-Database Storage (rc_* tables)    │   │
+│   │                                                   │   │
+│   │  rc_datasources   Schema metadata                │   │
+│   │  rc_tables        Table-level Rich Context       │   │
+│   │  rc_columns       Column-level Rich Context      │   │
+│   │  rc_relations     Foreign key graph              │   │
+│   │  rc_embeddings    VECTOR(2048) + HNSW index      │   │
+│   │  rc_terms         Business terminology           │   │
+│   │  rc_change_log    Change audit trail             │   │
+│   └──────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
 ## Quick Start
 
-Deploy the entire stack with one command (Docker required):
-
 ```bash
-git clone https://github.com/your-repo/lucid.git
-cd lucid
+git clone https://github.com/zqzqsb/atlas.git
+cd atlas
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
 Access the UI at **http://localhost:19000**
 
-## Key Features
-
-🗄️ **Lake-Base Native Storage**
-- Schema, context, and vector embeddings in a single MariaDB instance
-- No external vector databases (Milvus, Elasticsearch, etc.) required
-
-🤖 **Agent Self-Maintaining**
-- Automatic DDL change detection
-- Closed-loop context updates
-- Zero-maintenance rich context
-
-🔍 **In-Database Vector Retrieval**
-- MariaDB 12 native VECTOR + HNSW index
-- Millisecond-level schema linking
-- Two-stage retrieval (coarse + fine)
-
-🔗 **End-to-End Integration**
-- Single Docker Compose deployment
-- No external dependencies
-- Production-ready architecture
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                 LUCID System                        │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  Frontend (Vue3)  ──→  Backend (Go)  ──→  MariaDB  │
-│    :19000              :19001            :19010     │
-│                                                     │
-│  ┌──────────────────────────────────────────────┐  │
-│  │ MariaDB 12 - Unified Storage (:19010)     │  │
-│  │                                              │  │
-│  │  Lake-Base (rc_* tables):                   │  │
-│  │  ├─ rc_datasources  (Metadata)              │  │
-│  │  ├─ rc_tables       (Rich Context)          │  │
-│  │  ├─ rc_columns      (Rich Context)          │  │
-│  │  ├─ rc_embeddings   (VECTOR + HNSW)         │  │
-│  │  └─ rc_change_log   (Audit Trail)           │  │
-│  │                                              │  │
-│  │  Demo Databases:                             │  │
-│  │  ├─ demo_ecommerce  (E-commerce)            │  │
-│  │  └─ demo_tpch       (TPC-H Benchmark)       │  │
-│  └──────────────────────────────────────────────┘  │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| Database | MariaDB 12 (VECTOR + HNSW) |
+| Database | MariaDB 12 (native VECTOR + HNSW) |
 | Backend | Go 1.24 + Gin |
 | Frontend | Vue 3 + Vite + UnoCSS + Naive UI |
-| LLM | OpenAI / Hunyuan |
-| Deployment | Docker + Docker Compose |
-
-## Port Allocation
-
-LUCID uses the **19xxx** port range to avoid conflicts:
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | 19000 | Web UI |
-| Backend | 19001 | REST API + SSE |
-| MariaDB | 19010 | Lake-Base + Demo Databases |
+| LLM | Any OpenAI-compatible API (DeepSeek-V3, Qwen, etc.) |
+| Embedding | Doubao / OpenAI text-embedding |
+| Deployment | Docker Compose (3 containers) |
 
 ## Usage
 
-### Start All Services
-
 ```bash
+# Start all services
 make up
-# or
-docker compose -f deploy/docker-compose.yml up -d
-```
 
-### View Logs
-
-```bash
+# View logs
 make logs
-# or
-docker compose -f deploy/docker-compose.yml logs -f
-```
 
-### Stop Services
-
-```bash
+# Stop
 make down
-# or
-docker compose -f deploy/docker-compose.yml down
+
+# Local development
+make backend-dev    # Go backend
+make frontend-dev   # Vue3 frontend
+make db-up          # Database only
 ```
 
-### Local Development
+## Project Structure
 
-```bash
-# Backend (Go)
-make backend-dev
-
-# Frontend (Vue3)
-make frontend-dev
-
-# Database only
-make db-up
+```
+atlas/
+├── backend/              # Go backend
+│   ├── internal/
+│   │   ├── lakebase/         # Unified storage layer (rc_* tables)
+│   │   ├── agent/            # Self-maintenance agent
+│   │   ├── grounding/        # Schema linking
+│   │   ├── inference/        # ReAct SQL generation
+│   │   ├── embedding/        # Vector embedding
+│   │   ├── context/          # Rich Context management
+│   │   ├── adapter/          # Database adapters
+│   │   └── llm/              # LLM client
+│   └── server/               # HTTP API + SSE
+├── frontend/             # Vue3 + Vite + UnoCSS + Naive UI
+├── AtlasCore/            # Experiment framework (submodule)
+├── paper/                # VLDB Demo paper (LaTeX)
+├── deploy/               # Docker Compose configs
+└── scripts/              # Demo video scripts
 ```
 
-## Configuration
-
-Create a `.env` file to customize ports and API keys:
-
-```bash
-# Optional port overrides
-LUCID_FRONTEND_PORT=19000
-LUCID_BACKEND_PORT=19001
-LUCID_MARIADB_PORT=19010
-
-# LLM API Key
-LLM_API_KEY=sk-your-api-key-here
-```
-
-## Database Connection
-
-Connect to the Lake-Base storage:
-
-```bash
-# Using mycli
-make db-login
-
-# Or manually
-mycli -h 127.0.0.1 -P 19010 -u lucid -plucid2024 lucid
-```
-
-## Documentation
-
-- [Setup Guide](docs/SETUP.md) - Detailed deployment instructions
-- [Architecture](docs/ARCHITECTURE.md) - System design and components
-- [Development Guide](CLAUDE.md) - For contributors
-
-## Research & Citation
-
-LUCID is designed for **VLDB 2025/2026 Demo Track** submission. If you use this system in your research, please cite:
+## Citation
 
 ```bibtex
-@inproceedings{lucid2026,
-  title={LUCID: Lake-Base Unified Context-Aware Intelligence for Data},
-  author={Your Name},
-  booktitle={Proceedings of the VLDB Endowment},
-  year={2026}
+@inproceedings{atlas2026vldb,
+  title     = {ATLAS: Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context},
+  author    = {Anonymous},
+  booktitle = {Proceedings of the VLDB Endowment, Demo Track},
+  year      = {2026}
 }
 ```
 
-## Core Innovations
-
-1. **Lake-Base Multi-Modal Storage** - Unified storage for schema, context, and vectors
-2. **Agent Self-Maintaining** - Automatic context updates on DDL changes
-3. **In-Database Vector Retrieval** - Native HNSW index for schema linking
-4. **End-to-End Integration** - Zero external dependencies
-
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- MariaDB Foundation for VECTOR support
-- Spider dataset for benchmarking
-- VLDB community for inspiration
-
----
-
-**Note**: This is a research prototype for VLDB Demo Track. For production use, please review security configurations and add proper authentication.
+- MariaDB Foundation for native VECTOR support
+- [BIRD](https://bird-bench.github.io/) and [Spider](https://yale-lily.github.io/spider) benchmarks
+- DeepSeek for open-weight LLM

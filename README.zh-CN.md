@@ -1,200 +1,182 @@
-# LUCID
+# ATLAS
 
-**L**akebase-**U**nified **C**ontext-aware **I**ntelligence for **D**ata（湖基多模统一上下文感知数据智能系统）
+**A**daptive **T**ext-to-SQL with **L**ifecycle-**A**ware **S**elf-maintaining Context
 
-一个自包含的 Text-to-SQL 系统，具备原生向量检索能力，面向 VLDB 2025/2026 Demo Track 投稿。
+> VLDB 2026 Demo Track
+
+ATLAS 是一个自包含的 Text-to-SQL 系统，将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内。三个 Docker 容器，一条命令部署，无需任何外部引擎。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
+[![BIRD EX](https://img.shields.io/badge/BIRD_dev-75.55%25_EX-brightgreen)](#评估结果)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## 四项核心创新
+
+### 1. 库内统一存储
+
+Schema、Rich Context、关系图谱、向量嵌入（HNSW）和变更审计日志全部存放在 MariaDB 12 的 `rc_*` 系列表中。一条 SQL 即可同时做向量相似度搜索和关系型过滤——无外部向量库、无一致性问题、完整 ACID 保障。
+
+### 2. 两阶段自适应 Schema Linking
+
+- **小规模** (≤30 表)：全量 Schema 直接发给 LLM 做 one-shot linking。
+- **大规模** (>30 表)：向量检索在亚秒级内将 500+ 张表缩减到 ~20 个候选；LLM 再做精确推理。两阶段通过原子槽并发执行，完全隐藏检索延迟。
+
+### 3. Rich Context 生命周期
+
+Rich Context 不是一次性静态标注，而是经历三个阶段：
+
+| 阶段 | 内容 |
+|------|------|
+| **Onboarding** | ReAct Agent 采样数据，为每列生成描述/同义词/业务规则，嵌入 HNSW 索引 |
+| **Inference** | 向量检索召回相关 Context 注入 LLM prompt，辅助语义消歧 |
+| **Evolution** | DDL 变更检测 → 标记过时 Context → LLM 重新生成 → 向量重新嵌入 |
+
+大规模 Schema (>30 表) 使用 **Forest-Based Chunked** 策略，将 FK 图分解为连通子树并行处理。
+
+### 4. Agent 驱动的自维持
+
+Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
+
+1. **DDL 检测器** 对比 `information_schema` 与 Context 表的差异
+2. **Coordinator** 标记受影响条目为过时，规划维护任务
+3. **Executor** 调用 LLM 重新生成描述并重新嵌入向量
+4. **Change Logger** 记录所有变更的 before/after 对比
+
+## 评估结果
+
+**BIRD 开发集** (1,534 问题, 11 数据库, DeepSeek-V3)：
+
+| 配置 | EX (%) | 平均迭代次数 |
+|------|--------|------------|
+| **完整 ATLAS 管线** | **75.55** | 3.37 |
+| − ReAct 循环 (one-shot + RC) | 68.71 | 1.00 |
+| − 业务规则与值映射 | 72.04 | 3.62 |
+| − 样例值与同义词 | 70.86 | 3.91 |
+| 仅 Schema (无 Rich Context) | 65.45 | 4.49 |
+| 基线 (直接生成) | 58.93 | 1.00 |
+
+**系统级消融实验** — TPC-H Enterprise (500+ 表, 30 个跨域查询)：
+
+| 配置 | Recall@20 | EX (%) | 延迟 (s) |
+|------|-----------|--------|---------|
+| 完整 ATLAS 管线 | **93.3** | **70.0** | 4.8 |
+| − 自适应 Linking | — (溢出) | — | 超时 |
+| − 向量检索 | 66.7 | 50.0 | 5.6 |
+| − ReAct 循环 | 93.3 | 56.7 | 2.3 |
+| − Rich Context | 80.0 | 53.3 | 4.9 |
+
+> 详细消融结果: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+
+## 系统架构
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                     ATLAS 系统                            │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│   前端 (Vue3)  ──→  后端 (Go)  ──→  MariaDB 12          │
+│     :19000           :19001          :19010              │
+│                                                          │
+│   三条管线:                                               │
+│   ┌─────────────┐  ┌──────────┐  ┌──────────────────┐   │
+│   │  Onboarding │  │ Inference│  │ Self-Maintenance  │   │
+│   │  (生成)      │  │ (消费)   │  │ (刷新)            │   │
+│   └──────┬──────┘  └────┬─────┘  └────────┬─────────┘   │
+│          │              │                  │              │
+│   ┌──────▼──────────────▼──────────────────▼─────────┐   │
+│   │     库内统一存储 (rc_* 表)                         │   │
+│   │                                                   │   │
+│   │  rc_datasources   Schema 元数据                   │   │
+│   │  rc_tables        表级 Rich Context               │   │
+│   │  rc_columns       列级 Rich Context               │   │
+│   │  rc_relations     外键关系图谱                     │   │
+│   │  rc_embeddings    VECTOR(2048) + HNSW 索引        │   │
+│   │  rc_terms         业务术语词典                     │   │
+│   │  rc_change_log    变更审计日志                     │   │
+│   └──────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
 ## 快速开始
 
-一行命令部署整个系统（需要 Docker）：
-
 ```bash
-git clone https://github.com/your-repo/lucid.git
-cd lucid
+git clone https://github.com/zqzqsb/atlas.git
+cd atlas
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
 访问 **http://localhost:19000** 使用系统
 
-## 核心特性
-
-🗄️ **湖基原生存储**
-- Schema、上下文、向量嵌入存储在单一 MariaDB 实例
-- 无需外部向量数据库（Milvus、Elasticsearch 等）
-
-🤖 **Agent 自维持**
-- 自动 DDL 变更检测
-- 闭环上下文更新
-- 零维护 Rich Context
-
-🔍 **库内向量检索**
-- MariaDB 12 原生 VECTOR + HNSW 索引
-- 毫秒级 Schema Linking
-- 两阶段检索（粗筛 + 精排）
-
-🔗 **端到端集成**
-- 单一 Docker Compose 部署
-- 无外部依赖
-- 生产就绪架构
-
-## 系统架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│                 LUCID 系统                          │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  前端 (Vue3)  ──→  后端 (Go)  ──→  MariaDB         │
-│    :19000           :19001          :19010          │
-│                                                     │
-│  ┌──────────────────────────────────────────────┐  │
-│  │ MariaDB 12 - 统一存储 (:19010)            │  │
-│  │                                              │  │
-│  │  湖基存储 (rc_* 表):                         │  │
-│  │  ├─ rc_datasources  (元数据)                │  │
-│  │  ├─ rc_tables       (Rich Context)          │  │
-│  │  ├─ rc_columns      (Rich Context)          │  │
-│  │  ├─ rc_embeddings   (VECTOR + HNSW)         │  │
-│  │  └─ rc_change_log   (审计日志)              │  │
-│  │                                              │  │
-│  │  演示数据库:                                  │  │
-│  │  ├─ demo_ecommerce  (电商)                   │  │
-│  │  └─ demo_tpch       (TPC-H 基准测试)        │  │
-│  └──────────────────────────────────────────────┘  │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
 ## 技术栈
 
 | 组件 | 技术 |
 |------|------|
-| 数据库 | MariaDB 12 (VECTOR + HNSW) |
+| 数据库 | MariaDB 12 (原生 VECTOR + HNSW) |
 | 后端 | Go 1.24 + Gin |
 | 前端 | Vue 3 + Vite + UnoCSS + Naive UI |
-| LLM | OpenAI / 混元 |
-| 部署 | Docker + Docker Compose |
-
-## 端口分配
-
-LUCID 使用 **19xxx** 端口段以避免冲突：
-
-| 服务 | 端口 | 说明 |
-|------|------|------|
-| 前端 | 19000 | Web UI |
-| 后端 | 19001 | REST API + SSE |
-| MariaDB | 19010 | 湖基存储 + 演示数据库 |
+| LLM | 任意 OpenAI 兼容 API (DeepSeek-V3, Qwen 等) |
+| 嵌入模型 | 豆包 / OpenAI text-embedding |
+| 部署 | Docker Compose (3 容器) |
 
 ## 使用方法
 
-### 启动所有服务
-
 ```bash
+# 启动所有服务
 make up
-# 或
-docker compose -f deploy/docker-compose.yml up -d
-```
 
-### 查看日志
-
-```bash
+# 查看日志
 make logs
-# 或
-docker compose -f deploy/docker-compose.yml logs -f
-```
 
-### 停止服务
-
-```bash
+# 停止
 make down
-# 或
-docker compose -f deploy/docker-compose.yml down
+
+# 本地开发
+make backend-dev    # Go 后端
+make frontend-dev   # Vue3 前端
+make db-up          # 仅启动数据库
 ```
 
-### 本地开发
+## 项目结构
 
-```bash
-# 后端 (Go)
-make backend-dev
-
-# 前端 (Vue3)
-make frontend-dev
-
-# 仅启动数据库
-make db-up
+```
+atlas/
+├── backend/              # Go 后端
+│   ├── internal/
+│   │   ├── lakebase/         # 湖基存储层 (rc_* 表)
+│   │   ├── agent/            # 自维持 Agent
+│   │   ├── grounding/        # Schema Linking
+│   │   ├── inference/        # ReAct 推理引擎
+│   │   ├── embedding/        # 向量嵌入
+│   │   ├── context/          # Rich Context 管理
+│   │   ├── adapter/          # 数据库适配器
+│   │   └── llm/              # LLM 客户端
+│   └── server/               # HTTP API + SSE
+├── frontend/             # Vue3 + Vite + UnoCSS + Naive UI
+├── AtlasCore/            # 实验框架 (submodule)
+├── paper/                # VLDB Demo 论文 (LaTeX)
+├── deploy/               # Docker Compose 配置
+└── scripts/              # Demo 视频脚本
 ```
 
-## 配置
-
-创建 `.env` 文件自定义端口和 API 密钥：
-
-```bash
-# 可选端口覆盖
-LUCID_FRONTEND_PORT=19000
-LUCID_BACKEND_PORT=19001
-LUCID_MARIADB_PORT=19010
-
-# LLM API Key
-LLM_API_KEY=sk-your-api-key-here
-```
-
-## 数据库连接
-
-连接到湖基存储：
-
-```bash
-# 使用 mycli
-make db-login
-
-# 或手动连接
-mycli -h 127.0.0.1 -P 19010 -u lucid -plucid2024 lucid
-```
-
-## 文档
-
-- [部署指南](docs/SETUP.md) - 详细部署说明
-- [系统架构](docs/ARCHITECTURE.md) - 系统设计和组件
-- [开发指南](CLAUDE.md) - 贡献者文档
-
-## 研究与引用
-
-LUCID 面向 **VLDB 2025/2026 Demo Track** 投稿。如果您在研究中使用本系统，请引用：
+## 引用
 
 ```bibtex
-@inproceedings{lucid2026,
-  title={LUCID: Lake-Base Unified Context-Aware Intelligence for Data},
-  author={Your Name},
-  booktitle={Proceedings of the VLDB Endowment},
-  year={2026}
+@inproceedings{atlas2026vldb,
+  title     = {ATLAS: Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context},
+  author    = {Anonymous},
+  booktitle = {Proceedings of the VLDB Endowment, Demo Track},
+  year      = {2026}
 }
 ```
 
-## 核心创新
-
-1. **湖基多模存储** - Schema、上下文、向量统一存储
-2. **Agent 自维持** - DDL 变更时自动更新上下文
-3. **库内向量检索** - 原生 HNSW 索引实现 Schema Linking
-4. **端到端集成** - 零外部依赖
-
-## 贡献
-
-欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
 ## 许可证
 
-MIT License - 详见 [LICENSE](LICENSE)
+MIT License — 详见 [LICENSE](LICENSE)
 
 ## 致谢
 
-- MariaDB Foundation 提供 VECTOR 支持
-- Spider 数据集用于基准测试
-- VLDB 社区的启发
-
----
-
-**注意**：这是面向 VLDB Demo Track 的研究原型。生产环境使用前，请检查安全配置并添加适当的身份验证。
+- MariaDB Foundation 提供原生 VECTOR 支持
+- [BIRD](https://bird-bench.github.io/) 和 [Spider](https://yale-lily.github.io/spider) 基准测试
+- DeepSeek 提供开源 LLM

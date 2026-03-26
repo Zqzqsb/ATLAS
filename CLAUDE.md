@@ -1,22 +1,22 @@
-# LUCID - Lake-base Unified Context-aware Intelligence for Data
+# ATLAS - Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context
 
 ## 项目定位
 
-**VLDB 2025/2026 Demo Track** 投稿项目
+**VLDB 2026 Demo Track** 投稿项目
 
-基于 **MariaDB 12** 原生 VECTOR + HNSW 能力的湖基多模 Text-to-SQL 系统。
+基于 **MariaDB 12** 原生 VECTOR + HNSW 能力的自适应 Text-to-SQL 系统。
 
 ## 核心创新
 
-1. **湖基多模统一存储** - rc_* 表统一存储 Schema + Context + 向量
-2. **Agent 自维持机制** - DDL 变更自动感知，Context 闭环更新
-3. **库内向量检索 Linking** - MariaDB 原生 HNSW，两阶段 Schema Linking
-4. **端到端无外挂** - 全流程在单一数据库内完成
+1. **库内统一存储** - rc_* 表统一存储 Schema + Context + 向量，ACID 保障
+2. **两阶段自适应 Schema Linking** - 小库 one-shot / 大库向量粗筛 + LLM 精选
+3. **Rich Context 生命周期** - Onboarding 生成 → Inference 消费 → Evolution 刷新
+4. **Agent 驱动自维持** - Coordinator-Executor 架构，DDL 变更全自动维护
 
 ## 目录结构
 
 ```
-lucid/
+atlas/
 ├── backend/              # Go 后端
 │   ├── config/           # 配置加载和结构定义
 │   ├── interfaces/       # 核心接口定义
@@ -35,9 +35,10 @@ lucid/
 │       ├── services/         # 业务服务层
 │       └── configs/          # 服务配置文件
 ├── frontend/             # Vue3 + Vite + UnoCSS + Naive UI
+├── AtlasCore/            # 实验框架 (submodule)
 ├── paper/                # VLDB Demo 论文 LaTeX
 ├── deploy/               # Docker 部署配置
-└── docs/                 # 开发文档
+└── scripts/              # Demo 视频脚本
 ```
 
 ## 快速命令

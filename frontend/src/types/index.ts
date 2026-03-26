@@ -223,10 +223,8 @@ export interface Text2SQLRequest {
 }
 
 export interface Text2SQLOptions {
-  useRichContext: boolean
+  linkingMode: 'rc' | 'schema_only' | 'off' // rc=RC+linking, schema_only=raw DDL, off=no schema aid
   useReact: boolean
-  useGrounding: boolean
-  linkingMode?: 'off' | 'one-shot' | 'react' // Linking mode: off/one-shot/react (default: one-shot)
   maxIterations: number
   temperature?: number
   model?: string

@@ -183,16 +183,27 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 		contextPrompt = p.preLinked.ContextPrompt
 		result.SelectedTables = tables
 
-		// If grounding selected 0 tables, fall back to all tables from schema
-		// so SQL generation still has schema context to work with.
-		if len(tables) == 0 && p.schema != nil {
-			allTables := make([]string, 0, len(p.schema.Tables))
-			for name := range p.schema.Tables {
-				allTables = append(allTables, name)
+		// If grounding selected 0 tables, fall back to all tables so SQL
+		// generation still has schema context to work with.
+		if len(tables) == 0 {
+			if p.schema != nil {
+				allTables := make([]string, 0, len(p.schema.Tables))
+				for name := range p.schema.Tables {
+					allTables = append(allTables, name)
+				}
+				tables = allTables
+			} else {
+				// No RC schema loaded (e.g. Rich Context off) — read table
+				// names directly from the database.
+				allTableInfo, dbErr := p.extractTableInfoFromDB(ctx)
+				if dbErr == nil {
+					for name := range allTableInfo {
+						tables = append(tables, name)
+					}
+				}
 			}
-			tables = allTables
 			result.SelectedTables = tables
-			log.Warn("[Execute] Grounding selected 0 tables, falling back to all schema tables",
+			log.Warn("[Execute] Grounding selected 0 tables, falling back to all tables",
 				"fallback_tables", len(tables),
 			)
 		}
@@ -202,9 +213,13 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 			"context_prompt_length", len(contextPrompt),
 		)
 
-		// If the external prompt is empty but we have schema, build it from schema
-		if contextPrompt == "" && p.schema != nil {
-			contextPrompt = p.buildRichSchemaPrompt(tables)
+		// If the external prompt is empty, build it from whatever schema source is available
+		if contextPrompt == "" {
+			if p.schema != nil {
+				contextPrompt = p.buildRichSchemaPrompt(tables)
+			} else if len(tables) > 0 {
+				contextPrompt = p.buildBasicSchema(ctx, tables)
+			}
 		}
 	} else {
 		// Internal Schema Linking (legacy path)

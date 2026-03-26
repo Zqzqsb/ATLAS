@@ -30,17 +30,17 @@ type Text2SQLRequest struct {
 
 // Text2SQLOptions holds optional parameters.
 type Text2SQLOptions struct {
-	UseRichContext  bool   `json:"use_rich_context"`
+	LinkingMode     string `json:"linking_mode"`      // "rc" | "schema_only" | "off" (default: "rc")
 	UseReact        bool   `json:"use_react"`
-	UseGrounding    bool   `json:"use_grounding"`
-	LinkingMode     string `json:"linking_mode"`      // "off" | "one-shot" | "react" (default: "one-shot")
-	SkipLinking     bool   `json:"skip_linking"`      // Deprecated: use linking_mode instead. true → "off"
-	ForceSmallScale bool   `json:"force_small_scale"` // When true, force SmallScale strategy (full schema to LLM)
 	MaxIterations   int    `json:"max_iterations"`
 	Stream          bool   `json:"stream"`
 	GroundingOnly   bool   `json:"grounding_only"` // When true, stop after grounding (for field alignment)
 	SkipGrounding   bool   `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
 }
+
+// Derived helpers from LinkingMode
+func (o Text2SQLOptions) UseRichContext() bool { return o.LinkingMode == "rc" || o.LinkingMode == "" }
+func (o Text2SQLOptions) UseGrounding() bool   { return o.UseRichContext() }
 
 // Text2SQLRequest represents the input for text2sql conversion.
 // InjectedGrounding allows the frontend to pass back previously-obtained grounding
@@ -121,14 +121,9 @@ type JoinPathInfo struct {
 }
 
 // resolveLinkingMode returns the effective linking mode from options.
-// Supports backward compatibility: skip_linking=true → "off".
+// resolveLinkingMode maps the unified linking_mode to the grounding pipeline's internal mode.
+// "rc" → always "one-shot" for the grounding pipeline; other modes skip grounding entirely.
 func resolveLinkingMode(opts Text2SQLOptions) string {
-	if opts.LinkingMode != "" {
-		return opts.LinkingMode
-	}
-	if opts.SkipLinking {
-		return "off"
-	}
 	return "one-shot"
 }
 
@@ -199,7 +194,7 @@ func (h *Handler) Text2SQL(c *gin.Context) {
 		Question:         req.Question,
 		DatabaseID:       req.DatabaseID,
 		Database:         req.Database,
-		UseRichContext:   req.Options.UseRichContext,
+		UseRichContext:   req.Options.UseRichContext(),
 		UseReact:         req.Options.UseReact,
 		MaxIterations:    req.Options.MaxIterations,
 		FieldDescription: req.FieldDescription,
@@ -268,7 +263,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		}
 		SendSSE(c.Writer, "grounding_complete", groundingInfo)
 		flusher.Flush()
-	} else if req.Options.UseGrounding && h.groundingService != nil {
+	} else if req.Options.UseGrounding() && h.groundingService != nil {
 		SendSSE(c.Writer, "grounding_start", map[string]string{"message": "Starting semantic grounding..."})
 		flusher.Flush()
 
@@ -282,8 +277,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			"question", req.Question,
 			"database_id", req.DatabaseID,
 			"datasource_id", datasourceID,
-			"use_grounding", req.Options.UseGrounding,
-			"use_rich_context", req.Options.UseRichContext,
+			"linking_mode", req.Options.LinkingMode,
 			"use_react", req.Options.UseReact,
 			"max_iterations", req.Options.MaxIterations,
 		)
@@ -310,19 +304,6 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 
 				// Create a DBAdapter for ReAct linking (execute_sql tool needs it)
 				var groundingDBAdapter adapter.DBAdapter
-				if linkingMode == "react" && h.dbService != nil {
-					if adp, aErr := h.dbService.NewIsolatedAdapter(req.DatabaseID); aErr == nil {
-						if cErr := adp.Connect(ctx); cErr == nil {
-							groundingDBAdapter = adp
-						} else {
-							log.Warn("Failed to connect DBAdapter for ReAct linking, falling back to one-shot", "error", cErr)
-							linkingMode = "one-shot"
-						}
-					} else {
-						log.Warn("Failed to create DBAdapter for ReAct linking, falling back to one-shot", "error", aErr)
-						linkingMode = "one-shot"
-					}
-				}
 
 				adaptiveReq := &grounding.AdaptiveGroundingRequest{
 					Query:           req.Question,
@@ -331,7 +312,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					TableCount:      len(schemas),
 					LinkingMode:     linkingMode,
 					DBAdapter:       groundingDBAdapter,
-					ForceSmallScale: req.Options.ForceSmallScale,
+					ForceSmallScale: false,
 				ProgressCallback: func(stage string, data map[string]interface{}) {
 					// Lock to protect concurrent SSE writes — in ReactAsync mode,
 					// retrieval goroutine and ReAct LLM goroutine call this concurrently.
@@ -637,6 +618,13 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 		hLog.Debug("Linked context prompt", "prompt", linkedContextPrompt)
 	}
 
+	// When Rich Context is off and grounding was skipped, mark grounding as
+	// "executed" with no tables so the inference pipeline skips its internal
+	// Schema Linking and goes straight to SQL generation with the full raw schema.
+	if !req.Options.UseRichContext() && !groundingExecuted {
+		groundingExecuted = true
+	}
+
 	events := make(chan services.StreamEvent, 100)
 
 	go func() {
@@ -646,7 +634,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			Question:            req.Question,
 			DatabaseID:          req.DatabaseID,
 			Database:            req.Database,
-			UseRichContext:      req.Options.UseRichContext,
+			UseRichContext:      req.Options.UseRichContext(),
 			UseReact:            req.Options.UseReact,
 			MaxIterations:       req.Options.MaxIterations,
 			FieldDescription:    req.FieldDescription,
@@ -760,7 +748,7 @@ func (h *Handler) Warmup(c *gin.Context) {
 // Prefers adaptive grounding (with full schema from lakebase) when available,
 // falls back to legacy vector-only grounding otherwise.
 func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *GroundingInfo {
-	if !req.Options.UseGrounding || h.groundingService == nil {
+	if !req.Options.UseGrounding() || h.groundingService == nil {
 		return nil
 	}
 
@@ -792,7 +780,7 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		AllSchemas:      schemas,
 		TableCount:      len(schemas),
 		LinkingMode:     resolveLinkingMode(req.Options),
-		ForceSmallScale: req.Options.ForceSmallScale,
+		ForceSmallScale: false,
 	})
 	if err != nil {
 		log.Warn("Grounding failed (continuing without)", "error", err)

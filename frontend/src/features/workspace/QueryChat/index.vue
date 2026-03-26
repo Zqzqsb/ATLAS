@@ -183,16 +183,14 @@ function resetTimings() {
 const maxIterations = ref(5)
 const useFieldAlignment = ref(false)
 const selectedModel = ref('')
-const useRichContext = ref(true)
 const useReact = ref(true)
-const useGrounding = ref(true)
-const linkingMode = ref<'off' | 'one-shot' | 'react'>('one-shot')
+const linkingMode = ref<'rc' | 'schema_only' | 'off'>('rc')
 
 // Linking mode options for the NSelect
 const linkingModeOptions = [
-  { label: 'Off', value: 'off' },
-  { label: 'One-Shot', value: 'one-shot' },
-  { label: 'ReAct', value: 'react' }
+  { label: 'Rich Context', value: 'rc' },
+  { label: 'Schema Only', value: 'schema_only' },
+  { label: 'Off', value: 'off' }
 ]
 
 // Model options - loaded from backend /models API
@@ -675,9 +673,7 @@ async function doExecuteGroundingOnly() {
   fieldPanelConsumed.value = false
   
   workspaceStore.queryOptions.maxIterations = maxIterations.value
-  workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
-  workspaceStore.queryOptions.useGrounding = useGrounding.value
   workspaceStore.queryOptions.linkingMode = linkingMode.value
 
   try {
@@ -695,9 +691,7 @@ async function doExecuteFull(fieldDescription?: string) {
   resetTimings()
   
   workspaceStore.queryOptions.maxIterations = maxIterations.value
-  workspaceStore.queryOptions.useRichContext = useRichContext.value
   workspaceStore.queryOptions.useReact = useReact.value
-  workspaceStore.queryOptions.useGrounding = useGrounding.value
   workspaceStore.queryOptions.linkingMode = linkingMode.value
 
   try {
@@ -840,11 +834,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
 
             <!-- Switches Row -->
-            <div class="flex items-center justify-between pt-2 border-t border-gray-50">
-              <div class="flex items-center gap-2">
-                <NSwitch v-model:value="useRichContext" :disabled="isExecuting" size="small" />
-                <span class="text-xs font-semibold text-gray-600">Rich Context</span>
-              </div>
+            <div class="flex items-center justify-end pt-2 border-t border-gray-50">
               <div class="flex items-center gap-2">
                 <NSwitch v-model:value="useFieldAlignment" :disabled="isExecuting" size="small" />
                 <span class="text-xs font-semibold text-gray-600">Field Alignment</span>
@@ -1136,7 +1126,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- Stage 2: Schema Linking -->
       <div ref="schemaLinkingRef" class="scroll-mt-4">
       <RealtimeCard
-        :title="linkingMode === 'react' ? 'ReAct Schema Linking' : linkingMode === 'off' ? 'Schema Pass-through' : 'One-Shot Schema Linking'"
+        :title="linkingMode === 'rc' ? 'One-Shot Schema Linking' : 'Schema Pass-through'"
         icon="i-lucide-link"
         :active="schemaLinkingStage.active"
         :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"

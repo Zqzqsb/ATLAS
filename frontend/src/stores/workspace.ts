@@ -62,10 +62,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   // Query options
   const queryOptions = ref<Text2SQLOptions>({
-    useRichContext: true,
+    linkingMode: 'rc',
     useReact: true,
-    useGrounding: true,
-    linkingMode: 'one-shot',
     maxIterations: 5
   })
 

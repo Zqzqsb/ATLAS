@@ -134,6 +134,13 @@ watch(() => workspaceStore.groundingProgress, (progress) => {
   }
 })
 
+// Mark schema linking end as soon as grounding is fully done
+watch(() => workspaceStore.groundingStage, (stage) => {
+  if (stage === 'done' && !stageTimings.value.schemaLinking.end) {
+    stageTimings.value.schemaLinking.end = Date.now()
+  }
+})
+
 // Watch react steps to track schema linking and sql generation timing
 watch(() => workspaceStore.reactSteps, (steps) => {
   const schemaSteps = steps.filter(s => s.phase === 'schema_linking')
@@ -220,10 +227,10 @@ const exampleQuestions = computed(() => {
   // TV Show database
   if (dbName.includes('tvshow') || dbName.includes('tv_show')) {
     return [
-      'List all TV channels',
+      'Which channel has the highest share?',
       'Which channels support Pay-Per-View?',
       'Show all cartoons and their broadcast channels',
-      'Count the number of channels per country'
+      'What is the top-rated episode?'
     ]
   }
   
@@ -355,10 +362,12 @@ const schemaLinkingStage = computed(() => {
     // For small_scale / one-shot: also activate once vector search is done and query is still running
     || (vectorDone && isExecuting.value && !hasSqlGenerationSteps && !workspaceStore.generatedSql)
   
-  // Completed when: has linking steps that finished, OR sql generation already started (meaning linking is done),
-  // OR grounding completed with linking data (one-shot/small_scale).
-  const completed = (end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql)
-    && (hasSchemaLinkingSteps || hasLinkingData || hasSqlGenerationSteps || !!workspaceStore.generatedSql)
+  // Completed when: grounding fully done with linking data, OR sql generation already started,
+  // OR has linking steps that finished with sql gen steps.
+  const groundingFullyDone = workspaceStore.groundingStage === 'done' && hasLinkingData
+  const completed = groundingFullyDone
+    || ((end > 0 || hasSqlGenerationSteps || !!workspaceStore.generatedSql)
+      && (hasSchemaLinkingSteps || hasLinkingData || hasSqlGenerationSteps || !!workspaceStore.generatedSql))
   
   // Separate polling steps from real analysis steps
   const pollingSteps = steps.filter(s => s.action === 'get_candidate_schema' && !s.observation)

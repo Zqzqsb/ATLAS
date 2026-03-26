@@ -197,14 +197,6 @@ func (p *Pipeline) Execute(ctx context.Context, query string) (*Result, error) {
 			)
 		}
 
-		p.notifyStep(ReActStep{
-			Step:        1,
-			Thought:     fmt.Sprintf("Using pre-linked context from Grounding: %d tables selected", len(tables)),
-			Action:      "select_complete",
-			Observation: fmt.Sprintf("Pre-linked tables: %s", strings.Join(tables, ", ")),
-			Phase:       "schema_linking",
-		}, "finish")
-
 		log.Info("[Execute] Using pre-linked context",
 			"tables", strings.Join(tables, ", "),
 			"context_prompt_length", len(contextPrompt),

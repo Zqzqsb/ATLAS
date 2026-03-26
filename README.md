@@ -46,7 +46,7 @@ A coordinator–executor architecture keeps context synchronized with live schem
 
 ## Evaluation
 
-**BIRD dev set** (1,534 questions, 11 databases, DeepSeek-V3):
+**BIRD dev set** (1,534 questions, 11 databases):
 
 | Configuration | EX (%) | Avg Iters |
 |---|---|---|
@@ -116,8 +116,8 @@ Access the UI at **http://localhost:19000**
 | Database | MariaDB 12 (native VECTOR + HNSW) |
 | Backend | Go 1.24 + Gin |
 | Frontend | Vue 3 + Vite + UnoCSS + Naive UI |
-| LLM | Any OpenAI-compatible API (DeepSeek-V3, Qwen, etc.) |
-| Embedding | Doubao / OpenAI text-embedding |
+| LLM | Any OpenAI-compatible API |
+| Embedding | Any OpenAI-compatible embedding API |
 | Deployment | Docker Compose (3 containers) |
 
 ## Usage
@@ -179,4 +179,3 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 - MariaDB Foundation for native VECTOR support
 - [BIRD](https://bird-bench.github.io/) and [Spider](https://yale-lily.github.io/spider) benchmarks
-- DeepSeek for open-weight LLM

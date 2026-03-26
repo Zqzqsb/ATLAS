@@ -46,7 +46,7 @@ Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
 
 ## 评估结果
 
-**BIRD 开发集** (1,534 问题, 11 数据库, DeepSeek-V3)：
+**BIRD 开发集** (1,534 问题, 11 数据库)：
 
 | 配置 | EX (%) | 平均迭代次数 |
 |------|--------|------------|
@@ -116,8 +116,8 @@ docker compose -f deploy/docker-compose.yml up -d
 | 数据库 | MariaDB 12 (原生 VECTOR + HNSW) |
 | 后端 | Go 1.24 + Gin |
 | 前端 | Vue 3 + Vite + UnoCSS + Naive UI |
-| LLM | 任意 OpenAI 兼容 API (DeepSeek-V3, Qwen 等) |
-| 嵌入模型 | 豆包 / OpenAI text-embedding |
+| LLM | 任意 OpenAI 兼容 API |
+| 嵌入模型 | 任意 OpenAI 兼容 Embedding API |
 | 部署 | Docker Compose (3 容器) |
 
 ## 使用方法
@@ -179,4 +179,3 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 - MariaDB Foundation 提供原生 VECTOR 支持
 - [BIRD](https://bird-bench.github.io/) 和 [Spider](https://yale-lily.github.io/spider) 基准测试
-- DeepSeek 提供开源 LLM

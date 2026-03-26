@@ -12,6 +12,11 @@ ATLAS is a self-contained Text-to-SQL system that co-locates schema metadata, se
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+<p align="center">
+  <img src="paper/figures/demo_ui.png" alt="ATLAS Demo Interface" width="100%"/>
+</p>
+<p align="center"><em>(a) Forest-chunked onboarding on 517 tables &nbsp; (b) Two-stage adaptive query &nbsp; (c) Autonomous schema evolution</em></p>
+
 ## Four Innovations
 
 ### 1. Unified In-Database Storage
@@ -71,33 +76,10 @@ A coordinator–executor architecture keeps context synchronized with live schem
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                     ATLAS System                         │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│   Frontend (Vue3)  ──→  Backend (Go)  ──→  MariaDB 12   │
-│     :19000               :19001             :19010       │
-│                                                          │
-│   Three Pipelines:                                       │
-│   ┌─────────────┐  ┌──────────┐  ┌──────────────────┐   │
-│   │ Onboarding  │  │ Inference│  │ Self-Maintenance  │   │
-│   │ (generate)  │  │ (consume)│  │ (refresh)         │   │
-│   └──────┬──────┘  └────┬─────┘  └────────┬─────────┘   │
-│          │              │                  │              │
-│   ┌──────▼──────────────▼──────────────────▼─────────┐   │
-│   │     Unified In-Database Storage (rc_* tables)    │   │
-│   │                                                   │   │
-│   │  rc_datasources   Schema metadata                │   │
-│   │  rc_tables        Table-level Rich Context       │   │
-│   │  rc_columns       Column-level Rich Context      │   │
-│   │  rc_relations     Foreign key graph              │   │
-│   │  rc_embeddings    VECTOR(2048) + HNSW index      │   │
-│   │  rc_terms         Business terminology           │   │
-│   │  rc_change_log    Change audit trail             │   │
-│   └──────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="paper/figures/architecture.png" alt="ATLAS Architecture" width="720"/>
+</p>
+<p align="center"><em>Three pipelines — Onboarding, Inference, Self-Maintenance — share unified in-database storage (rc_* tables).</em></p>
 
 ## Quick Start
 

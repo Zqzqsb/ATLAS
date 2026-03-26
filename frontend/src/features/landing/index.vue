@@ -196,7 +196,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
           </RouterLink>
 
           <a 
-            href="https://github.com/zqzqsb/lucid"
+            href="https://github.com/zqzqsb/atlas"
             target="_blank"
             class="group flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-white/80 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:bg-white/90 hover:-translate-y-1 transition-all duration-300"
           >

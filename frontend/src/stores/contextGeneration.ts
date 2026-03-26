@@ -106,7 +106,7 @@ interface PersistedState {
   logs: LogEntry[]
 }
 
-const STORAGE_KEY = 'lucid_context_generation'
+const STORAGE_KEY = 'atlas_context_generation'
 
 function loadPersistedState(): PersistedState | null {
   try {

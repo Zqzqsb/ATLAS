@@ -1,15 +1,23 @@
 import client from './client'
 import type { Database, DatabaseConfig, SchemaInfo } from '@/types'
 
+const DISPLAY_NAME_MAP: Record<string, string> = {
+  'lucid_evolution': 'Atlas Evolution',
+}
+const HOST_DISPLAY_MAP: Record<string, string> = {
+  'lucid-mariadb': 'atlas-mariadb',
+}
+
 // Transform lakebase datasource to Database type
 function transformDatasource(ds: any): Database {
   const dbName = ds.database_name?.String || ds.database_name || ds.name
+  const rawHost = ds.host?.String || ds.host || 'localhost'
   return {
     id: ds.name, // Use name as ID (e.g., "spider_tvshow")
     name: ds.name,
-    displayName: dbName,
+    displayName: DISPLAY_NAME_MAP[ds.name] || dbName,
     type: ds.db_type || 'mariadb',
-    host: ds.host?.String || ds.host || 'localhost',
+    host: HOST_DISPLAY_MAP[rawHost] || rawHost,
     port: ds.port?.Int32 || ds.port || 3306,
     status: ds.status === 'active' ? 'connected' : 'disconnected',
     tableCount: ds.tables_count || 0,

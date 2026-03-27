@@ -8,7 +8,7 @@ ATLAS is a self-contained Text-to-SQL system that co-locates schema metadata, se
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
-[![BIRD EX](https://img.shields.io/badge/BIRD_dev-75.55%25_EX-brightgreen)](#evaluation)
+[![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#evaluation)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -55,7 +55,7 @@ A coordinator–executor architecture keeps context synchronized with live schem
 
 | Configuration | EX (%) | Avg Iters |
 |---|---|---|
-| **Full ATLAS pipeline** | **75.55** | 3.37 |
+| **Full ATLAS pipeline** | **76.40** | 3.37 |
 | − ReAct Loop (one-shot + RC) | 68.71 | 1.00 |
 | − Business rules & value mappings | 72.04 | 3.62 |
 | − Sample values & synonyms | 70.86 | 3.91 |

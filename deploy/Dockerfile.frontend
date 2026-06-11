@@ -9,6 +9,9 @@
 # ============================================================
 FROM node:22-alpine AS builder
 
+# CI=true prevents pnpm from prompting for confirmation (no TTY in Docker)
+ENV CI=true
+
 # Install pnpm globally
 RUN corepack enable && corepack prepare pnpm@latest --activate
 

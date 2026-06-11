@@ -5,11 +5,24 @@
 
 .PHONY: rebuild clean-build dev backend frontend paper clean help demo-up demo-down demo-reset collect-logs logs clean-logs
 
+# ============== Config Bootstrap ==============
+# Ensure required config files exist (copy from .example if missing)
+check-config:
+	@if [ ! -f backend/server/configs/system.yaml ]; then \
+		echo "📋 Creating backend/server/configs/system.yaml from example..."; \
+		cp backend/server/configs/system.yaml.example backend/server/configs/system.yaml; \
+	fi
+	@if [ ! -f llm_config.json ]; then \
+		echo "📋 Creating llm_config.json from example..."; \
+		cp llm_config.json.example llm_config.json; \
+		echo "⚠️  Please edit llm_config.json to add your API keys before running!"; \
+	fi
+
 # ============== Primary Commands ==============
 # Default target: idempotent build (first run or rebuild, preserves data)
 .DEFAULT_GOAL := rebuild
 
-rebuild:
+rebuild: check-config
 	@echo "🔄 Building ATLAS (preserving data)..."
 	@# Stop and remove containers + images, keep volumes (data)
 	-docker compose -f deploy/docker-compose.yml down --rmi local
@@ -26,7 +39,7 @@ rebuild:
 	@echo "  MariaDB:  localhost:19010"
 	@echo ""
 
-clean-build:
+clean-build: check-config
 	@echo "🧹 Clean build (removing ALL data and cache)..."
 	@# Stop and remove everything including volumes
 	-docker compose -f deploy/docker-compose.yml down -v --rmi local

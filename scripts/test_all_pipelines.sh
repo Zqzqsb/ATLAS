@@ -145,7 +145,7 @@ EOF
 }
 
 echo "============================================"
-echo "  LUCID Pipeline Test Suite"
+echo "  ATLAS Pipeline Test Suite"
 echo "  Testing all grounding path combinations"
 echo "============================================"
 

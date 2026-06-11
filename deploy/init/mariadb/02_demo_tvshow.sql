@@ -1,5 +1,5 @@
 -- ============================================================
--- LUCID Demo Database 1: Spider TV Show
+-- ATLAS Demo Database 1: Spider TV Show
 -- Purpose: Demonstrate complete ReAct reasoning pipeline
 -- Source: Spider benchmark tv_1 database
 -- ============================================================

@@ -1,5 +1,5 @@
 -- ============================================================
--- lucid Demo MySQL Database
+-- ATLAS Demo MySQL Database
 -- E-commerce scenario with sample data for Text-to-SQL demos
 -- ============================================================
 

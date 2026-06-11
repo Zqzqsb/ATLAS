@@ -1,5 +1,5 @@
 -- ============================================================
--- LUCID Demo Database 3: Spider WTA Tennis
+-- ATLAS Demo Database 3: Spider WTA Tennis
 -- Purpose: Demonstrate complex sports data queries
 -- Source: Spider benchmark wta_1 database
 -- ============================================================

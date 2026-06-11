@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LUCID Log Collection Script
+# ATLAS Log Collection Script
 # Collects lucid-frontend / lucid-backend / lucid-mariadb container logs
 # Automatically splits backend logs into per-agent files
 #
@@ -88,7 +88,7 @@ LOG_DIR="$PROJECT_DIR/logs/$TIMESTAMP"
 AGENT_DIR="$LOG_DIR/agents"
 mkdir -p "$AGENT_DIR"
 
-echo "📝 LUCID Log Collection"
+echo "📝 ATLAS Log Collection"
 echo "   Output: $LOG_DIR"
 if [ "$KEEP_COLOR" = true ]; then
     echo "   🎨 Color mode: ANSI codes preserved (use less -R to view)"
@@ -118,7 +118,7 @@ for container in "${EXPECTED_CONTAINERS[@]}"; do
 done
 
 if [ ${#CONTAINERS[@]} -eq 0 ]; then
-    echo "❌ No lucid-* containers found. Start services first:"
+    echo "❌ No atlas/lucid containers found. Start services first:"
     echo "   make rebuild   or   make up"
     exit 1
 fi

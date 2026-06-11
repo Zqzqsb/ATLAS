@@ -1,5 +1,5 @@
 -- ============================================================
--- LUCID Demo Database 2: Spider Flight
+-- ATLAS Demo Database 2: Spider Flight
 -- Purpose: Demonstrate airline/airport/flight queries
 -- Source: Spider benchmark flight_2 database
 -- ============================================================

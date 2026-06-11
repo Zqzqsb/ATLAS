@@ -1,5 +1,5 @@
 -- =============================================================
--- LUCID TPC-H Enterprise Demo Database
+-- ATLAS TPC-H Enterprise Demo Database
 -- Demonstrates two-stage Adaptive Schema Linking (>30 tables triggers LargeScale)
 -- TPC-H core 8 tables + 30 enterprise extension tables + 479 addon domain tables = 517 tables
 -- =============================================================
@@ -905,7 +905,7 @@ FLUSH PRIVILEGES;
 
 
 -- =============================================================
--- Register in LUCID Lake-Base (rc_datasources)
+-- Register in ATLAS Lake-Base (rc_datasources)
 -- =============================================================
 USE lucid;
 

@@ -1,4 +1,4 @@
-# LUCID Demo Database Container
+# ATLAS Demo Database Container
 # 
 # Usage:
 #   cd system/mydb && docker compose up -d

@@ -1,4 +1,4 @@
--- LUCID Lake-Base Storage Initialization
+-- ATLAS Lake-Base Storage Initialization
 -- MariaDB 12 with VECTOR support
 --
 -- This script creates the rc_* (Rich Context) tables that store:
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS rc_datasources (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-COMMENT='Registered data sources for LUCID system';
+COMMENT='Registered data sources for ATLAS system';
 
 -- ============================================================
 -- 2. Tables (table-level Rich Context)
@@ -193,4 +193,4 @@ COMMENT='Change log for audit and self-maintenance';
 -- ============================================================
 -- Success message
 -- ============================================================
-SELECT 'LUCID Lake-Base storage initialized successfully!' AS status;
+SELECT 'ATLAS Lake-Base storage initialized successfully!' AS status;

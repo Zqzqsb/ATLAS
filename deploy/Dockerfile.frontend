@@ -1,4 +1,4 @@
-# LUCID Frontend Dockerfile
+# ATLAS Frontend Dockerfile
 # Build Vue/Vite frontend with pnpm, serve with nginx
 #
 # Build from project root:

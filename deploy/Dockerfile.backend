@@ -1,5 +1,5 @@
-# LUCID Backend Dockerfile
-# Lakebase-Unified Context-aware Intelligence for Data
+# ATLAS Backend Dockerfile
+# Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context
 #
 # Build from project root:
 #   docker build -f deploy/Dockerfile.backend -t lucid-backend .

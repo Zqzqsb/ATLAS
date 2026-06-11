@@ -1,5 +1,5 @@
 -- =============================================================
--- LUCID Evolution Demo Database
+-- ATLAS Evolution Demo Database
 -- Demonstrates Agent self-maintenance via Schema evolution stages
 -- =============================================================
 
@@ -44,7 +44,7 @@ GRANT ALL PRIVILEGES ON lucid_evolution.* TO 'lucid'@'%';
 FLUSH PRIVILEGES;
 
 -- =============================================================
--- Register in LUCID Lake-Base (rc_datasources)
+-- Register in ATLAS Lake-Base (rc_datasources)
 -- =============================================================
 USE lucid;
 

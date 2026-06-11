@@ -1,5 +1,5 @@
-# LUCID - Lakebase-Unified Context-aware Intelligence for Data
-# VLDB 2025/2026 Demo Track
+# ATLAS - Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context
+# VLDB 2026 Demo Track
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
@@ -10,7 +10,7 @@
 .DEFAULT_GOAL := rebuild
 
 rebuild:
-	@echo "🔄 Building LUCID (preserving data)..."
+	@echo "🔄 Building ATLAS (preserving data)..."
 	@# Stop and remove containers + images, keep volumes (data)
 	-docker compose -f deploy/docker-compose.yml down --rmi local
 	@# Clean local build artifacts
@@ -20,7 +20,7 @@ rebuild:
 	@# Start services
 	docker compose -f deploy/docker-compose.yml up -d
 	@echo ""
-	@echo "✅ LUCID is ready!"
+	@echo "✅ ATLAS is ready!"
 	@echo "  Frontend: http://localhost:19000"
 	@echo "  Backend:  http://localhost:19001"
 	@echo "  MariaDB:  localhost:19010"
@@ -42,7 +42,7 @@ clean-build:
 	@# Start all services
 	docker compose -f deploy/docker-compose.yml up -d
 	@echo ""
-	@echo "✅ LUCID is ready (fresh install)!"
+	@echo "✅ ATLAS is ready (fresh install)!"
 	@echo "  Frontend: http://localhost:19000"
 	@echo "  Backend:  http://localhost:19001"
 	@echo "  MariaDB:  localhost:19010"

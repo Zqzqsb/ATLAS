@@ -56,12 +56,12 @@ const progressPercent = computed(() => Math.round((currentStage.value / totalSta
 // Stage icon mapping
 function getStageIcon(stage: EvolutionStage): string {
   switch (stage.id) {
-    case 1: return 'i-atlas-smartphone'
-    case 2: return 'i-atlas-shopping-cart'
-    case 3: return 'i-atlas-git-merge'
-    case 4: return 'i-atlas-trending-up'
-    case 5: return 'i-atlas-trash-2'
-    default: return 'i-atlas-table-2'
+    case 1: return 'i-lucide-smartphone'
+    case 2: return 'i-lucide-shopping-cart'
+    case 3: return 'i-lucide-git-merge'
+    case 4: return 'i-lucide-trending-up'
+    case 5: return 'i-lucide-trash-2'
+    default: return 'i-lucide-table-2'
   }
 }
 
@@ -87,11 +87,11 @@ function getChangeTypeColor(type: string): string {
 
 function getActionIcon(type: string): string {
   switch (type) {
-    case 'created': return 'i-atlas-plus-filled'
-    case 'expired': return 'i-atlas-alert-triangle-alt-filled'
-    case 'refreshed': return 'i-atlas-refresh-cw'
-    case 'deleted': return 'i-atlas-x-filled'
-    default: return 'i-atlas-info'
+    case 'created': return 'i-lucide-plus-filled'
+    case 'expired': return 'i-lucide-alert-triangle-alt-filled'
+    case 'refreshed': return 'i-lucide-refresh-cw'
+    case 'deleted': return 'i-lucide-x-filled'
+    default: return 'i-lucide-info'
   }
 }
 
@@ -107,37 +107,37 @@ function getActionColor(type: string): string {
 
 function getEventIcon(type: string): string {
   switch (type) {
-    case 'stage_start': return 'i-atlas-play-filled-alt'
-    case 'ddl_executing': return 'i-atlas-terminal'
-    case 'ddl_complete': return 'i-atlas-check'
-    case 'data_inserting': return 'i-atlas-table-2'
-    case 'data_complete': return 'i-atlas-check'
-    case 'detecting': return 'i-atlas-search'
-    case 'changes_detected': return 'i-atlas-alert-triangle-alt'
-    case 'syncing_schema': return 'i-atlas-database'
-    case 'schema_synced': return 'i-atlas-check'
-    case 'agent_start': return 'i-atlas-bot'
-    case 'agent_step': return 'i-atlas-cpu'
-    case 'agent_complete': return 'i-atlas-check-filled'
-    case 'agent_error': return 'i-atlas-x-circle'
-    case 'marking_expired': return 'i-atlas-clock'
-    case 'context_expired': return 'i-atlas-alert-triangle-alt-filled'
-    case 'creating_context': return 'i-atlas-cpu'
-    case 'context_created': return 'i-atlas-plus-filled'
-    case 'context_refreshed': return 'i-atlas-refresh-cw'
-    case 'context_deleted': return 'i-atlas-x-filled'
-    case 'refreshing_context': return 'i-atlas-cpu'
-    case 'context_refreshed_complete': return 'i-atlas-check-filled'
-    case 'updating_embeddings': return 'i-atlas-circle-dot'
-    case 'embedding_update': return 'i-atlas-circle-dot'
-    case 'embedding_complete': return 'i-atlas-check-filled'
-    case 'stage_complete': return 'i-atlas-check-filled'
-    case 'error': return 'i-atlas-x-circle'
-    case 'execution_complete': return 'i-atlas-trophy'
-    case 'reset_step': return 'i-atlas-rotate-ccw'
-    case 'reset_start': return 'i-atlas-rotate-ccw'
-    case 'reset_complete': return 'i-atlas-check-filled'
-    default: return 'i-atlas-info'
+    case 'stage_start': return 'i-lucide-play-filled-alt'
+    case 'ddl_executing': return 'i-lucide-terminal'
+    case 'ddl_complete': return 'i-lucide-check'
+    case 'data_inserting': return 'i-lucide-table-2'
+    case 'data_complete': return 'i-lucide-check'
+    case 'detecting': return 'i-lucide-search'
+    case 'changes_detected': return 'i-lucide-alert-triangle-alt'
+    case 'syncing_schema': return 'i-lucide-database'
+    case 'schema_synced': return 'i-lucide-check'
+    case 'agent_start': return 'i-lucide-bot'
+    case 'agent_step': return 'i-lucide-cpu'
+    case 'agent_complete': return 'i-lucide-check-filled'
+    case 'agent_error': return 'i-lucide-x-circle'
+    case 'marking_expired': return 'i-lucide-clock'
+    case 'context_expired': return 'i-lucide-alert-triangle-alt-filled'
+    case 'creating_context': return 'i-lucide-cpu'
+    case 'context_created': return 'i-lucide-plus-filled'
+    case 'context_refreshed': return 'i-lucide-refresh-cw'
+    case 'context_deleted': return 'i-lucide-x-filled'
+    case 'refreshing_context': return 'i-lucide-cpu'
+    case 'context_refreshed_complete': return 'i-lucide-check-filled'
+    case 'updating_embeddings': return 'i-lucide-circle-dot'
+    case 'embedding_update': return 'i-lucide-circle-dot'
+    case 'embedding_complete': return 'i-lucide-check-filled'
+    case 'stage_complete': return 'i-lucide-check-filled'
+    case 'error': return 'i-lucide-x-circle'
+    case 'execution_complete': return 'i-lucide-trophy'
+    case 'reset_step': return 'i-lucide-rotate-ccw'
+    case 'reset_start': return 'i-lucide-rotate-ccw'
+    case 'reset_complete': return 'i-lucide-check-filled'
+    default: return 'i-lucide-info'
   }
 }
 
@@ -171,11 +171,11 @@ function getPhaseLabel(phase: string): string {
 // Step type specific styling for agent steps
 function getStepTypeIcon(stepType: string): string {
   switch (stepType) {
-    case 'thought': return 'i-atlas-brain'
-    case 'action': return 'i-atlas-wrench'
-    case 'observation': return 'i-atlas-eye'
-    case 'finish': return 'i-atlas-check-circle-2'
-    default: return 'i-atlas-info'
+    case 'thought': return 'i-lucide-brain'
+    case 'action': return 'i-lucide-wrench'
+    case 'observation': return 'i-lucide-eye'
+    case 'finish': return 'i-lucide-check-circle-2'
+    default: return 'i-lucide-info'
   }
 }
 
@@ -358,7 +358,7 @@ onMounted(async () => {
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="w-11 h-11 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <div class="i-atlas-bot text-3xl text-white" />
+            <div class="i-lucide-bot text-3xl text-white" />
           </div>
           <div>
             <h2 class="text-xl font-bold text-gray-900">Schema Evolution</h2>
@@ -393,7 +393,7 @@ onMounted(async () => {
     <!-- Stage Timeline -->
     <div class="card p-6">
       <h3 class="font-bold text-gray-900 mb-5 flex items-center gap-2">
-        <span class="i-atlas-flag text-indigo-500" />
+        <span class="i-lucide-flag text-indigo-500" />
         Evolution Stages
       </h3>
 
@@ -419,11 +419,11 @@ onMounted(async () => {
             >
               <div 
                 v-if="stage.executed"
-                class="i-atlas-check-filled text-2xl text-green-500"
+                class="i-lucide-check-filled text-2xl text-green-500"
               />
               <div 
                 v-else-if="stage.is_next && executing"
-                class="i-atlas-loader-2 text-2xl text-indigo-500 animate-spin"
+                class="i-lucide-loader-2 text-2xl text-indigo-500 animate-spin"
               />
               <div 
                 v-else
@@ -483,7 +483,7 @@ onMounted(async () => {
         <!-- Action Buttons -->
         <div class="card p-5">
           <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span class="i-atlas-play-filled-alt text-indigo-500" />
+            <span class="i-lucide-play-filled-alt text-indigo-500" />
             Controls
           </h3>
 
@@ -497,7 +497,7 @@ onMounted(async () => {
               @click="executeNextStage"
             >
               <template #icon>
-                <div class="i-atlas-play" />
+                <div class="i-lucide-play" />
               </template>
               {{ executing ? `Executing Stage ${nextStageId}...` : isComplete ? 'All Stages Complete' : `Execute Stage ${nextStageId}` }}
             </NButton>
@@ -512,7 +512,7 @@ onMounted(async () => {
               type="warning"
             >
               <template #icon>
-                <div class="i-atlas-rotate-ccw" />
+                <div class="i-lucide-rotate-ccw" />
               </template>
               Reset to Initial State
             </NButton>
@@ -543,7 +543,7 @@ onMounted(async () => {
           <!-- Complete state -->
           <div v-else-if="isComplete" class="mt-5 p-4 bg-green-50 rounded-xl border border-green-200">
             <div class="flex items-center gap-2 text-green-700 font-bold mb-1">
-              <span class="i-atlas-trophy text-lg" />
+              <span class="i-lucide-trophy text-lg" />
               All Stages Complete!
             </div>
             <p class="text-xs text-green-600">
@@ -555,7 +555,7 @@ onMounted(async () => {
         <!-- Execution History (compact) -->
         <div v-if="history.length > 0" class="card p-5">
           <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span class="i-atlas-history text-blue-500" />
+            <span class="i-lucide-history text-blue-500" />
             Execution History
           </h3>
 
@@ -612,7 +612,7 @@ onMounted(async () => {
         <div class="card p-5 h-full flex flex-col">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-gray-900 flex items-center gap-2">
-              <span class="i-atlas-activity text-green-500" />
+              <span class="i-lucide-activity text-green-500" />
               Real-time Event Log
               <span v-if="executing" class="flex items-center gap-1 text-xs font-normal text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                 <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -620,7 +620,7 @@ onMounted(async () => {
               </span>
             </h3>
             <NButton quaternary size="tiny" @click="eventLog = []" :disabled="executing">
-              <template #icon><div class="i-atlas-trash-2" /></template>
+              <template #icon><div class="i-lucide-trash-2" /></template>
               Clear
             </NButton>
           </div>
@@ -631,7 +631,7 @@ onMounted(async () => {
           >
             <div v-if="eventLog.length === 0" class="flex items-center justify-center h-full text-gray-500">
               <div class="text-center">
-                <div class="i-atlas-terminal text-4xl mb-3 opacity-50" />
+                <div class="i-lucide-terminal text-4xl mb-3 opacity-50" />
                 <div class="text-sm">Execute a stage to see real-time events here</div>
               </div>
             </div>
@@ -776,11 +776,11 @@ onMounted(async () => {
     <div v-if="changeLogs.length > 0" class="card p-6">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-gray-900 flex items-center gap-2">
-          <span class="i-atlas-folder-open text-purple-500" />
+          <span class="i-lucide-folder-open text-purple-500" />
           Agent Change Logs
         </h3>
         <NButton quaternary size="tiny" @click="fetchChangeLogs">
-          <template #icon><div class="i-atlas-refresh-cw" /></template>
+          <template #icon><div class="i-lucide-refresh-cw" /></template>
           Refresh
         </NButton>
       </div>

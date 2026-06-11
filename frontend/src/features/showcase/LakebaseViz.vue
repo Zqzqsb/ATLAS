@@ -10,7 +10,7 @@ const activeLayer = ref(-1)
 const unifiedLayers = [
   {
     name: 'Schema Metadata',
-    icon: 'i-atlas-database',
+    icon: 'i-lucide-database',
     desc: 'Tables, columns, types, constraints',
     color: 'from-blue-500 to-blue-600',
     bgLight: 'bg-blue-50',
@@ -19,7 +19,7 @@ const unifiedLayers = [
   },
   {
     name: 'Rich Context',
-    icon: 'i-atlas-file-text',
+    icon: 'i-lucide-file-text',
     desc: 'Business descriptions, synonyms, rules',
     color: 'from-indigo-500 to-indigo-600',
     bgLight: 'bg-indigo-50',
@@ -28,7 +28,7 @@ const unifiedLayers = [
   },
   {
     name: 'Relationship Graph',
-    icon: 'i-atlas-git-branch',
+    icon: 'i-lucide-git-branch',
     desc: 'Foreign keys, join paths, entity links',
     color: 'from-violet-500 to-violet-600',
     bgLight: 'bg-violet-50',
@@ -37,7 +37,7 @@ const unifiedLayers = [
   },
   {
     name: 'Vector Embeddings',
-    icon: 'i-atlas-radar',
+    icon: 'i-lucide-radar',
     desc: 'HNSW index for semantic retrieval',
     color: 'from-purple-500 to-purple-600',
     bgLight: 'bg-purple-50',
@@ -46,7 +46,7 @@ const unifiedLayers = [
   },
   {
     name: 'Change Audit Log',
-    icon: 'i-atlas-history',
+    icon: 'i-lucide-history',
     desc: 'DDL changes, version tracking',
     color: 'from-fuchsia-500 to-fuchsia-600',
     bgLight: 'bg-fuchsia-50',
@@ -60,7 +60,7 @@ const traditionalComponents = [
   {
     name: 'MySQL',
     role: 'Relational DB',
-    icon: 'i-atlas-database',
+    icon: 'i-lucide-database',
     color: 'from-amber-400 to-orange-500',
     textColor: 'text-orange-700',
     bgColor: 'bg-orange-50',
@@ -70,7 +70,7 @@ const traditionalComponents = [
   {
     name: 'Redis',
     role: 'Cache',
-    icon: 'i-atlas-zap',
+    icon: 'i-lucide-zap',
     color: 'from-red-400 to-red-600',
     textColor: 'text-red-700',
     bgColor: 'bg-red-50',
@@ -80,7 +80,7 @@ const traditionalComponents = [
   {
     name: 'Milvus',
     role: 'Vector DB',
-    icon: 'i-atlas-radar',
+    icon: 'i-lucide-radar',
     color: 'from-sky-400 to-blue-600',
     textColor: 'text-blue-700',
     bgColor: 'bg-blue-50',
@@ -90,7 +90,7 @@ const traditionalComponents = [
   {
     name: 'Elasticsearch',
     role: 'Search Engine',
-    icon: 'i-atlas-search',
+    icon: 'i-lucide-search',
     color: 'from-yellow-400 to-amber-500',
     textColor: 'text-amber-700',
     bgColor: 'bg-yellow-50',
@@ -100,9 +100,9 @@ const traditionalComponents = [
 ]
 
 const painPoints = [
-  { icon: 'i-atlas-refresh-cw', text: 'Data sync overhead across 4 systems' },
-  { icon: 'i-atlas-server-crash', text: '4× deployment & maintenance cost' },
-  { icon: 'i-atlas-unplug', text: 'Cross-engine inconsistency risk' },
+  { icon: 'i-lucide-refresh-cw', text: 'Data sync overhead across 4 systems' },
+  { icon: 'i-lucide-server-crash', text: '4× deployment & maintenance cost' },
+  { icon: 'i-lucide-unplug', text: 'Cross-engine inconsistency risk' },
 ]
 
 let observer: IntersectionObserver | null = null
@@ -136,7 +136,7 @@ onUnmounted(() => {
     <!-- Section header -->
     <div class="text-center mb-12">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 mb-4">
-        <div class="i-atlas-cylinder text-blue-600" />
+        <div class="i-lucide-cylinder text-blue-600" />
         <span class="text-sm font-semibold text-blue-700">Innovation #1</span>
       </div>
       <h3 class="text-3xl font-bold text-gray-900 mb-3">Lakebase Unified Storage</h3>
@@ -159,7 +159,7 @@ onUnmounted(() => {
       <div class="relative flex flex-col">
         <div class="text-center mb-4">
           <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold border border-emerald-200 shadow-sm">
-            <div class="i-atlas-check-circle text-emerald-500" />
+            <div class="i-lucide-check-circle text-emerald-500" />
             ATLAS — Single Engine
           </span>
         </div>
@@ -180,7 +180,7 @@ onUnmounted(() => {
           <!-- MariaDB label -->
           <div class="flex items-center gap-3 mb-6 relative z-10">
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex-center text-white shadow-md shadow-blue-500/30">
-              <div class="i-atlas-database text-lg" />
+              <div class="i-lucide-database text-lg" />
             </div>
             <div>
               <span class="font-bold text-gray-800">MariaDB</span>
@@ -248,15 +248,15 @@ onUnmounted(() => {
           style="transition-delay: 1.2s"
         >
           <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
-            <div class="i-atlas-zap text-xs" />
+            <div class="i-lucide-zap text-xs" />
             Single deployment
           </span>
           <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
-            <div class="i-atlas-shield-check text-xs" />
+            <div class="i-lucide-shield-check text-xs" />
             ACID consistent
           </span>
           <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
-            <div class="i-atlas-gauge text-xs" />
+            <div class="i-lucide-gauge text-xs" />
             Sub-100ms retrieval
           </span>
         </div>
@@ -266,7 +266,7 @@ onUnmounted(() => {
       <div class="relative flex flex-col">
         <div class="text-center mb-4">
           <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-red-50 text-red-700 text-sm font-semibold border border-red-200 shadow-sm">
-            <div class="i-atlas-x-circle text-red-400" />
+            <div class="i-lucide-x-circle text-red-400" />
             Traditional — Multi-Component
           </span>
         </div>
@@ -337,7 +337,7 @@ onUnmounted(() => {
             :class="isVisible ? 'opacity-100' : 'opacity-0'"
             style="transition: opacity 0.5s; transition-delay: 1.6s"
           >
-            <div class="i-atlas-activity text-red-400 text-sm shrink-0 animate-pulse" />
+            <div class="i-lucide-activity text-red-400 text-sm shrink-0 animate-pulse" />
             <span class="text-xs text-red-600 font-medium">Constant cross-system sync...</span>
           </div>
         </div>

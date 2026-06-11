@@ -325,7 +325,7 @@ function goHome() {
 
         <div class="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors" @click="next()">
           <div class="animate-bounce">
-            <div class="i-atlas-chevrons-down text-2xl mx-auto" />
+            <div class="i-lucide-chevrons-down text-2xl mx-auto" />
           </div>
           <div class="text-xs mt-1 tracking-wider uppercase">Scroll or press ↓</div>
         </div>
@@ -388,7 +388,7 @@ function goHome() {
             @click="goHome"
           >
             <div class="flex items-center gap-2">
-              <div class="i-atlas-database" />
+              <div class="i-lucide-database" />
               Go to Databases
             </div>
           </button>
@@ -398,7 +398,7 @@ function goHome() {
             class="px-6 py-3 rounded-xl border border-gray-600 text-gray-300 font-bold hover:bg-gray-700/50 hover:-translate-y-0.5 transition-all"
           >
             <div class="flex items-center gap-2">
-              <div class="i-atlas-github" />
+              <div class="i-lucide-github" />
               GitHub
             </div>
           </a>

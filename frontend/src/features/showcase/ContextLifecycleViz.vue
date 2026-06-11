@@ -11,7 +11,7 @@ const phases = [
     id: 'onboarding',
     title: 'Onboarding',
     subtitle: 'Generate Rich Context',
-    icon: 'i-atlas-sparkles',
+    icon: 'i-lucide-sparkles',
     color: 'blue',
     gradientFrom: 'from-blue-500',
     gradientTo: 'to-cyan-500',
@@ -19,10 +19,10 @@ const phases = [
     borderColor: 'border-blue-300',
     textColor: 'text-blue-700',
     steps: [
-      { icon: 'i-atlas-plug', text: 'Connect database' },
-      { icon: 'i-atlas-scan', text: 'Extract schema (tables, columns, types)' },
-      { icon: 'i-atlas-brain', text: 'LLM generates descriptions & business rules' },
-      { icon: 'i-atlas-radar', text: 'Embed into HNSW vector index' },
+      { icon: 'i-lucide-plug', text: 'Connect database' },
+      { icon: 'i-lucide-scan', text: 'Extract schema (tables, columns, types)' },
+      { icon: 'i-lucide-brain', text: 'LLM generates descriptions & business rules' },
+      { icon: 'i-lucide-radar', text: 'Embed into HNSW vector index' },
     ],
     contextExample: {
       table: 'orders',
@@ -35,7 +35,7 @@ const phases = [
     id: 'query',
     title: 'Query-Time',
     subtitle: 'Leverage Rich Context',
-    icon: 'i-atlas-search',
+    icon: 'i-lucide-search',
     color: 'emerald',
     gradientFrom: 'from-emerald-500',
     gradientTo: 'to-teal-500',
@@ -43,10 +43,10 @@ const phases = [
     borderColor: 'border-emerald-300',
     textColor: 'text-emerald-700',
     steps: [
-      { icon: 'i-atlas-message-square', text: 'User asks natural language question' },
-      { icon: 'i-atlas-radar', text: 'Vector search retrieves relevant contexts' },
-      { icon: 'i-atlas-syringe', text: 'Inject into LLM prompt as knowledge' },
-      { icon: 'i-atlas-code', text: 'Generate accurate SQL with context awareness' },
+      { icon: 'i-lucide-message-square', text: 'User asks natural language question' },
+      { icon: 'i-lucide-radar', text: 'Vector search retrieves relevant contexts' },
+      { icon: 'i-lucide-syringe', text: 'Inject into LLM prompt as knowledge' },
+      { icon: 'i-lucide-code', text: 'Generate accurate SQL with context awareness' },
     ],
     contextExample: {
       table: 'orders',
@@ -59,7 +59,7 @@ const phases = [
     id: 'evolution',
     title: 'Evolution',
     subtitle: 'Self-Maintaining Update',
-    icon: 'i-atlas-refresh-cw',
+    icon: 'i-lucide-refresh-cw',
     color: 'violet',
     gradientFrom: 'from-violet-500',
     gradientTo: 'to-purple-500',
@@ -67,10 +67,10 @@ const phases = [
     borderColor: 'border-violet-300',
     textColor: 'text-violet-700',
     steps: [
-      { icon: 'i-atlas-alert-triangle', text: 'DDL change detected (ALTER TABLE)' },
-      { icon: 'i-atlas-clock', text: 'Mark affected contexts as stale' },
-      { icon: 'i-atlas-wand-2', text: 'LLM regenerates updated descriptions' },
-      { icon: 'i-atlas-check-circle', text: 'Re-embed & verify correctness' },
+      { icon: 'i-lucide-alert-triangle', text: 'DDL change detected (ALTER TABLE)' },
+      { icon: 'i-lucide-clock', text: 'Mark affected contexts as stale' },
+      { icon: 'i-lucide-wand-2', text: 'LLM regenerates updated descriptions' },
+      { icon: 'i-lucide-check-circle', text: 'Re-embed & verify correctness' },
     ],
     contextExample: {
       table: 'orders',
@@ -133,7 +133,7 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
     <!-- Section header -->
     <div class="text-center mb-12">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 mb-4">
-        <div class="i-atlas-rotate-cw text-emerald-600" />
+        <div class="i-lucide-rotate-cw text-emerald-600" />
         <span class="text-sm font-semibold text-emerald-700">Innovation #3</span>
       </div>
       <h3 class="text-3xl font-bold text-gray-900 mb-3">Rich Context Lifecycle</h3>
@@ -180,13 +180,13 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
 
           <!-- Connector arrow -->
           <div v-if="idx < phases.length - 1" class="flex justify-center py-1">
-            <div class="i-atlas-chevron-down text-gray-300" />
+            <div class="i-lucide-chevron-down text-gray-300" />
           </div>
         </div>
 
         <!-- Loop-back arrow -->
         <div class="flex items-center gap-2 text-gray-400">
-          <div class="i-atlas-corner-left-up" />
+          <div class="i-lucide-corner-left-up" />
           <span class="text-xs font-medium">Continuous loop</span>
         </div>
       </div>
@@ -227,15 +227,15 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
                   <div :class="step.icon" class="text-xs" :style="{ color: `var(--un-color-${currentPhase.color}-600, #6366f1)` }" />
                 </div>
                 <span class="text-sm text-gray-700">{{ step.text }}</span>
-                <div v-if="idx < currentPhase.steps.length - 1" class="ml-auto i-atlas-arrow-right text-xs text-gray-300" />
-                <div v-else class="ml-auto i-atlas-check text-xs text-emerald-500" />
+                <div v-if="idx < currentPhase.steps.length - 1" class="ml-auto i-lucide-arrow-right text-xs text-gray-300" />
+                <div v-else class="ml-auto i-lucide-check text-xs text-emerald-500" />
               </div>
             </div>
 
             <!-- Context example card -->
             <div class="rounded-xl bg-white/80 border border-white/90 p-4 shadow-sm">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-atlas-file-text text-gray-400 text-sm" />
+                <div class="i-lucide-file-text text-gray-400 text-sm" />
                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Context Example</span>
               </div>
               <div class="font-mono text-sm space-y-1">
@@ -257,7 +257,7 @@ const currentPhase = computed(() => activePhase.value >= 0 ? phases[activePhase.
           class="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50/50 p-12 flex-center min-h-[400px]"
         >
           <div class="text-center text-gray-400">
-            <div class="i-atlas-mouse-pointer text-3xl mb-3" />
+            <div class="i-lucide-mouse-pointer text-3xl mb-3" />
             <p>Select a phase to explore</p>
           </div>
         </div>

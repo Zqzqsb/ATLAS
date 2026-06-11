@@ -75,7 +75,7 @@ onUnmounted(() => {
     <!-- Section header -->
     <div class="text-center mb-12">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-50 border border-violet-200 mb-4">
-        <div class="i-atlas-filter text-violet-600" />
+        <div class="i-lucide-filter text-violet-600" />
         <span class="text-sm font-semibold text-violet-700">Innovation #2</span>
       </div>
       <h3 class="text-3xl font-bold text-gray-900 mb-3">Two-Stage Adaptive Schema Linking</h3>
@@ -90,7 +90,7 @@ onUnmounted(() => {
       :class="isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'"
     >
       <div class="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white border-2 border-violet-200 shadow-lg shadow-violet-100/50">
-        <div class="i-atlas-message-square text-violet-500 text-lg" />
+        <div class="i-lucide-message-square text-violet-500 text-lg" />
         <span class="text-gray-700 font-medium">{{ queryText }}</span>
         <div
           v-if="currentStage >= 1"
@@ -113,7 +113,7 @@ onUnmounted(() => {
             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300"
             :class="currentStage >= 1 ? 'bg-gray-100 text-gray-700' : 'bg-gray-50 text-gray-400'"
           >
-            <div class="i-atlas-layout-grid" />
+            <div class="i-lucide-layout-grid" />
             All Tables
           </div>
         </div>
@@ -124,7 +124,7 @@ onUnmounted(() => {
             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-500"
             :class="currentStage >= 2 ? 'bg-violet-100 text-violet-700' : 'bg-gray-50 text-gray-400'"
           >
-            <div class="i-atlas-radar" />
+            <div class="i-lucide-radar" />
             Stage 1: HNSW Recall
           </div>
         </div>
@@ -135,7 +135,7 @@ onUnmounted(() => {
             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-500"
             :class="currentStage >= 4 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-50 text-gray-400'"
           >
-            <div class="i-atlas-brain" />
+            <div class="i-lucide-brain" />
             Stage 2: LLM Refine
           </div>
         </div>
@@ -171,7 +171,7 @@ onUnmounted(() => {
             class="absolute -left-6 top-1/2 -translate-y-1/2 transition-all duration-500"
             :class="currentStage >= 2 ? 'opacity-100' : 'opacity-0'"
           >
-            <div class="i-atlas-chevrons-right text-violet-400 text-xl" />
+            <div class="i-lucide-chevrons-right text-violet-400 text-xl" />
           </div>
 
           <div
@@ -181,7 +181,7 @@ onUnmounted(() => {
             <!-- Vector search animation -->
             <div v-if="currentStage === 1" class="flex-1 flex-center">
               <div class="text-center">
-                <div class="i-atlas-radar text-3xl text-violet-400 animate-spin mb-3" style="animation-duration: 2s" />
+                <div class="i-lucide-radar text-3xl text-violet-400 animate-spin mb-3" style="animation-duration: 2s" />
                 <p class="text-sm text-violet-600 font-medium">HNSW Vector Search...</p>
                 <p class="text-xs text-violet-400 mt-1">&lt; 100ms</p>
               </div>
@@ -207,7 +207,7 @@ onUnmounted(() => {
                     ? 'bg-emerald-500 text-white'
                     : 'bg-violet-100 text-violet-600'
                 ]">
-                  <div :class="currentStage >= 4 && isInStage2(table) ? 'i-atlas-check' : 'i-atlas-table'" />
+                  <div :class="currentStage >= 4 && isInStage2(table) ? 'i-lucide-check' : 'i-lucide-table'" />
                 </div>
                 <span class="font-mono text-sm" :class="currentStage >= 4 && isInStage2(table) ? 'text-emerald-700 font-bold' : 'text-gray-700'">{{ table }}</span>
                 <div v-if="currentStage >= 2 && currentStage < 3" class="ml-auto">
@@ -230,7 +230,7 @@ onUnmounted(() => {
             class="absolute -left-6 top-1/2 -translate-y-1/2 transition-all duration-500"
             :class="currentStage >= 4 ? 'opacity-100' : 'opacity-0'"
           >
-            <div class="i-atlas-chevrons-right text-emerald-400 text-xl" />
+            <div class="i-lucide-chevrons-right text-emerald-400 text-xl" />
           </div>
 
           <div
@@ -240,7 +240,7 @@ onUnmounted(() => {
             <!-- LLM analysis animation -->
             <div v-if="currentStage === 3" class="flex-1 flex-center">
               <div class="text-center">
-                <div class="i-atlas-brain text-3xl text-violet-500 animate-pulse mb-3" />
+                <div class="i-lucide-brain text-3xl text-violet-500 animate-pulse mb-3" />
                 <p class="text-sm text-violet-600 font-medium">LLM Semantic Ranking...</p>
                 <p class="text-xs text-violet-400 mt-1">Deep understanding</p>
               </div>
@@ -257,7 +257,7 @@ onUnmounted(() => {
               >
                 <div class="flex items-center gap-2.5 mb-1.5">
                   <div class="w-6 h-6 rounded bg-emerald-500 text-white flex-center text-xs">
-                    <div class="i-atlas-check" />
+                    <div class="i-lucide-check" />
                   </div>
                   <span class="font-mono font-bold text-emerald-800">{{ table }}</span>
                 </div>

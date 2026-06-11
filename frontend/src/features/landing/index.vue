@@ -123,7 +123,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
             class="py-20 text-center rounded-2xl bg-white/40 backdrop-blur-sm border border-white/60 shadow-xl shadow-gray-200/30"
           >
             <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-slate-200 flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <div class="i-atlas-database text-5xl text-gray-400" />
+              <div class="i-lucide-database text-5xl text-gray-400" />
             </div>
             <p class="text-xl text-gray-700 font-bold mb-2">No databases connected</p>
             <p class="text-gray-500 mb-8">Connect your first database to get started</p>
@@ -172,7 +172,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
               @click="showAddDialog = true"
             >
               <div class="w-16 h-16 rounded-xl bg-white flex items-center justify-center mb-4 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-                <div class="i-atlas-plus text-3xl text-gray-400 group-hover:text-primary-600 transition-colors" />
+                <div class="i-lucide-plus text-3xl text-gray-400 group-hover:text-primary-600 transition-colors" />
               </div>
               <p class="text-gray-700 font-bold group-hover:text-primary-600 transition-colors">Add New Database</p>
               <p class="text-sm text-gray-500 mt-1">MySQL, MariaDB, PostgreSQL</p>
@@ -187,7 +187,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
             class="group flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-white/80 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:bg-white/90 hover:-translate-y-1 transition-all duration-300"
           >
             <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-primary-500/30 group-hover:scale-105 transition-transform">
-              <div class="i-atlas-sparkles text-xl" />
+              <div class="i-lucide-sparkles text-xl" />
             </div>
             <div>
               <span class="font-bold text-gray-800 group-hover:text-primary-600 transition-colors block">Feature Showcase</span>
@@ -201,7 +201,7 @@ async function handleAddDatabase(config: DatabaseConfig) {
             class="group flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-white/80 shadow-lg shadow-gray-200/40 hover:shadow-xl hover:bg-white/90 hover:-translate-y-1 transition-all duration-300"
           >
             <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 text-white flex items-center justify-center shadow-lg shadow-gray-500/30 group-hover:scale-105 transition-transform">
-              <div class="i-atlas-github text-2xl" />
+              <div class="i-lucide-github text-2xl" />
             </div>
             <div>
               <span class="font-bold text-gray-800 group-hover:text-gray-900 transition-colors block">GitHub</span>

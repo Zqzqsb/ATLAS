@@ -580,7 +580,7 @@ function onPreviewCellLeave() {
           The agent explores tables, discovers data patterns, and saves descriptions, sample values, synonyms, and business terms.
         </p>
         <NButton type="primary" size="large" class="w-full" @click="startGeneration">
-          <template #icon><div class="i-atlas-play" /></template>
+          <template #icon><div class="i-lucide-play" /></template>
           Start Generation
         </NButton>
       </div>
@@ -835,7 +835,7 @@ function onPreviewCellLeave() {
       <div class="flex justify-between">
         <div>
           <NButton v-if="store.isRunning" quaternary size="small" @click="handleMinimize">
-            <template #icon><span class="i-atlas-minimize-2" /></template>
+            <template #icon><span class="i-lucide-minimize-2" /></template>
             Minimize to Background
           </NButton>
         </div>

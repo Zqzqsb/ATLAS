@@ -10,7 +10,7 @@ const steps = [
     id: 'detect',
     title: 'DDL Change Detection',
     desc: 'Agent monitors schema changes in real-time',
-    icon: 'i-atlas-scan-search',
+    icon: 'i-lucide-scan-search',
     color: 'amber',
     gradientFrom: 'from-amber-500',
     gradientTo: 'to-orange-500',
@@ -23,7 +23,7 @@ const steps = [
     id: 'mark',
     title: 'Mark Stale Context',
     desc: 'Flag affected contexts as outdated',
-    icon: 'i-atlas-clock',
+    icon: 'i-lucide-clock',
     color: 'red',
     gradientFrom: 'from-red-500',
     gradientTo: 'to-rose-500',
@@ -36,7 +36,7 @@ const steps = [
     id: 'refresh',
     title: 'LLM Context Refresh',
     desc: 'Regenerate descriptions with new schema',
-    icon: 'i-atlas-wand-2',
+    icon: 'i-lucide-wand-2',
     color: 'violet',
     gradientFrom: 'from-violet-500',
     gradientTo: 'to-purple-500',
@@ -49,7 +49,7 @@ const steps = [
     id: 'embed',
     title: 'Re-embed Vectors',
     desc: 'Update HNSW index with refreshed content',
-    icon: 'i-atlas-radar',
+    icon: 'i-lucide-radar',
     color: 'blue',
     gradientFrom: 'from-blue-500',
     gradientTo: 'to-cyan-500',
@@ -62,7 +62,7 @@ const steps = [
     id: 'verify',
     title: 'Closed-Loop Verification',
     desc: 'Validate updated context with test queries',
-    icon: 'i-atlas-shield-check',
+    icon: 'i-lucide-shield-check',
     color: 'emerald',
     gradientFrom: 'from-emerald-500',
     gradientTo: 'to-teal-500',
@@ -131,7 +131,7 @@ onUnmounted(() => {
     <!-- Section header -->
     <div class="text-center mb-6">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 mb-3">
-        <div class="i-atlas-bot text-amber-600" />
+        <div class="i-lucide-bot text-amber-600" />
         <span class="text-sm font-semibold text-amber-700">Innovation #4</span>
       </div>
       <h3 class="text-3xl font-bold text-gray-900 mb-2">Agent Self-Maintaining</h3>
@@ -145,7 +145,7 @@ onUnmounted(() => {
       <div class="lg:col-span-1">
         <div class="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4 mb-3">
           <div class="flex items-center gap-2 mb-3">
-            <div class="i-atlas-terminal text-amber-600" />
+            <div class="i-lucide-terminal text-amber-600" />
             <span class="font-semibold text-gray-800 text-sm">DDL Change Event</span>
           </div>
           <div
@@ -165,7 +165,7 @@ onUnmounted(() => {
         <!-- Change Log panel -->
         <div class="rounded-2xl border-2 border-gray-200 bg-white p-4">
           <div class="flex items-center gap-2 mb-3">
-            <div class="i-atlas-scroll-text text-gray-500" />
+            <div class="i-lucide-scroll-text text-gray-500" />
             <span class="font-semibold text-gray-800 text-sm">Change Log</span>
           </div>
           <div class="space-y-2 max-h-[260px] overflow-y-auto">
@@ -216,7 +216,7 @@ onUnmounted(() => {
                       : 'from-gray-300 to-gray-400',
                   ]"
                 >
-                  <div v-if="currentStep > idx" class="i-atlas-check text-lg" />
+                  <div v-if="currentStep > idx" class="i-lucide-check text-lg" />
                   <div v-else-if="currentStep === idx" :class="step.icon" class="text-lg animate-pulse" />
                   <div v-else :class="step.icon" class="text-lg" />
                 </div>

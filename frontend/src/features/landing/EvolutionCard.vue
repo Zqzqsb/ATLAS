@@ -39,7 +39,7 @@ const stages = [
       <!-- Header -->
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
-          <div class="i-atlas-refresh-cw text-2xl text-white" />
+          <div class="i-lucide-refresh-cw text-2xl text-white" />
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="font-bold text-base text-gray-800 leading-tight group-hover:text-teal-600 transition-colors">
@@ -91,7 +91,7 @@ const stages = [
           lakebase
         </span>
         <div class="flex items-center gap-1.5 text-xs font-semibold text-teal-600 opacity-0 group-hover:opacity-100 transition-all duration-300">
-          Open <div class="i-atlas-arrow-right text-sm" />
+          Open <div class="i-lucide-arrow-right text-sm" />
         </div>
       </div>
     </div>

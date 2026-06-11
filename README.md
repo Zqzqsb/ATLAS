@@ -13,7 +13,7 @@ ATLAS is a self-contained Text-to-SQL system that co-locates schema metadata, se
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 <p align="center">
-  <img src="paper/figures/demo_ui.png" alt="ATLAS Demo Interface" width="100%"/>
+  <img src="docs/images/demo_ui.png" alt="ATLAS Demo Interface" width="100%"/>
 </p>
 <p align="center"><em>(a) Forest-chunked onboarding on 517 tables &nbsp; (b) Two-stage adaptive query &nbsp; (c) Autonomous schema evolution</em></p>
 
@@ -77,7 +77,7 @@ A coordinator–executor architecture keeps context synchronized with live schem
 ## Architecture
 
 <p align="center">
-  <img src="paper/figures/architecture.png" alt="ATLAS Architecture" width="720"/>
+  <img src="docs/images/architecture.png" alt="ATLAS Architecture" width="720"/>
 </p>
 <p align="center"><em>Three pipelines — Onboarding, Inference, Self-Maintenance — share unified in-database storage (rc_* tables).</em></p>
 

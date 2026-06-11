@@ -6,7 +6,7 @@
 
 ATLAS is a self-contained Text-to-SQL system that co-locates schema metadata, semantic annotations, and vector embeddings entirely within a single RDBMS. Three Docker containers, one command, no external engines.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#evaluation)
 
@@ -155,7 +155,7 @@ atlas/
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 

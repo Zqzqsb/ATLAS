@@ -6,7 +6,7 @@
 
 ATLAS 是一个自包含的 Text-to-SQL 系统，将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内。三个 Docker 容器，一条命令部署，无需任何外部引擎。
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#评估结果)
 
@@ -155,7 +155,7 @@ atlas/
 
 ## 许可证
 
-MIT License — 详见 [LICENSE](LICENSE)
+Apache License 2.0 — 详见 [LICENSE](LICENSE)
 
 ## 致谢
 

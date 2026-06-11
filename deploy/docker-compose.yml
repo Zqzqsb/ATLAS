@@ -1,8 +1,9 @@
-# LUCID - Full Stack Docker Compose
+# ATLAS - Full Stack Docker Compose
 # Lakebase-Unified Context-aware Intelligence for Data
 #
 # One-command deployment:
-#   docker compose -f deploy/docker-compose.yml up -d
+#   1. Copy .env.example to .env and fill in your values
+#   2. docker compose -f deploy/docker-compose.yml up -d
 #
 # Access:
 #   Frontend: http://localhost:19000
@@ -60,6 +61,11 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-debug}
       - LLM_CONFIG_PATH=/app/llm_config.json
       - LLM_API_KEY=${LLM_API_KEY:-}
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-}
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
+      - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
       - GODEBUG=madvdontneed=1
       - GOMAXPROCS=2
       - TZ=${TZ:-Asia/Shanghai}
@@ -90,10 +96,10 @@ services:
     ports:
       - "${LUCID_MARIADB_PORT:-19010}:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: lucid_root_2024
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-atlas_root_2026}
       MARIADB_DATABASE: lucid
       MARIADB_USER: lucid
-      MARIADB_PASSWORD: lucid2024
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-atlas2026}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - lucid-mariadb-data:/var/lib/mysql

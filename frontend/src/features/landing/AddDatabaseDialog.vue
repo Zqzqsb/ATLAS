@@ -62,7 +62,7 @@ function applyPreset(preset: string) {
       host: 'lucid-mariadb',
       port: 3306,
       username: 'root',
-      password: 'lucid_root_2024',
+      password: '',
       database: 'lucid_evolution'
     }
   } else {

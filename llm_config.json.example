@@ -1,0 +1,12 @@
+{
+  "deepseek_v3": {
+    "model_name": "deepseek-chat",
+    "token": "your-deepseek-api-key",
+    "base_url": "https://api.deepseek.com"
+  },
+  "qwen_max": {
+    "model_name": "qwen-max",
+    "token": "your-qwen-api-key",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  }
+}

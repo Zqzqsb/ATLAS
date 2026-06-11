@@ -5,14 +5,15 @@ Spider database migration script: SQLite -> MariaDB
 import sqlite3
 import pymysql
 import sys
+import os
 from pathlib import Path
 
 # MariaDB connection config
 MARIA_CONFIG = {
-    'host': '127.0.0.1',
-    'port': 19010,
-    'user': 'root',
-    'password': 'lucid_root_2024',
+    'host': os.environ.get('MARIADB_HOST', '127.0.0.1'),
+    'port': int(os.environ.get('MARIADB_PORT', '19010')),
+    'user': os.environ.get('MARIADB_USER', 'root'),
+    'password': os.environ.get('MARIADB_ROOT_PASSWORD', ''),
     'charset': 'utf8mb4'
 }
 

@@ -136,10 +136,16 @@ func (c *LakebaseConfig) overrideFromEnv() {
 	if v := os.Getenv("LAKEBASE_PASSWORD"); v != "" {
 		c.Lakebase.Password = v
 	}
+	// Also accept MARIADB_PASSWORD as fallback for lakebase password
+	if c.Lakebase.Password == "" {
+		if v := os.Getenv("MARIADB_PASSWORD"); v != "" {
+			c.Lakebase.Password = v
+		}
+	}
 	if v := os.Getenv("LAKEBASE_DATABASE"); v != "" {
 		c.Lakebase.Database = v
 	}
-	// Embedding API key from environment
+	// Embedding configuration from environment
 	if v := os.Getenv("EMBEDDING_API_KEY"); v != "" {
 		c.Embedding.APIKey = v
 		c.Embedding.Enabled = true
@@ -147,6 +153,12 @@ func (c *LakebaseConfig) overrideFromEnv() {
 	// Resolve API key placeholder
 	if c.Embedding.APIKey == "${EMBEDDING_API_KEY}" {
 		c.Embedding.APIKey = os.Getenv("EMBEDDING_API_KEY")
+	}
+	if v := os.Getenv("EMBEDDING_BASE_URL"); v != "" {
+		c.Embedding.BaseURL = v
+	}
+	if v := os.Getenv("EMBEDDING_MODEL"); v != "" {
+		c.Embedding.Model = v
 	}
 }
 

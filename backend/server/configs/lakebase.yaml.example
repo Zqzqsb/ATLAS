@@ -1,0 +1,32 @@
+# Lake-Base Storage Configuration
+# For ATLAS Rich Context management
+# Copy this file to lakebase.yaml and fill in your values
+
+lakebase:
+  host: lucid-mariadb
+  port: 3306
+  user: lucid
+  password: ""        # Set via EMBEDDING_DB_PASSWORD or fill in directly
+  database: lucid
+  max_open_conns: 20
+  max_idle_conns: 10
+  conn_max_lifetime: 300s
+
+embedding:
+  enabled: true
+  api_key: ""         # REQUIRED: Set your embedding API key (e.g. OpenAI, Volcengine Ark)
+  base_url: ""        # API base URL, e.g. "https://api.openai.com/v1" or "https://ark.cn-beijing.volces.com/api/v3"
+  model: ""           # Model name, e.g. "text-embedding-3-small" or "doubao-embedding-vision-250615"
+  dimension: 1536     # Must match your embedding model's output dimension
+  batch_size: 100
+  multimodal: false   # Set true if using Volcengine multimodal embedding endpoint
+
+vector_search:
+  top_k: 10
+  min_score: 0.7
+  max_distance: 0.3
+
+agent:
+  enable_ddl_detection: true
+  check_interval: 60
+  auto_refresh_context: true

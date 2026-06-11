@@ -72,7 +72,7 @@ A coordinator–executor architecture keeps context synchronized with live schem
 | − ReAct Loop | 93.3 | 56.7 | 2.3 |
 | − Rich Context | 80.0 | 53.3 | 4.9 |
 
-> Detailed ablation results: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+> Detailed ablation results: [AtlasCore](https://github.com/atlas-demo/AtlasCore)
 
 ## Architecture
 
@@ -84,7 +84,7 @@ A coordinator–executor architecture keeps context synchronized with live schem
 ## Quick Start
 
 ```bash
-git clone https://github.com/zqzqsb/atlas.git
+git clone https://github.com/atlas-demo/atlas.git
 cd atlas
 docker compose -f deploy/docker-compose.yml up -d
 ```

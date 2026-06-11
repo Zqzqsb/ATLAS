@@ -48,6 +48,8 @@ backend/internal/lakebase/schema/
 
 # === Config with secrets ===
 llm_config.json
+backend/server/configs/lakebase.yaml
+backend/server/configs/system.yaml
 
 # === OS ===
 .DS_Store

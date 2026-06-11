@@ -108,6 +108,19 @@ func applyEnvOverrides(config *Config) {
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
 		config.Server.LogLevel = logLevel
 	}
+
+	// Database password overrides: fill empty passwords from env vars
+	rootPass := os.Getenv("MARIADB_ROOT_PASSWORD")
+	userPass := os.Getenv("MARIADB_PASSWORD")
+	for i := range config.Databases {
+		if config.Databases[i].Password == "" {
+			if config.Databases[i].User == "root" && rootPass != "" {
+				config.Databases[i].Password = rootPass
+			} else if userPass != "" {
+				config.Databases[i].Password = userPass
+			}
+		}
+	}
 }
 
 // setDefaults fills in zero-value fields with sensible defaults.

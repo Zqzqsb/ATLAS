@@ -72,7 +72,7 @@ Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
 | − ReAct 循环 | 93.3 | 56.7 | 2.3 |
 | − Rich Context | 80.0 | 53.3 | 4.9 |
 
-> 详细消融结果: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+> 详细消融结果: [AtlasCore](https://github.com/atlas-demo/AtlasCore)
 
 ## 系统架构
 
@@ -84,7 +84,7 @@ Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
 ## 快速开始
 
 ```bash
-git clone https://github.com/zqzqsb/atlas.git
+git clone https://github.com/atlas-demo/atlas.git
 cd atlas
 docker compose -f deploy/docker-compose.yml up -d
 ```

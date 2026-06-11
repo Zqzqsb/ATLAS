@@ -29,8 +29,8 @@ COPY backend/internal/ ./internal/
 COPY backend/server/ ./server/
 COPY backend/cmd/ ./cmd/
 
-# Copy init SQL for go:embed auto-migration (single source of truth)
-COPY deploy/init/mariadb/01_init_lakebase.sql ./internal/lakebase/schema/01_init_lakebase.sql
+# Copy init SQL for go:embed auto-migration (single source of truth for the rc_* schema)
+COPY deploy/init/mariadb/reference/01_init_lakebase.sql ./internal/lakebase/schema/01_init_lakebase.sql
 
 # Build the binary with CGO enabled for SQLite support
 RUN CGO_ENABLED=1 GOOS=linux go build \

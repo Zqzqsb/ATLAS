@@ -61,8 +61,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-debug}
       - LLM_CONFIG_PATH=/app/llm_config.json
       - LLM_API_KEY=${LLM_API_KEY:-}
-      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-}
-      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-}
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-lucid_root_2024}
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-lucid2024}
       - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
@@ -96,10 +96,10 @@ services:
     ports:
       - "${LUCID_MARIADB_PORT:-19010}:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-atlas_root_2026}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-lucid_root_2024}
       MARIADB_DATABASE: lucid
       MARIADB_USER: lucid
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-atlas2026}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-lucid2024}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - lucid-mariadb-data:/var/lib/mysql

@@ -111,6 +111,13 @@ func main() {
 	// ========================================
 	var lakebaseService *services.LakebaseService
 	lakebaseConfigPath := "configs/lakebase.yaml"
+	if _, err := os.Stat(lakebaseConfigPath); os.IsNotExist(err) {
+		// Fall back to example config so demo databases are registered out of the box
+		if _, err2 := os.Stat("configs/lakebase.yaml.example"); err2 == nil {
+			lakebaseConfigPath = "configs/lakebase.yaml.example"
+			slog.Info("Lake-Base config not found, using example", "path", lakebaseConfigPath)
+		}
+	}
 	if _, err := os.Stat(lakebaseConfigPath); err == nil {
 		lakebaseService, err = services.NewLakebaseService(lakebaseConfigPath)
 		if err != nil {

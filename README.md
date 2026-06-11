@@ -107,6 +107,9 @@ make rebuild   # picks up the key; `make` warns in red while it is a placeholder
 |---|---|
 | `make` / `make rebuild` | Build + start (preserves data), then self-check |
 | `make clean-build` | Fresh cold start, re-seeded from the dump (asks to confirm) |
+
+> **Go proxy** (China): the Dockerfile uses `goproxy.cn` by default. Outside China,
+> override: `make PROXY=https://proxy.golang.org,direct`
 | `make doctor` | Diagnose config / containers / datasources |
 | `make down` | Stop all containers |
 

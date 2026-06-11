@@ -105,6 +105,8 @@ make rebuild   # 重新加载 key；占位未填时 `make` 会红色提示
 | `make doctor` | 诊断配置 / 容器 / 数据源 |
 | `make down` | 停止所有容器 |
 
+> **Go 代理**：国内默认使用 `goproxy.cn`；海外可用 `make PROXY=https://proxy.golang.org,direct`
+>
 > demo 默认数据库密码（`lucid2024`）在 `.env.example` / `docker-compose.yml` 中。
 > 任何非本地部署请通过 `.env` 修改。
 

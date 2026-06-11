@@ -47,17 +47,12 @@ check-config:
 # Non-fatal: warn loudly (red) if keys are still placeholders or passwords are default.
 check-secrets:
 	@warn=0; \
-	if grep -qE 'your-deepseek-api-key|your-qwen-api-key|YOUR_TOKEN_HERE' llm_config.json 2>/dev/null; then \
-		printf "$(RED)⚠️  llm_config.json still has placeholder tokens — SQL generation & onboarding will fail.$(NC)\n"; \
-		printf "$(YELLOW)    → Edit llm_config.json and set a real token (any OpenAI-compatible key).$(NC)\n"; \
+	if grep -qE 'your-deepseek-api-key|your-qwen-api-key|YOUR_TOKEN_HERE|your-embedding-api-key' llm_config.json 2>/dev/null; then \
+		printf "$(RED)⚠️  llm_config.json has placeholder keys — set real tokens for LLM + embedding.$(NC)\n"; \
+		printf "$(YELLOW)    → Edit llm_config.json: fill 'token' fields and '_embedding.api_key'.$(NC)\n"; \
 		warn=1; \
 	fi; \
-	if grep -qE 'api_key:[[:space:]]*""' backend/server/configs/lakebase.yaml 2>/dev/null; then \
-		printf "$(RED)⚠️  lakebase.yaml embedding api_key is empty — vector search / Rich Context embedding disabled.$(NC)\n"; \
-		printf "$(YELLOW)    → Set embedding.api_key/base_url/model (or EMBEDDING_* in .env).$(NC)\n"; \
-		warn=1; \
-	fi; \
-	if [ $$warn -eq 0 ]; then printf "$(GREEN)✅ Config keys look set.$(NC)\n"; fi; \
+	if [ $$warn -eq 0 ]; then printf "$(GREEN)✅ API keys configured (LLM + embedding in llm_config.json).$(NC)\n"; fi; \
 	printf "$(YELLOW)ℹ️  Demo uses default DB passwords (atlas2024). Change MARIADB_PASSWORD in .env for any non-local deployment.$(NC)\n"
 
 # ============== Primary Commands ==============

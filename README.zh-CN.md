@@ -91,8 +91,9 @@ make
 若要运行实时 SQL 生成和 onboarding agent，再补一个模型 key：
 
 ```bash
-# 编辑自动生成的配置，填入真实的 OpenAI 兼容 token 与 base_url
+# 编辑自动生成的配置 — LLM + Embedding 的 API Key 集中在一个文件
 $EDITOR llm_config.json
+# 填写：模型的 "token" 字段  +  "_embedding.api_key"
 make rebuild   # 重新加载 key；占位未填时 `make` 会红色提示
 ```
 

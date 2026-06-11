@@ -8,5 +8,11 @@
     "model_name": "qwen-max",
     "token": "your-qwen-api-key",
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  },
+  "_embedding": {
+    "api_key": "your-embedding-api-key",
+    "base_url": "https://api.openai.com/v1",
+    "model": "text-embedding-3-small",
+    "dimension": 1536
   }
 }

@@ -3,6 +3,7 @@
 package lakebase
 
 import (
+	"atlas/internal/llm"
 	"os"
 	"time"
 
@@ -129,6 +130,7 @@ func (c *LakebaseConfig) applyDefaults() {
 }
 
 // overrideFromEnv overrides configuration from environment variables
+// and from the _embedding section of llm_config.json (if present).
 func (c *LakebaseConfig) overrideFromEnv() {
 	if v := os.Getenv("LAKEBASE_HOST"); v != "" {
 		c.Lakebase.Host = v
@@ -145,7 +147,7 @@ func (c *LakebaseConfig) overrideFromEnv() {
 	if v := os.Getenv("LAKEBASE_DATABASE"); v != "" {
 		c.Lakebase.Database = v
 	}
-	// Embedding configuration from environment
+	// Embedding configuration from environment (highest priority)
 	if v := os.Getenv("EMBEDDING_API_KEY"); v != "" {
 		c.Embedding.APIKey = v
 		c.Embedding.Enabled = true
@@ -159,6 +161,37 @@ func (c *LakebaseConfig) overrideFromEnv() {
 	}
 	if v := os.Getenv("EMBEDDING_MODEL"); v != "" {
 		c.Embedding.Model = v
+	}
+
+	// If embedding api_key is still empty, try loading from llm_config.json _embedding section
+	if c.Embedding.APIKey == "" {
+		c.overrideFromLLMConfig()
+	}
+}
+
+// overrideFromLLMConfig reads _embedding from llm_config.json as a fallback.
+func (c *LakebaseConfig) overrideFromLLMConfig() {
+	llmCfgPath := os.Getenv("LLM_CONFIG_PATH")
+	if llmCfgPath == "" {
+		llmCfgPath = "llm_config.json"
+	}
+	cfg, err := llm.LoadConfig(llmCfgPath)
+	if err != nil || cfg.Embedding == nil {
+		return
+	}
+	emb := cfg.Embedding
+	if emb.APIKey != "" && emb.APIKey != "your-embedding-api-key" {
+		c.Embedding.APIKey = emb.APIKey
+		c.Embedding.Enabled = true
+	}
+	if emb.BaseURL != "" && c.Embedding.BaseURL == "" {
+		c.Embedding.BaseURL = emb.BaseURL
+	}
+	if emb.Model != "" && c.Embedding.Model == "" {
+		c.Embedding.Model = emb.Model
+	}
+	if emb.Dimension > 0 && c.Embedding.Dimension == 0 {
+		c.Embedding.Dimension = emb.Dimension
 	}
 }
 

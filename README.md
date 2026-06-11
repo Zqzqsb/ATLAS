@@ -93,12 +93,13 @@ Context, and **pre-computed 2048-dim vector embeddings**. As a result, schema
 browsing and the adaptive **vector retrieval** demo work on a **cold start with
 no embedding/LLM API key**.
 
-To run live SQL generation and the onboarding agent, add a model key:
+To run live SQL generation and the onboarding agent, add API keys:
 
 ```bash
-# Edit the auto-created config and set a real OpenAI-compatible token + base_url
+# Edit the auto-created config — all API keys (LLM + embedding) in one file
 $EDITOR llm_config.json
-make rebuild   # picks up the key; `make` warns in red while it is a placeholder
+# Fill in:  model "token" fields  +  "_embedding.api_key"
+make rebuild   # picks up the keys; `make` warns in red while they are placeholders
 ```
 
 ### Common commands

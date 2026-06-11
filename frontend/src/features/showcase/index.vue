@@ -393,7 +393,7 @@ function goHome() {
             </div>
           </button>
           <a
-            href="https://github.com/atlas-demo/atlas"
+            href="https://github.com/Zqzqsb/atlas"
             target="_blank"
             class="px-6 py-3 rounded-xl border border-gray-600 text-gray-300 font-bold hover:bg-gray-700/50 hover:-translate-y-0.5 transition-all"
           >

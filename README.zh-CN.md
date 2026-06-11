@@ -4,50 +4,41 @@
 
 > VLDB 2026 Demo Track
 
-ATLAS 是一个自包含的 Text-to-SQL 系统，将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内。三个 Docker 容器，一条命令部署，无需任何外部引擎。
+ATLAS 将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内——无外部向量库、无一致性问题、完整 ACID 保障。
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#评估结果)
-
-[English](README.md) | [简体中文](README.zh-CN.md)
 
 <p align="center">
   <img src="docs/images/demo_ui.png" alt="ATLAS Demo 界面" width="100%"/>
 </p>
 <p align="center"><em>(a) 517 表 Forest-Chunked Onboarding &nbsp; (b) 两阶段自适应查询 &nbsp; (c) 自主 Schema 演进</em></p>
 
-## 四项核心创新
+## 核心创新
 
 ### 1. 库内统一存储
 
-Schema、Rich Context、关系图谱、向量嵌入（HNSW）和变更审计日志全部存放在 MariaDB 12 的 `rc_*` 系列表中。一条 SQL 即可同时做向量相似度搜索和关系型过滤——无外部向量库、无一致性问题、完整 ACID 保障。
+Schema、Rich Context、关系图谱、向量嵌入（HNSW）和变更审计日志全部存放在 MariaDB 12 的 `rc_*` 系列表中，一条 SQL 即可同时做向量相似度搜索和关系型过滤。
 
 ### 2. 两阶段自适应 Schema Linking
 
 - **小规模** (≤30 表)：全量 Schema 直接发给 LLM 做 one-shot linking。
-- **大规模** (>30 表)：向量检索在亚秒级内将 500+ 张表缩减到 ~20 个候选；LLM 再做精确推理。两阶段通过原子槽并发执行，完全隐藏检索延迟。
+- **大规模** (>30 表)：向量检索在亚秒级内将 500+ 张表缩减到 ~20 个候选；LLM 再做精确推理。
 
 ### 3. Rich Context 生命周期
 
-Rich Context 不是一次性静态标注，而是经历三个阶段：
-
-| 阶段 | 内容 |
+| 阶段 | 描述 |
 |------|------|
 | **Onboarding** | ReAct Agent 采样数据，为每列生成描述/同义词/业务规则，嵌入 HNSW 索引 |
 | **Inference** | 向量检索召回相关 Context 注入 LLM prompt，辅助语义消歧 |
 | **Evolution** | DDL 变更检测 → 标记过时 Context → LLM 重新生成 → 向量重新嵌入 |
 
-大规模 Schema (>30 表) 使用 **Forest-Based Chunked** 策略，将 FK 图分解为连通子树并行处理。
+大规模 Schema 使用 **Forest-Based Chunked** 策略，将 FK 图分解为连通子树并行处理。
 
 ### 4. Agent 驱动的自维持
 
-Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
-
-1. **DDL 检测器** 对比 `information_schema` 与 Context 表的差异
-2. **Coordinator** 标记受影响条目为过时，规划维护任务
-3. **Executor** 调用 LLM 重新生成描述并重新嵌入向量
-4. **Change Logger** 记录所有变更的 before/after 对比
+Coordinator–Executor 架构：DDL 检测器对比 `information_schema` 差异 → Coordinator 标记过时条目 → Executor 调用 LLM 重新生成 → Change Logger 记录所有变更。
 
 ## 评估结果
 
@@ -72,7 +63,7 @@ Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
 | − ReAct 循环 | 93.3 | 56.7 | 2.3 |
 | − Rich Context | 80.0 | 53.3 | 4.9 |
 
-> 详细消融结果: [AtlasCore](https://github.com/atlas-demo/AtlasCore)
+> 详细消融结果: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
 
 ## 系统架构
 
@@ -84,8 +75,23 @@ Coordinator–Executor 架构保持 Context 与活跃 Schema 同步：
 ## 快速开始
 
 ```bash
-git clone https://github.com/atlas-demo/atlas.git
+git clone https://github.com/Zqzqsb/atlas.git
 cd atlas
+
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env：设置 LLM_API_KEY、EMBEDDING_API_KEY、EMBEDDING_BASE_URL、EMBEDDING_MODEL 等
+
+# 2. 配置后端
+cp backend/server/configs/system.yaml.example backend/server/configs/system.yaml
+cp backend/server/configs/lakebase.yaml.example backend/server/configs/lakebase.yaml
+# 编辑 yaml 文件，或依赖环境变量自动填充
+
+# 3. 配置 LLM
+cp llm_config.json.example llm_config.json
+# 编辑 llm_config.json：设置模型的 token 和 base_url
+
+# 4. 启动
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
@@ -102,24 +108,6 @@ docker compose -f deploy/docker-compose.yml up -d
 | 嵌入模型 | 任意 OpenAI 兼容 Embedding API |
 | 部署 | Docker Compose (3 容器) |
 
-## 使用方法
-
-```bash
-# 启动所有服务
-make up
-
-# 查看日志
-make logs
-
-# 停止
-make down
-
-# 本地开发
-make backend-dev    # Go 后端
-make frontend-dev   # Vue3 前端
-make db-up          # 仅启动数据库
-```
-
 ## 项目结构
 
 ```
@@ -135,11 +123,10 @@ atlas/
 │   │   ├── adapter/          # 数据库适配器
 │   │   └── llm/              # LLM 客户端
 │   └── server/               # HTTP API + SSE
-├── frontend/             # Vue3 + Vite + UnoCSS + Naive UI
-├── AtlasCore/            # 实验框架 (submodule)
-├── paper/                # VLDB Demo 论文 (LaTeX)
+├── frontend/             # Vue 3 + Vite + UnoCSS + Naive UI
 ├── deploy/               # Docker Compose 配置
-└── scripts/              # Demo 视频脚本
+├── docs/                 # 图片与文档
+└── scripts/              # 工具脚本
 ```
 
 ## 引用
@@ -155,7 +142,7 @@ atlas/
 
 ## 许可证
 
-Apache License 2.0 — 详见 [LICENSE](LICENSE)
+[Apache License 2.0](LICENSE)
 
 ## 致谢
 

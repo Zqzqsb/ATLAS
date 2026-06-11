@@ -78,24 +78,40 @@ Coordinator–executor architecture: DDL Detector diffs `information_schema` →
 git clone https://github.com/Zqzqsb/atlas.git
 cd atlas
 
-# 1. Configure environment
-cp .env.example .env
-# Edit .env: set LLM_API_KEY, EMBEDDING_API_KEY, EMBEDDING_BASE_URL, EMBEDDING_MODEL, etc.
-
-# 2. Configure backend
-cp backend/server/configs/system.yaml.example backend/server/configs/system.yaml
-cp backend/server/configs/lakebase.yaml.example backend/server/configs/lakebase.yaml
-# Edit yaml files or rely on environment variables
-
-# 3. Configure LLM
-cp llm_config.json.example llm_config.json
-# Edit llm_config.json: set your model token and base_url
-
-# 4. Launch
-docker compose -f deploy/docker-compose.yml up -d
+# One command: bootstraps configs from examples, builds, starts,
+# and runs health + datasource self-checks.
+make
 ```
 
-Access the UI at **http://localhost:19000**
+Then open the UI at **http://localhost:19000**.
+
+### The demo ships preloaded — no API key needed to explore
+
+A single seed file (`deploy/init/mariadb/01_atlas_demo.sql.gz`, loaded on first
+start) restores the **exact working demo**: all five datasources, their Rich
+Context, and **pre-computed 2048-dim vector embeddings**. As a result, schema
+browsing and the adaptive **vector retrieval** demo work on a **cold start with
+no embedding/LLM API key**.
+
+To run live SQL generation and the onboarding agent, add a model key:
+
+```bash
+# Edit the auto-created config and set a real OpenAI-compatible token + base_url
+$EDITOR llm_config.json
+make rebuild   # picks up the key; `make` warns in red while it is a placeholder
+```
+
+### Common commands
+
+| Command | Purpose |
+|---|---|
+| `make` / `make rebuild` | Build + start (preserves data), then self-check |
+| `make clean-build` | Fresh cold start, re-seeded from the dump (asks to confirm) |
+| `make doctor` | Diagnose config / containers / datasources |
+| `make down` | Stop all containers |
+
+> Default demo DB passwords (`lucid2024`) live in `.env.example` / `docker-compose.yml`.
+> Change them via `.env` for any non-local deployment.
 
 ## Tech Stack
 

@@ -78,24 +78,35 @@ Coordinator–Executor 架构：DDL 检测器对比 `information_schema` 差异 
 git clone https://github.com/Zqzqsb/atlas.git
 cd atlas
 
-# 1. 配置环境变量
-cp .env.example .env
-# 编辑 .env：设置 LLM_API_KEY、EMBEDDING_API_KEY、EMBEDDING_BASE_URL、EMBEDDING_MODEL 等
-
-# 2. 配置后端
-cp backend/server/configs/system.yaml.example backend/server/configs/system.yaml
-cp backend/server/configs/lakebase.yaml.example backend/server/configs/lakebase.yaml
-# 编辑 yaml 文件，或依赖环境变量自动填充
-
-# 3. 配置 LLM
-cp llm_config.json.example llm_config.json
-# 编辑 llm_config.json：设置模型的 token 和 base_url
-
-# 4. 启动
-docker compose -f deploy/docker-compose.yml up -d
+# 一条命令：自动从 .example 生成配置、构建、启动，并做健康/数据源自检
+make
 ```
 
-访问 **http://localhost:19000** 使用系统
+随后访问 **http://localhost:19000**。
+
+### Demo 出厂预置 —— 无需 API key 即可体验
+
+首次启动会加载单一种子文件（`deploy/init/mariadb/01_atlas_demo.sql.gz`），还原**完整可用的 demo**：五个数据源、它们的 Rich Context，以及**预计算好的 2048 维向量 embedding**。因此**冷启动即可**进行 schema 浏览和自适应**向量检索**演示，**无需任何 embedding/LLM API key**。
+
+若要运行实时 SQL 生成和 onboarding agent，再补一个模型 key：
+
+```bash
+# 编辑自动生成的配置，填入真实的 OpenAI 兼容 token 与 base_url
+$EDITOR llm_config.json
+make rebuild   # 重新加载 key；占位未填时 `make` 会红色提示
+```
+
+### 常用命令
+
+| 命令 | 作用 |
+|---|---|
+| `make` / `make rebuild` | 构建 + 启动（保留数据），并自检 |
+| `make clean-build` | 全新冷启动，从 dump 重新播种（会二次确认） |
+| `make doctor` | 诊断配置 / 容器 / 数据源 |
+| `make down` | 停止所有容器 |
+
+> demo 默认数据库密码（`lucid2024`）在 `.env.example` / `docker-compose.yml` 中。
+> 任何非本地部署请通过 `.env` 修改。
 
 ## 技术栈
 

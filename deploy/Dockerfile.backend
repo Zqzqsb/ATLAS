@@ -2,7 +2,7 @@
 # Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context
 #
 # Build from project root:
-#   docker build -f deploy/Dockerfile.backend -t lucid-backend .
+#   docker build -f deploy/Dockerfile.backend -t atlas-backend .
 
 # ============================================================
 # Stage 1: Build the Go binary with CGO enabled for SQLite
@@ -38,8 +38,8 @@ COPY deploy/init/mariadb/reference/01_init_lakebase.sql ./internal/lakebase/sche
 # Build the binary with CGO enabled for SQLite support
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -ldflags="-w -s" \
-    -o /build/bin/lucid-server \
-    ./cmd/lucid-server
+    -o /build/bin/atlas-server \
+    ./cmd/atlas-server
 
 # ============================================================
 # Stage 2: Create minimal runtime image
@@ -54,20 +54,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN groupadd -r lucid && useradd -r -g lucid lucid
+RUN groupadd -r atlas && useradd -r -g atlas atlas
 
 # Set working directory
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder /build/bin/lucid-server /app/server
+COPY --from=builder /build/bin/atlas-server /app/server
 
 # Create directories for runtime data (volumes will be mounted here)
 RUN mkdir -p /app/contexts /app/dbs /app/data /app/configs && \
-    chown -R lucid:lucid /app
+    chown -R atlas:atlas /app
 
 # Switch to non-root user
-USER lucid
+USER atlas
 
 # Expose port
 EXPOSE 19001

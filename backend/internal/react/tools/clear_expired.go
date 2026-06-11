@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // ClearExpired is an Executor tool that clears the expired flag after RC has been refreshed.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"lucid/internal/embedding"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/embedding"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // columnEntityRe parses "Column <table>.<column> (<type>): description..." from entity_text

@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/agent"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
-	"lucid/internal/react"
-	"lucid/internal/react/scenarios"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/agent"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
+	"atlas/internal/react"
+	"atlas/internal/react/scenarios"
+	reacttools "atlas/internal/react/tools"
 )
 
 // GetEvolutionStatus returns the current evolution demo state
@@ -259,7 +259,7 @@ func (h *Handler) ResetEvolutionStream(c *gin.Context) {
 	// Step 3: Run real Onboarding ReAct Agent to generate Rich Context
 	sendStep("generate_context", "Running Onboarding ReAct agent to explore database and generate Rich Context...")
 
-	onboardErr := h.runOnboardingForDatasource(reqCtx, req.DatasourceID, "lucid_evolution", func(phase, msg string) {
+	onboardErr := h.runOnboardingForDatasource(reqCtx, req.DatasourceID, "atlas_evolution", func(phase, msg string) {
 		sendStep(phase, msg)
 	})
 	if onboardErr != nil {

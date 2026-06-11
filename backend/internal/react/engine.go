@@ -15,7 +15,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/tools"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // EngineConfig configures a ReAct engine instance for a specific scenario.

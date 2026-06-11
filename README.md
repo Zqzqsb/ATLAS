@@ -113,7 +113,7 @@ make rebuild   # picks up the key; `make` warns in red while it is a placeholder
 | `make doctor` | Diagnose config / containers / datasources |
 | `make down` | Stop all containers |
 
-> Default demo DB passwords (`lucid2024`) live in `.env.example` / `docker-compose.yml`.
+> Default demo DB passwords (`atlas2024`) live in `.env.example` / `docker-compose.yml`.
 > Change them via `.env` for any non-local deployment.
 
 ## Tech Stack

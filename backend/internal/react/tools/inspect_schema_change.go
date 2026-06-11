@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // InspectSchemaChange is a Coordinator tool that inspects which rc_tables/rc_columns

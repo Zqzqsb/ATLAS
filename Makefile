@@ -58,7 +58,7 @@ check-secrets:
 		warn=1; \
 	fi; \
 	if [ $$warn -eq 0 ]; then printf "$(GREEN)✅ Config keys look set.$(NC)\n"; fi; \
-	printf "$(YELLOW)ℹ️  Demo uses default DB passwords (lucid2024). Change MARIADB_PASSWORD in .env for any non-local deployment.$(NC)\n"
+	printf "$(YELLOW)ℹ️  Demo uses default DB passwords (atlas2024). Change MARIADB_PASSWORD in .env for any non-local deployment.$(NC)\n"
 
 # ============== Primary Commands ==============
 # Default target: idempotent build (first run or rebuild). Preserves the data volume.
@@ -107,7 +107,7 @@ wait-health:
 		fi; \
 		sleep 2; \
 	done; \
-	printf "$(RED)⚠️  Backend did not become healthy in time. Inspect: docker logs lucid-backend$(NC)\n"
+	printf "$(RED)⚠️  Backend did not become healthy in time. Inspect: docker logs atlas-backend$(NC)\n"
 
 # Check that demo datasources are actually connected (this is what the UI lists).
 verify-data:
@@ -118,11 +118,11 @@ verify-data:
 		printf "$(GREEN)✅ %s demo databases connected and synced.$(NC)\n" "$$count"; \
 	else \
 		printf "$(RED)⚠️  No datasources available — Lake-Base is not connected.$(NC)\n"; \
-		if docker logs lucid-backend 2>&1 | grep -q "Access denied"; then \
+		if docker logs atlas-backend 2>&1 | grep -q "Access denied"; then \
 			printf "$(YELLOW)   Cause: DB password mismatch with an EXISTING volume (passwords only apply on first init).$(NC)\n"; \
 			printf "$(YELLOW)   Fix: align MARIADB_PASSWORD in .env with the volume, OR 'make clean-build' (DESTROYS data).$(NC)\n"; \
 		else \
-			printf "$(YELLOW)   Check: docker logs lucid-backend  (often a missing embedding/LLM key).$(NC)\n"; \
+			printf "$(YELLOW)   Check: docker logs atlas-backend  (often a missing embedding/LLM key).$(NC)\n"; \
 		fi; \
 	fi
 

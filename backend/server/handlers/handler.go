@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/agent"
-	"lucid/internal/config"
-	"lucid/internal/grounding"
-	"lucid/internal/logger"
-	"lucid/server/services"
+	"atlas/internal/agent"
+	"atlas/internal/config"
+	"atlas/internal/grounding"
+	"atlas/internal/logger"
+	"atlas/server/services"
 )
 
 // Handler holds dependencies for HTTP handlers.

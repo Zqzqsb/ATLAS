@@ -793,7 +793,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         <div class="mb-5">
           <div class="flex items-center gap-2 mb-3">
             <div class="w-5 h-5 rounded-md bg-primary-50 flex items-center justify-center">
-              <div class="i-lucide-settings text-xs text-primary-500" />
+              <div class="i-atlas-settings text-xs text-primary-500" />
             </div>
             <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Parameters</span>
           </div>
@@ -850,7 +850,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
         <div class="mb-4">
           <div class="flex items-center gap-2 mb-3">
             <div class="w-5 h-5 rounded-md bg-indigo-50 flex items-center justify-center">
-              <div class="i-lucide-message-square text-xs text-indigo-500" />
+              <div class="i-atlas-message-square text-xs text-indigo-500" />
             </div>
             <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Question</span>
           </div>
@@ -904,8 +904,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               : 'bg-primary-600 hover:bg-primary-700'"
             @click="handleExecute"
           >
-            <div v-if="isExecuting" class="i-lucide-loader-2 animate-spin text-base" />
-            <div v-else class="i-lucide-play text-base" />
+            <div v-if="isExecuting" class="i-atlas-loader-2 animate-spin text-base" />
+            <div v-else class="i-atlas-play text-base" />
             <span>{{ isExecuting ? 'Executing...' : 'Execute' }}</span>
           </button>
 
@@ -914,7 +914,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             class="flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-medium text-sm transition-colors"
             @click="handleStop"
           >
-            <div class="i-lucide-square text-sm" />
+            <div class="i-atlas-square text-sm" />
             <span>Stop</span>
           </button>
 
@@ -923,7 +923,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             class="flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-gray-600 font-medium text-sm border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white shadow-sm"
             @click="handleClear"
           >
-            <div class="i-lucide-eraser text-sm" />
+            <div class="i-atlas-eraser text-sm" />
             <span>Clear</span>
           </button>
         </div>
@@ -938,7 +938,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <RealtimeCard
         :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
         :subtitle="isSmallScale ? 'Small-scale path · full schema sent to linker' : undefined"
-        :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
+        :icon="isSmallScale ? 'i-atlas-database' : 'i-atlas-search'"
         :active="vectorSearchStage.active"
         :pending="isExecuting && !vectorSearchStage.active && !vectorSearchStage.completed"
         :completed="vectorSearchStage.completed"
@@ -960,7 +960,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <!-- Skeleton screen: shows table names from local cache while waiting for backend -->
           <div v-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
             <div class="flex items-center gap-2 mb-2">
-            <div class="i-lucide-table-2 text-sm text-blue-400" />
+            <div class="i-atlas-table-2 text-sm text-blue-400" />
               <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Analyzing {{ workspaceStore.skeletonTables.length }} tables...</span>
             </div>
             <div class="space-y-1.5">
@@ -978,7 +978,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <div v-else-if="vectorSearchStage.empty" class="flex items-center gap-3 py-4 text-gray-400">
-            <div class="i-lucide-folder-open text-lg opacity-40" />
+            <div class="i-atlas-folder-open text-lg opacity-40" />
             <div>
               <span class="text-sm block">No context available</span>
               <span class="text-xs opacity-70">Generate Rich Context to enable vector retrieval</span>
@@ -989,7 +989,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Candidate tables — compact tag grid (collapsible when > 6) -->
             <div v-if="workspaceStore.groundingResult.tables?.length" class="stagger-item" style="--stagger: 0">
               <div class="flex items-center gap-1.5 mb-1.5">
-                <div class="i-lucide-table-2 text-[10px] text-blue-400" />
+                <div class="i-atlas-table-2 text-[10px] text-blue-400" />
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Candidate Tables</span>
               </div>
               <div class="flex flex-wrap gap-1">
@@ -1008,7 +1008,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-dashed border-blue-200 text-[10px] text-blue-500 hover:text-blue-700 hover:bg-blue-100/60 transition-colors cursor-pointer"
                   @click="showAllVectorTables = true"
                 >
-                  <div class="i-lucide-chevrons-down text-[9px]" />
+                  <div class="i-atlas-chevrons-down text-[9px]" />
                   +{{ workspaceStore.groundingResult.tables.length - 6 }} more
                 </button>
                 <button
@@ -1016,7 +1016,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-dashed border-blue-200 text-[10px] text-blue-500 hover:text-blue-700 hover:bg-blue-100/60 transition-colors cursor-pointer"
                   @click="showAllVectorTables = false"
                 >
-                  <div class="i-lucide-chevrons-up text-[9px]" /> Less
+                  <div class="i-atlas-chevrons-up text-[9px]" /> Less
                 </button>
               </div>
             </div>
@@ -1024,7 +1024,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Retrieved columns — compact pills (collapsible when > 12) -->
             <div v-if="workspaceStore.groundingResult.columns?.length" class="stagger-item" style="--stagger: 1">
               <div class="flex items-center gap-1.5 mb-1.5">
-                <div class="i-lucide-columns-3 text-[10px] text-cyan-400" />
+                <div class="i-atlas-columns-3 text-[10px] text-cyan-400" />
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Candidate Columns</span>
               </div>
               <div class="flex flex-wrap gap-0.5">
@@ -1050,7 +1050,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="inline-flex items-center gap-0.5 px-1.5 py-px rounded bg-cyan-50/60 border border-dashed border-cyan-200 text-[9.5px] text-cyan-500 hover:text-cyan-700 hover:bg-cyan-100/60 transition-colors cursor-pointer"
                   @click="showAllVectorColumns = false"
                 >
-                  <div class="i-lucide-chevrons-up text-[9px]" /> Less
+                  <div class="i-atlas-chevrons-up text-[9px]" /> Less
                 </button>
               </div>
             </div>
@@ -1061,7 +1061,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <NCollapseItem name="logs">
                   <template #header>
                     <div class="flex items-center gap-2">
-                      <div class="i-lucide-terminal text-sm text-gray-500" />
+                      <div class="i-atlas-terminal text-sm text-gray-500" />
                       <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Vector Search Queries</span>
                       <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }})</span>
                     </div>
@@ -1085,7 +1085,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <div v-else-if="vectorSearchStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div :class="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'" class="animate-pulse text-blue-500 text-xl" />
+            <div :class="isSmallScale ? 'i-atlas-database' : 'i-atlas-search'" class="animate-pulse text-blue-500 text-xl" />
             <div class="space-y-1">
               <span class="font-medium block">
                 {{ isSmallScale
@@ -1104,7 +1104,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
           </div>
           <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
-            <div class="i-lucide-search animate-pulse text-blue-400 text-xl" />
+            <div class="i-atlas-search animate-pulse text-blue-400 text-xl" />
             <div class="space-y-1">
               <span class="font-medium block text-gray-600">Preparing vector search...</span>
               <span class="text-xs text-gray-400">Waiting for pipeline to start</span>
@@ -1127,7 +1127,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <div ref="schemaLinkingRef" class="scroll-mt-4">
       <RealtimeCard
         :title="linkingMode === 'rc' ? 'One-Shot Schema Linking' : 'Schema Pass-through'"
-        icon="i-lucide-link"
+        icon="i-atlas-link"
         :active="schemaLinkingStage.active"
         :pending="isExecuting && !schemaLinkingStage.active && !schemaLinkingStage.completed"
         :completed="schemaLinkingStage.completed"
@@ -1149,7 +1149,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <div v-if="workspaceStore.groundingResult?.reasoning || workspaceStore.groundingResult?.linkingTables?.length" class="space-y-3 mb-4">
             <!-- Pass-through notice (linking off) -->
             <div v-if="linkingMode === 'off'" class="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-50 border border-slate-200">
-              <div class="i-lucide-arrow-right-circle text-sm text-slate-400" />
+              <div class="i-atlas-arrow-right-circle text-sm text-slate-400" />
               <span class="text-xs text-slate-600">All tables passed directly to SQL generation — no LLM column selection.</span>
             </div>
             <!-- LLM Fine Selection (only when linking is actually active) -->
@@ -1158,7 +1158,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <NCollapseItem name="reasoning">
                   <template #header>
                     <div class="flex items-center gap-2">
-                      <div class="i-lucide-brain text-sm text-indigo-500" />
+                      <div class="i-atlas-brain text-sm text-indigo-500" />
                       <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">LLM Fine Selection</span>
                       <span v-if="workspaceStore.groundingResult.mode" class="px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">
                         {{ workspaceStore.groundingResult.mode }}
@@ -1175,7 +1175,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Linking Agent Selected Tables/Columns — Grouped by Table -->
             <div v-if="linkedTableGroups.length" class="stagger-item" style="--stagger: 1">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-lucide-filter text-sm text-teal-600" />
+                <div class="i-atlas-filter text-sm text-teal-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">
                   Linked Schema ({{ linkedTableGroups.length }} tables{{ hasExplicitColumns ? `, ${totalLinkingColumns} columns` : ', all columns' }})
                 </span>
@@ -1190,7 +1190,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <!-- Table header row -->
                   <div class="flex items-center gap-2 px-3 py-1.5">
                     <div class="w-5 h-5 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
-                      <div class="i-lucide-table-2 text-xs text-teal-600" />
+                      <div class="i-atlas-table-2 text-xs text-teal-600" />
                     </div>
                     <span class="text-xs font-bold text-teal-800">{{ group.name }}</span>
                     <span class="text-xs text-gray-400 ml-auto">{{ group.columns.length ? `${group.columns.length} cols` : 'all cols' }}</span>
@@ -1211,7 +1211,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <!-- Hint row (query-specific, generated by LLM) -->
                   <div v-if="group.hint" class="px-3 pb-2">
                     <div class="flex items-start gap-1.5">
-                      <div class="i-lucide-sparkles text-[10px] text-amber-500 mt-0.5 shrink-0" />
+                      <div class="i-atlas-sparkles text-[10px] text-amber-500 mt-0.5 shrink-0" />
                       <p class="text-[10px] text-amber-700 leading-snug" :title="group.hint">{{ group.hint }}</p>
                     </div>
                   </div>
@@ -1229,7 +1229,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           <div v-if="showFieldPanel && suggestedFields.length > 0" class="p-4 rounded-lg bg-purple-50 border border-purple-200">
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
-                  <div class="i-lucide-table-2 text-purple-500 text-sm" />
+                  <div class="i-atlas-table-2 text-purple-500 text-sm" />
                   <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Suggested Fields</span>
                   <span class="px-1.5 py-0.5 text-xs bg-purple-100 text-purple-600 rounded font-medium">from linking</span>
                   <span v-if="awaitingFieldConfirmation" class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium animate-pulse">
@@ -1240,7 +1240,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   class="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
                   @click="dismissFieldPanel"
                 >
-                  <div class="i-lucide-x text-sm" />
+                  <div class="i-atlas-x text-sm" />
                 </button>
               </div>
               
@@ -1265,7 +1265,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <!-- Action row — only shown during initial field confirmation -->
               <div v-if="awaitingFieldConfirmation" class="flex items-center justify-between pt-2 border-t border-purple-100">
                 <p class="text-xs text-gray-400">
-                  <span class="i-lucide-info inline-block mr-0.5 align-middle" />
+                  <span class="i-atlas-info inline-block mr-0.5 align-middle" />
                   Select the fields you want in the output, then confirm to generate SQL.
                 </p>
                 <div class="flex items-center gap-2">
@@ -1296,8 +1296,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div v-if="subStage1Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
                 :class="subStage1Done ? 'bg-green-50/40 border-green-100/60' : 'bg-cyan-50/50 border-cyan-100'"
               >
-                <div v-if="!subStage1Done" class="i-lucide-loader-2 animate-spin text-cyan-500 text-sm flex-shrink-0" />
-                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <div v-if="!subStage1Done" class="i-atlas-loader-2 animate-spin text-cyan-500 text-sm flex-shrink-0" />
+                <div v-else class="i-atlas-check-circle text-green-500 text-sm flex-shrink-0" />
                 <span class="text-xs font-medium transition-colors duration-300" :class="subStage1Done ? 'text-green-700' : 'text-gray-600'">
                   {{ subStage1Done ? 'Retrieval results ready' : 'Retrieving candidates...' }}
                 </span>
@@ -1308,8 +1308,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div v-if="subStage2Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
                 :class="subStage2Done ? 'bg-green-50/40 border-green-100/60' : 'bg-cyan-50/50 border-cyan-100'"
               >
-                <div v-if="!subStage2Done" class="i-lucide-database text-cyan-500 text-sm flex-shrink-0 animate-pulse" />
-                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <div v-if="!subStage2Done" class="i-atlas-database text-cyan-500 text-sm flex-shrink-0 animate-pulse" />
+                <div v-else class="i-atlas-check-circle text-green-500 text-sm flex-shrink-0" />
                 <span class="text-xs font-medium transition-colors duration-300" :class="subStage2Done ? 'text-green-700' : 'text-cyan-700'">
                   {{ subStage2Done ? 'Schema loaded' : 'Loading schema...' }}
                 </span>
@@ -1320,8 +1320,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               <div v-if="subStage3Visible" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors duration-300"
                 :class="schemaLinkingStage.completed ? 'bg-green-50/40 border-green-100/60' : 'bg-indigo-50/50 border-indigo-100'"
               >
-                <div v-if="!schemaLinkingStage.completed" class="i-lucide-brain text-indigo-500 text-sm flex-shrink-0 animate-pulse" />
-                <div v-else class="i-lucide-check-circle text-green-500 text-sm flex-shrink-0" />
+                <div v-if="!schemaLinkingStage.completed" class="i-atlas-brain text-indigo-500 text-sm flex-shrink-0 animate-pulse" />
+                <div v-else class="i-atlas-check-circle text-green-500 text-sm flex-shrink-0" />
                 <span class="text-xs font-medium transition-colors duration-300" :class="schemaLinkingStage.completed ? 'text-green-700' : 'text-indigo-700'">
                   {{ schemaLinkingStage.completed ? 'Link reasoning done' : 'Link reasoning...' }}
                 </span>
@@ -1347,27 +1347,27 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div class="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0 shadow-sm border border-cyan-100">
                   <span class="text-[10px] text-cyan-600 font-bold">{{ step.step }}</span>
                 </div>
-                <div class="i-lucide-play text-teal-600 flex-shrink-0 text-[10px]" />
+                <div class="i-atlas-play text-teal-600 flex-shrink-0 text-[10px]" />
                 <span class="text-[11px] text-teal-700 font-mono font-bold">{{ step.action || 'thinking' }}</span>
                 <span v-if="step.observation" class="text-[10px] text-green-600 font-medium ml-auto">done</span>
-                <div class="i-lucide-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0"
+                <div class="i-atlas-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0"
                   :class="{ 'rotate-180': expandedSteps.has(`sl-${step.step || idx}`) }"
                 />
               </div>
               <!-- Expandable detail -->
               <div v-if="expandedSteps.has(`sl-${step.step || idx}`)" class="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-cyan-100/60">
                 <div v-if="step.thought" class="flex items-start gap-1.5">
-                  <div class="i-lucide-lightbulb text-cyan-600 mt-0.5 flex-shrink-0 text-xs" />
+                  <div class="i-atlas-lightbulb text-cyan-600 mt-0.5 flex-shrink-0 text-xs" />
                   <p class="text-xs text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                 </div>
                 <div v-if="step.actionInput" class="flex items-start gap-1.5 bg-white p-1.5 rounded border border-cyan-100">
-                  <div class="i-lucide-terminal text-teal-600 mt-0.5 flex-shrink-0 text-xs" />
+                  <div class="i-atlas-terminal text-teal-600 mt-0.5 flex-shrink-0 text-xs" />
                   <span class="text-[11px] text-gray-500 font-mono break-all">
                     {{ typeof step.actionInput === 'object' ? JSON.stringify(step.actionInput) : step.actionInput }}
                   </span>
                 </div>
                 <div v-if="step.observation" class="flex items-start gap-1.5">
-                  <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
+                  <div class="i-atlas-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
                   <p class="text-[11px] text-gray-500 leading-relaxed">{{ step.observation }}</p>
                 </div>
               </div>
@@ -1379,7 +1379,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Linking agent progress from grounding sub-stages -->
             <div v-if="workspaceStore.groundingProgress?.stage === 'linking_start'" class="space-y-3">
               <div class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-                <div class="i-lucide-brain animate-pulse text-cyan-500 text-xl" />
+                <div class="i-atlas-brain animate-pulse text-cyan-500 text-xl" />
                 <div class="space-y-1">
                   <span class="font-medium block">Linking agent analyzing schema...</span>
                   <span class="text-xs text-gray-400">
@@ -1390,7 +1390,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             </div>
             <div v-else-if="workspaceStore.groundingProgress?.stage === 'linking_done'" class="space-y-3 content-fade">
               <div class="flex items-center gap-2 mb-2">
-                <div class="i-lucide-brain text-sm text-cyan-600" />
+                <div class="i-atlas-brain text-sm text-cyan-600" />
                 <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Linking Agent Result</span>
                 <span class="text-xs text-gray-400">
                   {{ workspaceStore.groundingProgress?.data?.selected_tables || 0 }} tables selected
@@ -1402,28 +1402,28 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
             <div v-else-if="schemaLinkingStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div class="i-lucide-link animate-pulse text-cyan-500 text-xl" />
+            <div class="i-atlas-link animate-pulse text-cyan-500 text-xl" />
               <div class="space-y-1">
                 <span class="font-medium block">Analyzing schema structure...</span>
                 <span class="text-xs text-gray-400">Identifying table relationships and join paths</span>
               </div>
             </div>
             <div v-else-if="isExecuting && workspaceStore.groundingProgress?.stage === 'linking_start'" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
-            <div class="i-lucide-brain animate-pulse text-cyan-400 text-xl" />
+            <div class="i-atlas-brain animate-pulse text-cyan-400 text-xl" />
               <div class="space-y-1">
                 <span class="font-medium block text-gray-600">Linking agent analyzing...</span>
                 <span class="text-xs text-gray-400">Selecting relevant tables from {{ workspaceStore.groundingProgress?.data?.table_count || '?' }} candidates</span>
               </div>
             </div>
             <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
-            <div class="i-lucide-link animate-pulse text-cyan-400 text-xl" />
+            <div class="i-atlas-link animate-pulse text-cyan-400 text-xl" />
               <div class="space-y-1">
                 <span class="font-medium block text-gray-600">Waiting for schema linking...</span>
                 <span class="text-xs text-gray-400">Will start after vector retrieval completes</span>
               </div>
             </div>
             <div v-else class="flex items-center gap-3 py-4 text-gray-400">
-            <div class="i-lucide-link text-lg opacity-40" />
+            <div class="i-atlas-link text-lg opacity-40" />
               <span class="text-sm">Waiting for schema linking...</span>
             </div>
           </div>
@@ -1446,7 +1446,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <div ref="sqlGenerationRef" class="scroll-mt-4">
       <RealtimeCard
         title="ReAct SQL Generation"
-        icon="i-lucide-code-2"
+        icon="i-atlas-code-2"
         :active="sqlGenerationStage.active"
         :pending="isExecuting && !sqlGenerationStage.active && !sqlGenerationStage.completed"
         :completed="sqlGenerationStage.completed"
@@ -1498,11 +1498,11 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                     <span v-else-if="step.action === 'Final Answer'" class="text-[10px] text-emerald-600 font-bold">✓</span>
                     <span v-else class="text-[10px] text-purple-600 font-bold">{{ step.step }}</span>
                   </div>
-                  <div v-if="step.action === 'verify_sql'" class="i-lucide-shield-check text-[10px] flex-shrink-0"
+                  <div v-if="step.action === 'verify_sql'" class="i-atlas-shield-check text-[10px] flex-shrink-0"
                     :class="step.observation?.startsWith('✅') ? 'text-green-600' : step.observation?.startsWith('❌') ? 'text-red-600' : 'text-purple-500'"
                   />
-                  <div v-else-if="step.action === 'Final Answer'" class="i-lucide-flag text-[10px] text-emerald-600 flex-shrink-0" />
-                  <div v-else class="i-lucide-play text-[10px] text-pink-600 flex-shrink-0" />
+                  <div v-else-if="step.action === 'Final Answer'" class="i-atlas-flag text-[10px] text-emerald-600 flex-shrink-0" />
+                  <div v-else class="i-atlas-play text-[10px] text-pink-600 flex-shrink-0" />
                   <span class="text-[11px] font-mono font-bold"
                     :class="step.action === 'verify_sql'
                       ? (step.observation?.startsWith('✅') ? 'text-green-700' : step.observation?.startsWith('❌') ? 'text-red-700' : 'text-purple-700')
@@ -1515,7 +1515,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <NTag v-else-if="step.action === 'Final Answer'" size="tiny" type="success" round>SQL ready</NTag>
                   <NTag v-else-if="step.observation" size="tiny" round>done</NTag>
                   <!-- Chevron -->
-                  <div class="i-lucide-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 ml-auto"
+                  <div class="i-atlas-chevron-down text-gray-400 text-xs transition-transform duration-200 flex-shrink-0 ml-auto"
                     :class="{ 'rotate-180': expandedSteps.has(`sql-${step.step || idx}`) }"
                   />
                 </div>
@@ -1528,7 +1528,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 >
                   <!-- Thought -->
                   <div v-if="step.thought" class="flex items-start gap-1.5">
-                    <div class="i-lucide-lightbulb text-purple-600 mt-0.5 flex-shrink-0 text-xs" />
+                    <div class="i-atlas-lightbulb text-purple-600 mt-0.5 flex-shrink-0 text-xs" />
                     <p class="text-xs text-gray-700 leading-relaxed font-medium">{{ step.thought }}</p>
                   </div>
                   
@@ -1567,7 +1567,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                       <div class="px-3 py-1.5 text-xs flex items-center gap-1.5 border-t"
                         :class="step.observation?.startsWith('✅') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'"
                       >
-                        <div :class="step.observation?.startsWith('✅') ? 'i-lucide-check-circle' : 'i-lucide-alert-triangle'" class="text-xs" />
+                        <div :class="step.observation?.startsWith('✅') ? 'i-atlas-check-circle' : 'i-atlas-alert-triangle'" class="text-xs" />
                         <span class="font-medium">{{ parseExplainPlan(step.observation).summary }}</span>
                       </div>
                     </div>
@@ -1576,7 +1576,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   <!-- execute_sql: code block observation -->
                   <div v-else-if="step.observation && step.action === 'execute_sql'" class="rounded-lg overflow-hidden border border-gray-200">
                     <div class="px-3 py-1.5 bg-gray-100 text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                      <div class="i-lucide-terminal text-xs" />
+                      <div class="i-atlas-terminal text-xs" />
                       Query Result
                     </div>
                     <pre class="text-xs text-gray-600 font-mono whitespace-pre-wrap leading-relaxed p-3 bg-gray-50 max-h-32 overflow-y-auto">{{ step.observation }}</pre>
@@ -1584,7 +1584,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                   
                   <!-- Other action observations -->
                   <div v-else-if="step.observation" class="flex items-start gap-1.5">
-                    <div class="i-lucide-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
+                    <div class="i-atlas-eye text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
                     <p class="text-[11px] text-gray-500 leading-relaxed">{{ step.observation }}</p>
                   </div>
                 </div>
@@ -1595,7 +1595,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Generated SQL Preview -->
             <div v-if="sqlGenerationStage.sql" class="mt-3 p-3 rounded-lg bg-gray-900 border border-gray-800 shadow-inner sql-highlight-enter">
               <div class="flex items-center gap-2 mb-2 border-b border-gray-800 pb-1.5">
-                <div class="i-lucide-check text-green-400 text-xs" />
+                <div class="i-atlas-check text-green-400 text-xs" />
                 <span class="text-[11px] text-green-400 font-bold uppercase tracking-wide">SQL Generated</span>
               </div>
               <pre class="text-[11px] text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
@@ -1604,14 +1604,14 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <!-- Loading state -->
             <div v-if="!sqlGenerationStage.steps.length && !sqlGenerationStage.sql">
               <div v-if="sqlGenerationStage.active" class="flex items-center gap-3 text-sm text-gray-600 processing-indicator">
-            <div class="i-lucide-code-2 animate-pulse text-purple-500 text-xl" />
+            <div class="i-atlas-code-2 animate-pulse text-purple-500 text-xl" />
                 <div class="space-y-1">
                   <span class="font-medium block">{{ fieldPanelConsumed ? 'Generating SQL with field constraints...' : 'Generating SQL query...' }}</span>
                   <span class="text-xs text-gray-400">{{ fieldPanelConsumed ? 'Applying selected output fields' : 'Building optimized query from context' }}</span>
                 </div>
               </div>
               <div v-else-if="isExecuting" class="flex items-center gap-3 text-sm text-gray-500 pending-indicator">
-            <div class="i-lucide-code-2 animate-pulse text-purple-400 text-xl" />
+            <div class="i-atlas-code-2 animate-pulse text-purple-400 text-xl" />
                 <div class="space-y-1">
                   <span class="font-medium block text-gray-600">Waiting for SQL generation...</span>
                   <span class="text-xs text-gray-400">Will start after schema linking completes</span>
@@ -1641,7 +1641,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <div class="p-5 bg-red-50 border-l-4 border-red-500">
         <div class="flex items-start justify-between">
           <div class="flex items-start gap-3">
-            <div class="i-lucide-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
+            <div class="i-atlas-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
             <div>
               <h4 class="text-red-700 font-bold mb-1">Grounding Error</h4>
               <p class="text-sm text-red-600">{{ workspaceStore.groundingError }}</p>
@@ -1653,7 +1653,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             @click="handleExecute"
           >
             <div class="flex items-center gap-1.5">
-              <div class="i-lucide-rotate-ccw text-sm" />
+              <div class="i-atlas-rotate-ccw text-sm" />
               <span>Retry</span>
             </div>
           </button>

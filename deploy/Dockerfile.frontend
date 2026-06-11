@@ -2,7 +2,7 @@
 # Build Vue/Vite frontend with pnpm, serve with nginx
 #
 # Build from project root:
-#   docker build -f deploy/Dockerfile.frontend -t lucid-frontend .
+#   docker build -f deploy/Dockerfile.frontend -t atlas-frontend .
 
 # ============================================================
 # Stage 1: Build with pnpm + Vite

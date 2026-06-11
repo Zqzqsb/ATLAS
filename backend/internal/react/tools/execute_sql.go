@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/adapter"
+	"atlas/internal/adapter"
 )
 
 // ExecuteSQL is a ReAct tool that lets the agent run read-only SQL on the business database.

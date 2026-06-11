@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"lucid/internal/config"
-	"lucid/internal/lakebase"
-	"lucid/server/services"
+	"atlas/internal/config"
+	"atlas/internal/lakebase"
+	"atlas/server/services"
 )
 
 // ConnectionConfig represents database connection configuration.

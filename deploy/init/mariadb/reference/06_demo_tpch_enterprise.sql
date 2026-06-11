@@ -900,17 +900,17 @@ INSERT INTO data_exports (user_id, export_type, table_name, row_count, file_size
 -- =============================================================
 -- Grant permissions
 -- =============================================================
-GRANT ALL PRIVILEGES ON tpch_enterprise.* TO 'lucid'@'%';
+GRANT ALL PRIVILEGES ON tpch_enterprise.* TO 'atlas'@'%';
 FLUSH PRIVILEGES;
 
 
 -- =============================================================
 -- Register in ATLAS Lake-Base (rc_datasources)
 -- =============================================================
-USE lucid;
+USE atlas;
 
 INSERT INTO rc_datasources (name, db_type, host, port, db_name, username, description, status)
-VALUES ('tpch_enterprise', 'mariadb', 'lucid-mariadb', 3306, 'tpch_enterprise', 'lucid',
+VALUES ('tpch_enterprise', 'mariadb', 'atlas-mariadb', 3306, 'tpch_enterprise', 'atlas',
         'TPC-H Enterprise — 517-table enterprise database for Large-Scale Adaptive Schema Linking demo', 'active')
 ON DUPLICATE KEY UPDATE status = 'active', description = VALUES(description);
 
@@ -8114,6 +8114,6 @@ INSERT IGNORE INTO ops_usage_metering (name, batch_jobs_id, description, categor
 
 
 -- Update registration with correct table count
-USE lucid;
+USE atlas;
 UPDATE rc_datasources SET description = 'TPC-H Enterprise — 517-table enterprise database for Large-Scale Adaptive Schema Linking demo'
 WHERE name = 'tpch_enterprise';

@@ -107,7 +107,7 @@ function enterScenario(scenarioId: string) {
             <p class="text-xs text-gray-500 leading-snug mt-0.5 truncate">{{ s.desc }}</p>
           </div>
           <!-- Arrow -->
-          <div class="i-lucide-chevron-right text-gray-300 text-sm flex-shrink-0 group-hover/row:text-violet-400 transition-colors" />
+          <div class="i-atlas-chevron-right text-gray-300 text-sm flex-shrink-0 group-hover/row:text-violet-400 transition-colors" />
         </div>
       </div>
 

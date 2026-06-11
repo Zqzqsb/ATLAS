@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // OpenAIProvider implements EmbeddingProvider using OpenAI-compatible embedding APIs.

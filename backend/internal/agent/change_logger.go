@@ -1,4 +1,4 @@
-// Package agent provides self-maintenance capabilities for LUCID.
+// Package agent provides self-maintenance capabilities for ATLAS.
 package agent
 
 import (
@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"lucid/internal/lakebase"
+	"atlas/internal/lakebase"
 )
 
 // ChangeLogger records all schema and context changes to rc_change_log

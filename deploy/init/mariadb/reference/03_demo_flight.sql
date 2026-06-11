@@ -271,9 +271,9 @@ INSERT INTO flights (Airline, FlightNo, SourceAirport, DestAirport) VALUES
 (12, 1254, 'AIB', 'ANV');
 
 -- ============================================================
--- Grant permissions to lucid user
+-- Grant permissions to atlas user
 -- ============================================================
-GRANT ALL PRIVILEGES ON spider_flight.* TO 'lucid'@'%';
+GRANT ALL PRIVILEGES ON spider_flight.* TO 'atlas'@'%';
 FLUSH PRIVILEGES;
 
 SELECT 'Spider flight database initialized successfully!' AS status;

@@ -11,10 +11,10 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	lctools "github.com/tmc/langchaingo/tools"
 
-	"lucid/internal/adapter"
-	"lucid/internal/logger"
-	"lucid/internal/react"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/adapter"
+	"atlas/internal/logger"
+	"atlas/internal/react"
+	reacttools "atlas/internal/react/tools"
 )
 
 // SchemaInfo represents full table schema for linking agent input

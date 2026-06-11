@@ -8,8 +8,8 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/config"
+	"atlas/internal/adapter"
+	"atlas/internal/config"
 )
 
 // FieldSuggester suggests output fields based on LLM analysis.

@@ -16,11 +16,11 @@ llm:
 # Lake-Base storage (MariaDB with VECTOR + HNSW)
 # All demo and production databases are in this single instance
 lakebase:
-  host: "lucid-mariadb"
+  host: "atlas-mariadb"
   port: 3306
-  user: "lucid"
+  user: "atlas"
   password: ""        # Set via MARIADB_PASSWORD env var or fill in directly
-  database: "lucid"
+  database: "atlas"
 
 # Demo databases (all in MariaDB)
 # Passwords are read from environment variables by the application.
@@ -30,7 +30,7 @@ databases:
   - id: "spider_tvshow"
     name: "Spider TVShow"
     type: "mysql"
-    host: "lucid-mariadb"
+    host: "atlas-mariadb"
     port: 3306
     user: "root"
     password: ""        # Set via MARIADB_ROOT_PASSWORD
@@ -41,7 +41,7 @@ databases:
   - id: "spider_flight"
     name: "Spider Flight"
     type: "mysql"
-    host: "lucid-mariadb"
+    host: "atlas-mariadb"
     port: 3306
     user: "root"
     password: ""        # Set via MARIADB_ROOT_PASSWORD
@@ -52,7 +52,7 @@ databases:
   - id: "spider_wta"
     name: "Spider WTA"
     type: "mysql"
-    host: "lucid-mariadb"
+    host: "atlas-mariadb"
     port: 3306
     user: "root"
     password: ""        # Set via MARIADB_ROOT_PASSWORD
@@ -60,23 +60,23 @@ databases:
     description: "WTA tennis rankings & matches — complex schema demo (8 tables)"
 
   # Evolution Demo
-  - id: "lucid_evolution"
-    name: "Lucid Evolution"
+  - id: "atlas_evolution"
+    name: "ATLAS Evolution"
     type: "mysql"
-    host: "lucid-mariadb"
+    host: "atlas-mariadb"
     port: 3306
-    user: "lucid"
+    user: "atlas"
     password: ""        # Set via MARIADB_PASSWORD
-    database: "lucid_evolution"
+    database: "atlas_evolution"
     description: "Agent self-maintenance — 5-stage DDL evolution demo"
 
   # TPC-H Enterprise (517-table large-scale demo)
   - id: "tpch_enterprise"
     name: "TPC-H Enterprise"
     type: "mysql"
-    host: "lucid-mariadb"
+    host: "atlas-mariadb"
     port: 3306
-    user: "lucid"
+    user: "atlas"
     password: ""        # Set via MARIADB_PASSWORD
     database: "tpch_enterprise"
     description: "TPC-H Enterprise — 517-table large-scale enterprise database for two-stage schema linking + forest-based onboarding demo"

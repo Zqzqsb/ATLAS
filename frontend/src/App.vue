@@ -38,7 +38,7 @@ const ctxGenStore = useContextGenerationStore()
                   </span>
                 </div>
                 <div v-else class="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                  <div class="i-lucide-check text-lg text-white" />
+                  <div class="i-atlas-check text-lg text-white" />
                 </div>
 
                 <!-- Info -->
@@ -62,7 +62,7 @@ const ctxGenStore = useContextGenerationStore()
                   class="ml-2 w-5 h-5 rounded bg-white/20 hover:bg-white/40 flex items-center justify-center transition-colors"
                   @click.stop="ctxGenStore.reset()"
                 >
-                  <div class="i-lucide-x text-xs text-white" />
+                  <div class="i-atlas-x text-xs text-white" />
                 </button>
               </button>
             </div>

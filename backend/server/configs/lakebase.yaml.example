@@ -3,11 +3,11 @@
 # Copy this file to lakebase.yaml and fill in your values
 
 lakebase:
-  host: lucid-mariadb
+  host: atlas-mariadb
   port: 3306
-  user: lucid
+  user: atlas
   password: ""        # Set via EMBEDDING_DB_PASSWORD or fill in directly
-  database: lucid
+  database: atlas
   max_open_conns: 20
   max_idle_conns: 10
   conn_max_lifetime: 300s

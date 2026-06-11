@@ -2,10 +2,10 @@ import client from './client'
 import type { Database, DatabaseConfig, SchemaInfo } from '@/types'
 
 const DISPLAY_NAME_MAP: Record<string, string> = {
-  'lucid_evolution': 'Atlas Evolution',
+  'atlas_evolution': 'Atlas Evolution',
 }
 const HOST_DISPLAY_MAP: Record<string, string> = {
-  'lucid-mariadb': 'atlas-mariadb',
+  'atlas-mariadb': 'atlas-mariadb',
 }
 
 // Transform lakebase datasource to Database type

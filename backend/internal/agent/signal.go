@@ -1,4 +1,4 @@
-// Package agent provides self-maintenance capabilities for LUCID.
+// Package agent provides self-maintenance capabilities for ATLAS.
 package agent
 
 import (

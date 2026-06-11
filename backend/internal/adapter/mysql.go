@@ -8,7 +8,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // MySQLAdapter implements DBAdapter for MySQL / MariaDB.

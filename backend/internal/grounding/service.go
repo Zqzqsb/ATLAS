@@ -8,9 +8,9 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/embedding"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/embedding"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // Service provides the main entry point for Semantic Grounding.

@@ -1,4 +1,4 @@
-module lucid
+module atlas
 
 go 1.24.4
 

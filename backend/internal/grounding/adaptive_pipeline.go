@@ -8,10 +8,10 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/embedding"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/adapter"
+	"atlas/internal/embedding"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // AdaptivePipeline implements the adaptive grounding strategy

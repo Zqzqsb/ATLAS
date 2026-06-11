@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"lucid/internal/adapter"
-	"lucid/internal/config"
+	"atlas/internal/adapter"
+	"atlas/internal/config"
 )
 
 // DatabaseService manages multiple database connections

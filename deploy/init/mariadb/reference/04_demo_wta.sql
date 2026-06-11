@@ -925,9 +925,9 @@ INSERT INTO rankings (ranking_date, ranking, player_id, ranking_points, tours) V
 (20170626, 678, 201458, 30, 9);
 
 -- ============================================================
--- Grant permissions to lucid user
+-- Grant permissions to atlas user
 -- ============================================================
-GRANT ALL PRIVILEGES ON spider_wta.* TO 'lucid'@'%';
+GRANT ALL PRIVILEGES ON spider_wta.* TO 'atlas'@'%';
 FLUSH PRIVILEGES;
 
 SELECT 'Spider WTA database initialized successfully!' AS status;

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/adapter"
+	"atlas/internal/adapter"
 )
 
 // ObservationInjector pushes a tool observation directly into the ReAct handler,

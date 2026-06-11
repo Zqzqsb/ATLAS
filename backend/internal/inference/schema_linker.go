@@ -8,9 +8,9 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/react"
-	"lucid/internal/react/scenarios"
+	"atlas/internal/adapter"
+	"atlas/internal/react"
+	"atlas/internal/react/scenarios"
 )
 
 // SchemaLinker defines the interface for identifying relevant tables.

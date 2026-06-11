@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // OnWriteCallback is called after each successful write to the RC store.

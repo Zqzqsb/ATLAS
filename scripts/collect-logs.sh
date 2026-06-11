@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ATLAS Log Collection Script
-# Collects lucid-frontend / lucid-backend / lucid-mariadb container logs
+# Collects atlas-frontend / atlas-backend / atlas-mariadb container logs
 # Automatically splits backend logs into per-agent files
 #
 # Usage:
@@ -101,9 +101,9 @@ echo ""
 # Discover containers
 # ============================================================
 EXPECTED_CONTAINERS=(
-    "lucid-mariadb"
-    "lucid-backend"
-    "lucid-frontend"
+    "atlas-mariadb"
+    "atlas-backend"
+    "atlas-frontend"
 )
 
 CONTAINERS=()
@@ -118,7 +118,7 @@ for container in "${EXPECTED_CONTAINERS[@]}"; do
 done
 
 if [ ${#CONTAINERS[@]} -eq 0 ]; then
-    echo "❌ No atlas/lucid containers found. Start services first:"
+    echo "❌ No atlas/atlas containers found. Start services first:"
     echo "   make rebuild   or   make up"
     exit 1
 fi
@@ -163,7 +163,7 @@ get_tail_lines() {
 # ============================================================
 get_log_filename() {
     local container=$1
-    echo "${container#lucid-}.log"
+    echo "${container#atlas-}.log"
 }
 
 # ============================================================
@@ -231,7 +231,7 @@ collect_log() {
     local all_log="$LOG_DIR/all.log"
     local tail_n
     tail_n=$(get_tail_lines "$container")
-    local short_name="${container#lucid-}"
+    local short_name="${container#atlas-}"
     local is_backend=false
     [[ "$container" == *"backend"* ]] && is_backend=true
 

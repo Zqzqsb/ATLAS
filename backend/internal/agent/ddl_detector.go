@@ -1,4 +1,4 @@
-// Package agent provides self-maintenance capabilities for LUCID.
+// Package agent provides self-maintenance capabilities for ATLAS.
 // It includes DDL change detection, context expiration, and automatic updates.
 package agent
 
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"lucid/internal/lakebase"
+	"atlas/internal/lakebase"
 )
 
 // SchemaChange represents a detected schema change

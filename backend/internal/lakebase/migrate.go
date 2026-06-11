@@ -1,5 +1,5 @@
 // Package lakebase provides lake-base multi-modal storage operations
-// for Rich Context management in LUCID system.
+// for Rich Context management in ATLAS system.
 package lakebase
 
 import (
@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 //go:embed schema/01_init_lakebase.sql

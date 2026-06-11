@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"lucid/internal/adapter"
+	"atlas/internal/adapter"
 )
 
 // VerifySQLTool validates SQL via EXPLAIN (no actual execution).

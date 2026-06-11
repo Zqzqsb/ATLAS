@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/logger"
-	"lucid/internal/react"
-	"lucid/internal/react/scenarios"
+	"atlas/internal/logger"
+	"atlas/internal/react"
+	"atlas/internal/react/scenarios"
 )
 
 // truncateLog truncates a string for log output.

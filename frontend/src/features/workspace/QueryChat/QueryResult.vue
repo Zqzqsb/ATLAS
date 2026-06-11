@@ -182,7 +182,7 @@ function submitFeedback() {
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center border border-green-100">
-            <div class="i-lucide-database text-xl text-green-600" />
+            <div class="i-atlas-database text-xl text-green-600" />
           </div>
           <div>
             <h3 class="font-bold text-gray-900">Generated SQL</h3>
@@ -205,7 +205,7 @@ function submitFeedback() {
                   :disabled="feedbackGiven !== null"
                   @click="handleQuickFeedback('positive')"
                 >
-                  <div class="i-lucide-thumbs-up" />
+                  <div class="i-atlas-thumbs-up" />
                 </NButton>
               </template>
               SQL is correct
@@ -220,7 +220,7 @@ function submitFeedback() {
                   :disabled="feedbackGiven !== null"
                   @click="handleQuickFeedback('negative')"
                 >
-                  <div class="i-lucide-thumbs-down" />
+                  <div class="i-atlas-thumbs-down" />
                 </NButton>
               </template>
               SQL has issues
@@ -234,21 +234,21 @@ function submitFeedback() {
             @click="copySql"
           >
             <template #icon>
-              <div class="i-lucide-copy" />
+              <div class="i-atlas-copy" />
             </template>
             Copy
           </NButton>
 
           <NTag v-if="loading" type="warning" size="small">
             <template #icon>
-              <div class="i-lucide-loader-2 animate-spin" />
+              <div class="i-atlas-loader-2 animate-spin" />
             </template>
             Executing...
           </NTag>
 
           <NTag v-if="feedbackGiven" :type="feedbackGiven === 'positive' ? 'success' : 'warning'" size="small">
             <template #icon>
-              <div :class="feedbackGiven === 'positive' ? 'i-lucide-check' : 'i-lucide-alert-triangle'" />
+              <div :class="feedbackGiven === 'positive' ? 'i-atlas-check' : 'i-atlas-alert-triangle'" />
             </template>
             {{ feedbackGiven === 'positive' ? 'Marked Correct' : 'Marked for Review' }}
           </NTag>
@@ -259,7 +259,7 @@ function submitFeedback() {
       <div v-if="error" class="p-6 bg-red-50 border-l-4 border-red-500">
         <div class="flex items-start justify-between">
           <div class="flex items-start gap-3">
-            <div class="i-lucide-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
+            <div class="i-atlas-alert-triangle text-xl text-red-500 flex-shrink-0 mt-1" />
             <div>
               <h4 class="text-red-700 font-bold mb-1">Error</h4>
               <p class="text-sm text-red-600">{{ error }}</p>
@@ -267,7 +267,7 @@ function submitFeedback() {
           </div>
           <NButton size="small" type="error" ghost @click="emit('retry')">
             <template #icon>
-              <div class="i-lucide-rotate-ccw" />
+              <div class="i-atlas-rotate-ccw" />
             </template>
             Retry
           </NButton>
@@ -283,20 +283,20 @@ function submitFeedback() {
 
       <!-- Auto-execute loading -->
       <div v-if="autoExecuting" class="px-6 py-3.5 bg-blue-50/50 border-b border-blue-100 flex items-center gap-2.5">
-        <div class="i-lucide-loader-2 animate-spin text-blue-500 text-lg" />
+        <div class="i-atlas-loader-2 animate-spin text-blue-500 text-lg" />
         <span class="text-[13px] text-blue-700 font-bold tracking-wide">Executing SQL to preview results...</span>
       </div>
 
       <!-- Auto-execute error -->
       <div v-if="autoExecuteError && !hasResult" class="px-6 py-3.5 bg-red-50/80 border-b border-red-100 flex items-center gap-2.5">
-        <div class="i-lucide-x-circle text-red-500 text-lg" />
+        <div class="i-atlas-x-circle text-red-500 text-lg" />
         <span class="text-[13px] text-red-700 font-bold tracking-wide">Execution failed</span>
         <span class="text-xs text-red-500 font-medium ml-2">{{ autoExecuteError }}</span>
       </div>
 
       <!-- Execution success: 0 rows -->
       <div v-if="sql && !loading && !autoExecuting && !error && !autoExecuteError && autoExecuteResult !== null && autoExecuteResult.length === 0 && (!result || result.length === 0)" class="px-6 py-3.5 bg-amber-50/80 border-b border-amber-100 flex items-center gap-2.5">
-        <div class="i-lucide-inbox text-amber-500 text-lg" />
+        <div class="i-atlas-inbox text-amber-500 text-lg" />
         <span class="text-[13px] text-amber-700 font-bold tracking-wide">Query returned 0 rows</span>
         <span class="text-xs text-amber-600 font-medium ml-2">The query executed successfully but no matching data was found.</span>
       </div>
@@ -304,7 +304,7 @@ function submitFeedback() {
 
     <!-- Execution Status Bar -->
     <div v-if="sql && !loading && !autoExecuting && !error && hasResult" class="px-6 py-2.5 bg-emerald-50/80 border-b border-emerald-100 flex items-center gap-2.5">
-      <div class="i-lucide-check-circle text-emerald-500 text-[15px]" />
+      <div class="i-atlas-check-circle text-emerald-500 text-[15px]" />
       <span class="text-[13px] text-emerald-700 font-bold tracking-wide">Query executed successfully</span>
       <span class="text-[11px] text-emerald-600 font-bold uppercase tracking-widest px-2 py-0.5 rounded-md bg-emerald-100/50 border border-emerald-200/60">{{ totalRows }} rows returned</span>
     </div>
@@ -314,7 +314,7 @@ function submitFeedback() {
       <div class="flex items-center justify-between px-6 py-5 border-b border-gray-150 bg-slate-50/30">
         <div class="flex items-center gap-3.5">
           <div class="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/60 shadow-sm">
-            <div class="i-lucide-table-2 text-[20px] text-blue-600" />
+            <div class="i-atlas-table-2 text-[20px] text-blue-600" />
           </div>
           <div>
             <h3 class="font-extrabold text-[15px] text-gray-900 tracking-tight">Query Result</h3>
@@ -330,7 +330,7 @@ function submitFeedback() {
           @select="handleExport"
         >
           <button class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-semibold text-[13px] shadow-sm transition-all">
-            <div class="i-lucide-download text-sm" />
+            <div class="i-atlas-download text-sm" />
             Export
           </button>
         </NDropdown>
@@ -392,7 +392,7 @@ function submitFeedback() {
     <!-- Empty State -->
     <div v-if="!sql && !error && !hasResult" class="p-12 text-center bg-gray-50/50">
       <div class="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center mx-auto mb-4">
-        <div class="i-lucide-search text-3xl text-gray-400" />
+        <div class="i-atlas-search text-3xl text-gray-400" />
       </div>
       <p class="text-gray-500 font-medium">No query result yet</p>
     </div>
@@ -416,7 +416,7 @@ function submitFeedback() {
         
         <div class="p-3 rounded-lg bg-blue-50 border border-blue-100">
           <div class="flex items-start gap-2">
-            <div class="i-lucide-info text-blue-600 mt-0.5" />
+            <div class="i-atlas-info text-blue-600 mt-0.5" />
             <p class="text-xs text-blue-800 font-medium">
               Your feedback will be used to update the Rich Context, helping the system generate better SQL in the future.
             </p>
@@ -429,7 +429,7 @@ function submitFeedback() {
           <NButton @click="showFeedbackModal = false">Cancel</NButton>
           <NButton type="primary" @click="submitFeedback">
             <template #icon>
-              <div class="i-lucide-send" />
+              <div class="i-atlas-send" />
             </template>
             Submit Feedback
           </NButton>

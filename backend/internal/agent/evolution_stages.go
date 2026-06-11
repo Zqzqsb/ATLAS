@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"lucid/internal/adapter"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
-	"lucid/internal/react"
+	"atlas/internal/adapter"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
+	"atlas/internal/react"
 )
 
 // EvolutionStage represents a single schema evolution step
@@ -65,7 +65,7 @@ type EvolutionEvent struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// Predefined evolution stages for the demo database lucid_evolution
+// Predefined evolution stages for the demo database atlas_evolution
 var DefaultEvolutionStages = []EvolutionStage{
 	{
 		ID:          1,
@@ -159,7 +159,7 @@ func NewEvolutionService(pool *lakebase.ConnectionPool, repo *lakebase.MySQLRepo
 			CurrentStage: 0,
 			TotalStages:  len(DefaultEvolutionStages),
 			StageHistory: []StageExecution{},
-			DatabaseName: "lucid_evolution",
+			DatabaseName: "atlas_evolution",
 			IsReady:      false,
 		},
 	}
@@ -469,7 +469,7 @@ func (s *EvolutionService) resetToInitialLocked(ctx context.Context, dsID int64)
 		CurrentStage: 0,
 		TotalStages:  len(s.stages),
 		StageHistory: []StageExecution{},
-		DatabaseName: "lucid_evolution",
+		DatabaseName: "atlas_evolution",
 		IsReady:      true,
 	}
 
@@ -561,7 +561,7 @@ func (s *EvolutionService) getBusinessDB(dsID int64) (*sql.DB, error) {
 	port := poolCfg.Port
 	user := poolCfg.User
 	password := poolCfg.Password
-	dbName := "lucid_evolution"
+	dbName := "atlas_evolution"
 
 	if ds.Host.Valid {
 		host = ds.Host.String
@@ -624,7 +624,7 @@ func (s *EvolutionService) getBusinessDBAdapter(dsID int64) (adapter.DBAdapter, 
 	port := poolCfg.Port
 	user := poolCfg.User
 	password := poolCfg.Password
-	dbName := "lucid_evolution"
+	dbName := "atlas_evolution"
 
 	if ds.Host.Valid {
 		host = ds.Host.String

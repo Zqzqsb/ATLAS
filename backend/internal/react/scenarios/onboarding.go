@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"lucid/internal/adapter"
-	"lucid/internal/lakebase"
-	"lucid/internal/react"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/adapter"
+	"atlas/internal/lakebase"
+	"atlas/internal/react"
+	reacttools "atlas/internal/react/tools"
 
 	lctools "github.com/tmc/langchaingo/tools"
 )
@@ -293,7 +293,7 @@ func BuildOnboardingEngine(
 func buildOnboardingPrompt(cfg OnboardingConfig) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf(`You are onboarding a new %s database into the LUCID Text-to-SQL system.
+	sb.WriteString(fmt.Sprintf(`You are onboarding a new %s database into the ATLAS Text-to-SQL system.
 Your mission is to thoroughly explore the database and generate Rich Context metadata that helps future SQL generation.
 
 ## Available Tools

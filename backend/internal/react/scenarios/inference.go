@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/adapter"
-	"lucid/internal/react"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/adapter"
+	"atlas/internal/react"
+	reacttools "atlas/internal/react/tools"
 
 	lctools "github.com/tmc/langchaingo/tools"
 )

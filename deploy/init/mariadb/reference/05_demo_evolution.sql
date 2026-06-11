@@ -4,8 +4,8 @@
 -- =============================================================
 
 -- Create database
-CREATE DATABASE IF NOT EXISTS lucid_evolution DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE lucid_evolution;
+CREATE DATABASE IF NOT EXISTS atlas_evolution DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE atlas_evolution;
 
 -- =============================================================
 -- Stage 0: Initial state — simple user-order system
@@ -39,22 +39,22 @@ INSERT INTO orders (user_id, amount) VALUES
     (2, 59.00),
     (3, 299.00);
 
--- Grant lucid user full access to this database (needed for DDL evolution stages)
-GRANT ALL PRIVILEGES ON lucid_evolution.* TO 'lucid'@'%';
+-- Grant atlas user full access to this database (needed for DDL evolution stages)
+GRANT ALL PRIVILEGES ON atlas_evolution.* TO 'atlas'@'%';
 FLUSH PRIVILEGES;
 
 -- =============================================================
 -- Register in ATLAS Lake-Base (rc_datasources)
 -- =============================================================
-USE lucid;
+USE atlas;
 
 INSERT INTO rc_datasources (name, db_type, host, port, db_name, username, description, status)
-VALUES ('lucid_evolution', 'mariadb', 'lucid-mariadb', 3306, 'lucid_evolution', 'lucid',
+VALUES ('atlas_evolution', 'mariadb', 'atlas-mariadb', 3306, 'atlas_evolution', 'atlas',
         'Evolution Demo - Agent self-maintenance showcase (DDL evolution stages)', 'active')
 ON DUPLICATE KEY UPDATE status = 'active', description = VALUES(description);
 
 -- Get the inserted datasource ID (using variable)
-SET @evo_ds_id = (SELECT id FROM rc_datasources WHERE name = 'lucid_evolution' LIMIT 1);
+SET @evo_ds_id = (SELECT id FROM rc_datasources WHERE name = 'atlas_evolution' LIMIT 1);
 
 -- Pre-register schema metadata into rc_tables
 INSERT INTO rc_tables (datasource_id, table_name, row_count)

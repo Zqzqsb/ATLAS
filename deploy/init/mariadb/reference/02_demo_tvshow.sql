@@ -99,9 +99,9 @@ INSERT INTO Cartoon VALUES
 (10, 'Courage the Cowardly Dog', 'John R. Dilworth', 'John R. Dilworth', '1999-11-12', 'CCD101', 6);
 
 -- ============================================================
--- Grant permissions to lucid user
+-- Grant permissions to atlas user
 -- ============================================================
-GRANT ALL PRIVILEGES ON spider_tvshow.* TO 'lucid'@'%';
+GRANT ALL PRIVILEGES ON spider_tvshow.* TO 'atlas'@'%';
 FLUSH PRIVILEGES;
 
 SELECT 'Spider tvshow database initialized successfully!' AS status;

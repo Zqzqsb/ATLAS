@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // ReadCurrentContext is a Coordinator tool that reads current Rich Context for a table/column.

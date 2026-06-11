@@ -11,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/react"
-	"lucid/internal/react/scenarios"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/lakebase"
+	"atlas/internal/react"
+	"atlas/internal/react/scenarios"
+	reacttools "atlas/internal/react/tools"
 )
 
 // OnboardingEvent represents an event in the onboarding SSE stream.

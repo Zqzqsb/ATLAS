@@ -49,21 +49,21 @@ const typeOptions = [
 // Preset connections
 const presetOptions = [
   { label: 'Custom (Manual)', value: 'custom' },
-  { label: 'Evolution Demo DB', value: 'lucid_evolution' }
+  { label: 'Evolution Demo DB', value: 'atlas_evolution' }
 ]
 
 const selectedPreset = ref('custom')
 
 function applyPreset(preset: string) {
-  if (preset === 'lucid_evolution') {
+  if (preset === 'atlas_evolution') {
     formData.value = {
-      name: 'lucid_evolution',
+      name: 'atlas_evolution',
       type: 'mariadb',
-      host: 'lucid-mariadb',
+      host: 'atlas-mariadb',
       port: 3306,
       username: 'root',
       password: '',
-      database: 'lucid_evolution'
+      database: 'atlas_evolution'
     }
   } else {
     formData.value = defaultForm()

@@ -12,12 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
-	"lucid/internal/react"
-	"lucid/internal/react/scenarios"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/adapter"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
+	"atlas/internal/react"
+	"atlas/internal/react/scenarios"
+	reacttools "atlas/internal/react/tools"
 )
 
 // ===========================================

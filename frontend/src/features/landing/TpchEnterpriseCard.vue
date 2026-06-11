@@ -18,9 +18,9 @@ function handleEnter() {
 }
 
 const features = [
-  { icon: 'i-lucide-layers', label: 'Vector Retrieval', desc: 'HNSW coarse filtering on 500+ tables' },
-  { icon: 'i-lucide-brain', label: 'LLM Linking', desc: 'Semantic precision on candidate set' },
-  { icon: 'i-lucide-zap', label: 'Ablation Study', desc: '3-mode comparison experiments' },
+  { icon: 'i-atlas-layers', label: 'Vector Retrieval', desc: 'HNSW coarse filtering on 500+ tables' },
+  { icon: 'i-atlas-brain', label: 'LLM Linking', desc: 'Semantic precision on candidate set' },
+  { icon: 'i-atlas-zap', label: 'Ablation Study', desc: '3-mode comparison experiments' },
 ]
 </script>
 
@@ -37,7 +37,7 @@ const features = [
       <!-- Header -->
       <div class="flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
-          <div class="i-lucide-building-2 text-2xl text-white" />
+          <div class="i-atlas-building-2 text-2xl text-white" />
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="font-bold text-base text-gray-800 leading-tight group-hover:text-amber-600 transition-colors">
@@ -86,7 +86,7 @@ const features = [
           lakebase
         </span>
         <div class="flex items-center gap-1.5 text-xs font-semibold text-amber-600 opacity-0 group-hover:opacity-100 transition-all duration-300">
-          Open <div class="i-lucide-arrow-right text-sm" />
+          Open <div class="i-atlas-arrow-right text-sm" />
         </div>
       </div>
     </div>

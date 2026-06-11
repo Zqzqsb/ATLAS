@@ -4,14 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 	"sync"
 	"time"
 
-	"lucid/internal/adapter"
-	"lucid/internal/config"
-	"lucid/internal/embedding"
-	"lucid/internal/lakebase"
+	"atlas/internal/adapter"
+	"atlas/internal/config"
+	"atlas/internal/embedding"
+	"atlas/internal/lakebase"
 )
 
 // LakebaseService provides high-level operations for lake-base storage

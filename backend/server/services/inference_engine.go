@@ -9,10 +9,10 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/inference"
-	"lucid/internal/lakebase"
-	"lucid/internal/llm"
+	"atlas/internal/adapter"
+	"atlas/internal/inference"
+	"atlas/internal/lakebase"
+	"atlas/internal/llm"
 )
 
 // LakebaseContextLoader defines methods needed from lakebase service for loading rich context.

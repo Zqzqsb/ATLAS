@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"lucid/internal/adapter"
+	"atlas/internal/adapter"
 )
 
 // ============================================

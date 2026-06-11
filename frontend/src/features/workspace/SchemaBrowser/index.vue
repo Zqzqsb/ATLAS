@@ -107,9 +107,9 @@ const treeData = computed(() => {
     .map(table => ({
       key: table.name,
       label: table.name,
-      prefix: () => h('div', { class: 'i-lucide-table-2 text-blue-500' }),
+      prefix: () => h('div', { class: 'i-atlas-table-2 text-blue-500' }),
       suffix: () => h('div', { class: 'flex items-center gap-1' }, [
-        table.hasContext && h('div', { class: 'i-lucide-sparkles text-purple-500 text-xs' }),
+        table.hasContext && h('div', { class: 'i-atlas-sparkles text-purple-500 text-xs' }),
         h('span', { class: 'text-xs text-gray-400' }, `${table.columns.length} cols`)
       ]),
       isLeaf: false,
@@ -118,14 +118,14 @@ const treeData = computed(() => {
         label: col.name,
         prefix: () => h('div', { 
           class: col.isPrimaryKey 
-            ? 'i-lucide-key-round text-yellow-500' 
+            ? 'i-atlas-key-round text-yellow-500' 
             : col.isForeignKey 
-              ? 'i-lucide-link text-green-500'
-              : 'i-lucide-columns-3 text-gray-400'
+              ? 'i-atlas-link text-green-500'
+              : 'i-atlas-columns-3 text-gray-400'
         }),
         suffix: () => h('div', { class: 'flex items-center gap-1 text-xs text-gray-400' }, [
           h('span', {}, col.type),
-          col.hasContext && h('div', { class: 'i-lucide-sparkles text-purple-500' })
+          col.hasContext && h('div', { class: 'i-atlas-sparkles text-purple-500' })
         ]),
         isLeaf: true
       }))
@@ -175,7 +175,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           class="bg-white shadow-sm hover:border-primary-300 focus-within:border-primary-400 focus-within:ring-1 focus-within:ring-primary-100"
         >
           <template #prefix>
-            <div class="i-lucide-search text-gray-400" />
+            <div class="i-atlas-search text-gray-400" />
           </template>
         </NInput>
       </div>
@@ -187,7 +187,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <span class="text-sm font-medium">Loading schema...</span>
         </div>
         <div v-else-if="treeData.length === 0" class="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
-          <div class="i-lucide-database text-3xl opacity-20 mb-2"></div>
+          <div class="i-atlas-database text-3xl opacity-20 mb-2"></div>
           <span class="text-sm font-medium">No tables found</span>
         </div>
         <NTree
@@ -210,7 +210,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'"
           @click="rightView = rightView === 'er' ? 'table' : 'er'"
         >
-          <div class="i-lucide-git-branch" />
+          <div class="i-atlas-git-branch" />
           ER Diagram
         </button>
       </div>
@@ -223,7 +223,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-slate-50/50 backdrop-blur-sm sticky top-0 z-10">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-primary-50/80 flex items-center justify-center border border-primary-100/50 shadow-sm">
-              <div class="i-lucide-git-branch text-[17px] text-primary-600" />
+              <div class="i-atlas-git-branch text-[17px] text-primary-600" />
             </div>
             <h2 class="text-[17px] font-bold text-gray-800 tracking-tight">Entity Relationship Diagram</h2>
             <div class="w-1.5 h-1.5 rounded-full bg-gray-200 ml-1"></div>
@@ -235,7 +235,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700 hover:bg-white shadow-sm transition-all cursor-pointer bg-gray-50/80"
             @click="rightView = 'table'"
           >
-            <div class="i-lucide-x text-sm" />
+            <div class="i-atlas-x text-sm" />
             Close
           </button>
         </div>
@@ -244,7 +244,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <div v-else-if="erError" class="flex flex-col items-center justify-center h-full">
             <div class="text-red-500 text-sm p-6 font-mono bg-red-50 rounded-lg border border-red-200 max-w-xl">
               <div class="font-bold mb-2 flex items-center gap-2">
-                <div class="i-lucide-alert-triangle-alt" />
+                <div class="i-atlas-alert-triangle-alt" />
                 Diagram Parse Error
               </div>
               {{ erError }}
@@ -262,7 +262,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
       <div v-else class="h-full">
         <div v-if="!selectedTable" class="flex flex-col items-center justify-center h-full text-center p-8">
           <div class="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-6 shadow-sm">
-            <div class="i-lucide-layout-grid text-4xl text-gray-300" />
+            <div class="i-atlas-layout-grid text-4xl text-gray-300" />
           </div>
           <h3 class="text-xl font-bold text-gray-800 tracking-tight mb-2">Schema Browser</h3>
           <p class="text-sm text-gray-500 max-w-sm">
@@ -274,7 +274,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <div class="mb-8 pb-6 border-b border-gray-150">
             <div class="flex items-center gap-3.5 mb-2.5">
               <div class="w-12 h-12 rounded-xl bg-primary-50/80 flex items-center justify-center border border-primary-100 shadow-sm">
-                <div class="i-lucide-table-2 text-[22px] text-primary-600" />
+                <div class="i-atlas-table-2 text-[22px] text-primary-600" />
               </div>
               <h2 class="text-[26px] font-extrabold text-gray-900 tracking-tight">
                 {{ selectedTable.name }}
@@ -287,19 +287,19 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
             
             <div class="flex items-center gap-4 text-sm text-gray-500 font-medium bg-gray-50/50 w-fit px-3 py-1.5 rounded-lg border border-gray-100">
               <span class="flex items-center gap-1.5">
-                <div class="i-lucide-columns-3 text-gray-400" />
+                <div class="i-atlas-columns-3 text-gray-400" />
                 {{ selectedTable.columns.length }} Columns
               </span>
               <div class="w-px h-3.5 bg-gray-200"></div>
               <span v-if="selectedTable.rowCount" class="flex items-center gap-1.5">
-                <div class="i-lucide-rows-3 text-gray-400" />
+                <div class="i-atlas-rows-3 text-gray-400" />
                 ~{{ selectedTable.rowCount }} Rows
               </span>
               <template v-if="selectedTable.hasContext">
                 <div class="w-px h-3.5 bg-gray-200"></div>
                 <NTag type="success" size="small" round :bordered="false" class="font-bold px-2.5">
                   <template #icon>
-                    <div class="i-lucide-sparkles" />
+                    <div class="i-atlas-sparkles" />
                   </template>
                   Rich Context Active
                 </NTag>
@@ -310,7 +310,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           <!-- Columns table -->
           <div class="mb-10">
             <h3 class="text-[17px] font-bold text-gray-800 tracking-tight mb-4 flex items-center gap-2">
-              <div class="i-lucide-list text-primary-500" />
+              <div class="i-atlas-list text-primary-500" />
               Schema Definition
             </h3>
             <div class="border border-gray-200/80 rounded-xl overflow-hidden shadow-sm bg-white">
@@ -330,10 +330,10 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
                         <div 
                           class="opacity-70 group-hover:opacity-100 transition-opacity"
                           :class="col.isPrimaryKey 
-                            ? 'i-lucide-key-round text-amber-500' 
+                            ? 'i-atlas-key-round text-amber-500' 
                             : col.isForeignKey 
-                              ? 'i-lucide-link text-emerald-500'
-                              : 'i-lucide-columns-3 text-gray-300'"
+                              ? 'i-atlas-link text-emerald-500'
+                              : 'i-atlas-columns-3 text-gray-300'"
                         />
                         <span class="font-bold text-gray-800">{{ col.name }}</span>
                       </div>
@@ -348,9 +348,9 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
                     </td>
                     <td class="px-5 py-3.5 text-center">
                       <div v-if="col.hasContext" class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-50 text-primary-600">
-                        <div class="i-lucide-check text-sm" />
+                        <div class="i-atlas-check text-sm" />
                       </div>
-                      <div v-else class="i-lucide-minus text-gray-200 mx-auto" />
+                      <div v-else class="i-atlas-minus text-gray-200 mx-auto" />
                     </td>
                   </tr>
                 </tbody>
@@ -361,7 +361,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
         <!-- Related contexts -->
         <div v-if="tableContexts.length">
           <h3 class="text-[17px] font-bold text-gray-800 tracking-tight mb-4 flex items-center gap-2">
-            <div class="i-lucide-lightbulb text-amber-500" />
+            <div class="i-atlas-lightbulb text-amber-500" />
             Related Context ({{ tableContexts.length }})
           </h3>
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -389,7 +389,7 @@ function getContextTagType(type: string): 'info' | 'success' | 'warning' | 'erro
           class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 hover:shadow-sm border border-primary-100 transition-all cursor-pointer"
           @click="rightView = 'er'"
         >
-          <div class="i-lucide-git-branch text-base" />
+          <div class="i-atlas-git-branch text-base" />
           View ER Diagram
         </button>
       </div>

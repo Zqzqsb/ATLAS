@@ -10,7 +10,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // Handler implements langchaingo's callbacks interface for the ReAct loop.

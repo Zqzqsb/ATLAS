@@ -18,14 +18,14 @@ const workspaceStore = useWorkspaceStore()
 const databaseStore = useDatabaseStore()
 
 const baseTabs: { key: WorkspaceTab; label: string; icon: string }[] = [
-  { key: 'query', label: 'Query', icon: 'i-lucide-message-square' },
-  { key: 'schema', label: 'Schema', icon: 'i-lucide-table-2' },
-  { key: 'context', label: 'Context', icon: 'i-lucide-file-text' }
+  { key: 'query', label: 'Query', icon: 'i-atlas-message-square' },
+  { key: 'schema', label: 'Schema', icon: 'i-atlas-table-2' },
+  { key: 'context', label: 'Context', icon: 'i-atlas-file-text' }
 ]
 
 // Whether current database is the evolution demo DB
 const isEvolutionDb = computed(() => {
-  return workspaceStore.currentDatabase?.name === 'lucid_evolution'
+  return workspaceStore.currentDatabase?.name === 'atlas_evolution'
 })
 
 // Database description for the banner
@@ -41,7 +41,7 @@ const tabs = computed(() => {
   if (isEvolutionDb.value) {
     return [
       ...baseTabs,
-      { key: 'evolution' as WorkspaceTab, label: 'Evolution', icon: 'i-lucide-git-branch' }
+      { key: 'evolution' as WorkspaceTab, label: 'Evolution', icon: 'i-atlas-git-branch' }
     ]
   }
   return baseTabs
@@ -143,7 +143,7 @@ function goBack() {
     <div v-if="workspaceStore.loadingSchema" class="flex items-center justify-center h-screen">
       <div class="text-center">
         <div class="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center mx-auto mb-3">
-          <div class="i-lucide-database text-2xl text-primary-600 animate-pulse" />
+          <div class="i-atlas-database text-2xl text-primary-600 animate-pulse" />
         </div>
         <p class="text-gray-500 text-sm">Loading database schema...</p>
       </div>
@@ -153,13 +153,13 @@ function goBack() {
     <div v-else-if="!workspaceStore.currentDatabase" class="flex items-center justify-center h-screen">
       <div class="text-center">
         <div class="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center mx-auto mb-3">
-          <div class="i-lucide-alert-triangle text-2xl text-red-500" />
+          <div class="i-atlas-alert-triangle text-2xl text-red-500" />
         </div>
         <p class="text-lg text-gray-900 font-medium mb-1">Database not found</p>
         <p class="text-gray-400 text-sm mb-5">The database may not exist or is not connected</p>
         <NButton type="primary" size="small" @click="goBack">
           <template #icon>
-            <div class="i-lucide-arrow-left" />
+            <div class="i-atlas-arrow-left" />
           </template>
           Back to Home
         </NButton>
@@ -178,7 +178,7 @@ function goBack() {
                 class="group w-9 h-9 mt-0.5 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-primary-50 transition-colors shrink-0"
                 @click="goBack"
               >
-                <div class="i-lucide-arrow-left text-lg text-gray-500 group-hover:text-primary-600 transition-colors" />
+                <div class="i-atlas-arrow-left text-lg text-gray-500 group-hover:text-primary-600 transition-colors" />
               </button>
               
               <!-- Icon -->
@@ -192,7 +192,7 @@ function goBack() {
               >
                 <span v-if="isSpiderMode" class="text-2xl">🕷️</span>
                 <span v-else-if="isEvolutionDb" class="text-2xl">🧬</span>
-                <div v-else class="i-lucide-database text-2xl" />
+                <div v-else class="i-atlas-database text-2xl" />
               </div>
 
               <!-- Info -->
@@ -213,7 +213,7 @@ function goBack() {
                   </span>
                   
                   <span v-if="!isSpiderMode && workspaceStore.currentDatabase.host" class="text-xs font-medium text-gray-400 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                    <div class="i-lucide-server text-gray-400 text-[11px]" />
+                    <div class="i-atlas-server text-gray-400 text-[11px]" />
                     {{ workspaceStore.currentDatabase.host }}
                   </span>
 
@@ -246,7 +246,7 @@ function goBack() {
               <div class="flex flex-col items-start justify-center">
                 <span class="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">Tables</span>
                 <span class="text-xl font-black text-gray-700 tracking-tight flex items-center gap-1.5">
-                  <div class="i-lucide-table text-sm text-gray-300" />
+                  <div class="i-atlas-table text-sm text-gray-300" />
                   {{ workspaceStore.currentDatabase.tableCount }}
                 </span>
               </div>
@@ -256,7 +256,7 @@ function goBack() {
                 <div class="flex flex-col items-start justify-center">
                   <span class="text-[10px] uppercase tracking-widest font-bold text-primary-500 mb-0.5">Rich Contexts</span>
                   <span class="text-xl font-black text-primary-600 tracking-tight flex items-center gap-1.5">
-                    <div class="i-lucide-sparkles text-sm text-primary-400" />
+                    <div class="i-atlas-sparkles text-sm text-primary-400" />
                     {{ workspaceStore.contexts.length }}
                   </span>
                 </div>

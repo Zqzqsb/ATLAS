@@ -33,7 +33,7 @@ def migrate_flight2():
     cursor = maria_conn.cursor()
     
     # Create database and tables
-    with open('/root/workspace/lucid/deploy/scripts/import_spider_flight.sql', 'r') as f:
+    with open('/root/workspace/atlas/deploy/scripts/import_spider_flight.sql', 'r') as f:
         sql_script = f.read()
     
     for statement in sql_script.split(';'):
@@ -96,7 +96,7 @@ def migrate_wta1():
     cursor = maria_conn.cursor()
     
     # Create database and tables
-    with open('/root/workspace/lucid/deploy/scripts/import_spider_wta.sql', 'r') as f:
+    with open('/root/workspace/atlas/deploy/scripts/import_spider_wta.sql', 'r') as f:
         sql_script = f.read()
     
     for statement in sql_script.split(';'):

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"lucid/internal/adapter"
-	"lucid/internal/config"
+	"atlas/internal/adapter"
+	"atlas/internal/config"
 )
 
 // InferenceService handles Text2SQL inference.

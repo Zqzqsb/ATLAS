@@ -3,9 +3,9 @@ package scenarios
 import (
 	"fmt"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/react"
-	reacttools "lucid/internal/react/tools"
+	"atlas/internal/lakebase"
+	"atlas/internal/react"
+	reacttools "atlas/internal/react/tools"
 
 	lctools "github.com/tmc/langchaingo/tools"
 )

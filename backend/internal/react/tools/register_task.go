@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // RegisterTask is a Coordinator tool that registers maintenance tasks.

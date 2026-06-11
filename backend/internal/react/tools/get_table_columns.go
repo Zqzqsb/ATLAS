@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // GetTableColumns is a Coordinator tool that returns all columns for a table.

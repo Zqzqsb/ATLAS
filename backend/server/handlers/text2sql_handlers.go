@@ -10,12 +10,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"lucid/internal/adapter"
-	"lucid/internal/grounding"
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
-	"lucid/internal/react"
-	"lucid/server/services"
+	"atlas/internal/adapter"
+	"atlas/internal/grounding"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
+	"atlas/internal/react"
+	"atlas/server/services"
 )
 
 // Text2SQLRequest represents the input for text2sql conversion.

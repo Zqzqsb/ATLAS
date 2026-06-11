@@ -35,7 +35,7 @@ const typeIcon = computed(() => {
     case 'mysql': return 'i-logos-mysql'
     case 'postgresql': return 'i-logos-postgresql'
     case 'sqlite': return 'i-simple-icons-sqlite'
-    default: return 'i-lucide-database'
+    default: return 'i-atlas-database'
   }
 })
 
@@ -151,8 +151,8 @@ async function handleDelete(e: Event) {
             class="px-3 py-2 rounded-lg bg-gradient-to-r from-red-400 to-rose-500 text-white text-xs font-bold flex items-center gap-1 shadow-md hover:shadow-lg transition-all"
             @click="handleDelete"
           >
-            <div v-if="deleting" class="i-lucide-refresh-cw animate-spin" />
-            <div v-else class="i-lucide-trash-2" />
+            <div v-if="deleting" class="i-atlas-refresh-cw animate-spin" />
+            <div v-else class="i-atlas-trash-2" />
           </button>
 
           <!-- Open button -->
@@ -160,7 +160,7 @@ async function handleDelete(e: Event) {
             v-if="database.status === 'connected'" 
             class="px-4 py-2 rounded-lg bg-gradient-to-r from-primary-500 to-blue-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-primary-500/30 hover:shadow-xl transition-all"
           >
-            Open <div class="i-lucide-arrow-right" />
+            Open <div class="i-atlas-arrow-right" />
           </button>
         </div>
       </div>

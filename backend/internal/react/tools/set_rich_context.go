@@ -8,7 +8,7 @@ import (
 
 	"log/slog"
 
-	"lucid/internal/logger"
+	"atlas/internal/logger"
 )
 
 // RCWriter is the interface for writing Rich Context data.

@@ -5,7 +5,7 @@ Only outputs USE + CREATE TABLE + INSERT for NEW tables. No DROP, no re-create.
 
 Usage:
     python3 scripts/gen_tpch_addon.py > /tmp/tpch_addon.sql
-    docker exec -i lucid-mariadb mariadb -uroot -p... < /tmp/tpch_addon.sql
+    docker exec -i atlas-mariadb mariadb -uroot -p... < /tmp/tpch_addon.sql
 """
 import random, re
 random.seed(42)

@@ -33,7 +33,7 @@ demo-db-up:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "$(GREEN)🗄️  Starting Demo Databases...$(NC)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@docker network create lucid_demo_network 2>/dev/null || true
+	@docker network create atlas_demo_network 2>/dev/null || true
 	$(DEMO_COMPOSE_CMD) up -d
 	@echo ""
 	@echo "$(GREEN)✅ Demo databases started!$(NC)"
@@ -44,7 +44,7 @@ demo-db-up:
 	@echo "  college_2: MySQL :15021  PostgreSQL :15022"
 	@echo "  employee:  MySQL :15031  PostgreSQL :15032"
 	@echo ""
-	@echo "$(YELLOW)💡 Credentials: lucid / lucid123$(NC)"
+	@echo "$(YELLOW)💡 Credentials: atlas / atlas123$(NC)"
 	@$(MAKE) demo-db-status
 
 # Stop demo databases
@@ -68,7 +68,7 @@ demo-db-logs:
 demo-db-reset:
 	@echo "$(RED)🔄 Resetting demo databases (this will delete all data)...$(NC)"
 	$(DEMO_COMPOSE_CMD) down -v
-	@docker network create lucid_demo_network 2>/dev/null || true
+	@docker network create atlas_demo_network 2>/dev/null || true
 	$(DEMO_COMPOSE_CMD) up -d
 	@echo "$(GREEN)✅ Demo databases reset and restarted.$(NC)"
 
@@ -82,7 +82,7 @@ all: help
 # Start all services (containerized)
 up:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "$(GREEN)🚀 Starting lucid Demo System (Containers)...$(NC)"
+	@echo "$(GREEN)🚀 Starting atlas Demo System (Containers)...$(NC)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	$(COMPOSE_CMD) up -d
 	@echo ""
@@ -322,7 +322,7 @@ check-data:
 # ============================================================
 help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "$(GREEN)lucid System - Self-Contained Deployment$(NC)"
+	@echo "$(GREEN)atlas System - Self-Contained Deployment$(NC)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "$(YELLOW)🗄️ Demo Database Management:$(NC)"

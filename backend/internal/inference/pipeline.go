@@ -8,8 +8,8 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 
-	"lucid/internal/adapter"
-	"lucid/internal/logger"
+	"atlas/internal/adapter"
+	"atlas/internal/logger"
 )
 
 // Config holds inference pipeline configuration.

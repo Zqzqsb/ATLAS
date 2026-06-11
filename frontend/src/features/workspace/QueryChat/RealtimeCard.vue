@@ -160,14 +160,14 @@ const colorClasses = computed(() => {
           </template>
           <template v-else-if="completed">
             <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60">
-              <div class="i-lucide-check text-xs" />
+              <div class="i-atlas-check text-xs" />
               <span v-if="duration" class="text-[11px] font-semibold">{{ (duration / 1000).toFixed(2) }}s</span>
               <span v-else class="text-[11px] font-semibold">Done</span>
             </div>
             <!-- Chevron for collapse toggle -->
             <div 
               v-if="isCollapsible"
-              class="i-lucide-chevron-down text-sm text-gray-400 transition-transform duration-200"
+              class="i-atlas-chevron-down text-sm text-gray-400 transition-transform duration-200"
               :class="{ 'rotate-180': isExpanded }"
             />
           </template>

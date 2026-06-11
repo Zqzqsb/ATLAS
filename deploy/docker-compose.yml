@@ -19,22 +19,22 @@ services:
   # Frontend - Vue3 + Vite + Naive UI
   # ============================================================
   frontend:
-    image: lucid-frontend:latest
+    image: atlas-frontend:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile.frontend
-    container_name: lucid-frontend
+    container_name: atlas-frontend
     restart: unless-stopped
     ports:
-      - "${LUCID_FRONTEND_PORT:-19000}:80"
+      - "${ATLAS_FRONTEND_PORT:-19000}:80"
     environment:
-      - BACKEND_URL=http://lucid-backend:19001
+      - BACKEND_URL=http://atlas-backend:19001
       - TZ=${TZ:-Asia/Shanghai}
     depends_on:
       backend:
         condition: service_healthy
     networks:
-      - lucid-network
+      - atlas-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
       interval: 30s
@@ -46,14 +46,14 @@ services:
   # Backend - Go API Server
   # ============================================================
   backend:
-    image: lucid-backend:latest
+    image: atlas-backend:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
-    container_name: lucid-backend
+    container_name: atlas-backend
     restart: unless-stopped
     ports:
-      - "${LUCID_BACKEND_PORT:-19001}:19001"
+      - "${ATLAS_BACKEND_PORT:-19001}:19001"
     environment:
       - GIN_MODE=release
       - SERVER_PORT=19001
@@ -61,8 +61,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-debug}
       - LLM_CONFIG_PATH=/app/llm_config.json
       - LLM_API_KEY=${LLM_API_KEY:-}
-      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-lucid_root_2024}
-      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-lucid2024}
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-atlas_root_2024}
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-atlas2024}
       - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:-}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
@@ -77,7 +77,7 @@ services:
       mariadb:
         condition: service_healthy
     networks:
-      - lucid-network
+      - atlas-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:19001/health"]
       interval: 30s
@@ -91,24 +91,24 @@ services:
   # ============================================================
   mariadb:
     image: mariadb:12
-    container_name: lucid-mariadb
+    container_name: atlas-mariadb
     restart: unless-stopped
     ports:
-      - "${LUCID_MARIADB_PORT:-19010}:3306"
+      - "${ATLAS_MARIADB_PORT:-19010}:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-lucid_root_2024}
-      MARIADB_DATABASE: lucid
-      MARIADB_USER: lucid
-      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-lucid2024}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-atlas_root_2024}
+      MARIADB_DATABASE: atlas
+      MARIADB_USER: atlas
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-atlas2024}
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
-      - lucid-mariadb-data:/var/lib/mysql
+      - atlas-mariadb-data:/var/lib/mysql
       - ./init/mariadb:/docker-entrypoint-initdb.d:ro
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     networks:
-      - lucid-network
+      - atlas-network
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -120,13 +120,13 @@ services:
 # Volumes
 # ============================================================
 volumes:
-  lucid-mariadb-data:
-    name: lucid-mariadb-data
+  atlas-mariadb-data:
+    name: atlas-mariadb-data
 
 # ============================================================
 # Networks
 # ============================================================
 networks:
-  lucid-network:
-    name: lucid-network
+  atlas-network:
+    name: atlas-network
     driver: bridge

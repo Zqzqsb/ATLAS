@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"lucid/internal/lakebase"
-	"lucid/internal/logger"
+	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // MarkExpired is a Coordinator tool that marks tables/columns as expired.

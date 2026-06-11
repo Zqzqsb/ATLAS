@@ -119,13 +119,13 @@ const typeOptions = [
 
 // Context type legend — explains what each tag means and its visual identity
 const typeLegend: { type: ContextType; label: string; icon: string; desc: string }[] = [
-  { type: 'description',   label: 'Description',   icon: 'i-lucide-file-text',      desc: 'Natural-language description of a table or column\'s purpose and content.' },
-  { type: 'example',       label: 'Example',       icon: 'i-lucide-list',           desc: 'Representative sample values that help the LLM understand data patterns.' },
-  { type: 'synonym',       label: 'Synonym',       icon: 'i-lucide-languages',      desc: 'Alternative names, abbreviations, or domain aliases for a column.' },
-  { type: 'value_mapping', label: 'Value Mapping',  icon: 'i-lucide-arrow-left-right', desc: 'Maps coded values to human-readable labels (e.g. "M" → "Male").' },
-  { type: 'business_rule', label: 'Business Rule',  icon: 'i-lucide-shield-check',   desc: 'Domain constraints or logic rules that govern data interpretation.' },
-  { type: 'constraint',    label: 'Constraint',    icon: 'i-lucide-alert-triangle', desc: 'Data constraints like NOT NULL, UNIQUE, range limits, or foreign keys.' },
-  { type: 'calculation',   label: 'Calculation',   icon: 'i-lucide-calculator',     desc: 'Derived metric formulas (e.g. profit = revenue − cost).' }
+  { type: 'description',   label: 'Description',   icon: 'i-atlas-file-text',      desc: 'Natural-language description of a table or column\'s purpose and content.' },
+  { type: 'example',       label: 'Example',       icon: 'i-atlas-list',           desc: 'Representative sample values that help the LLM understand data patterns.' },
+  { type: 'synonym',       label: 'Synonym',       icon: 'i-atlas-languages',      desc: 'Alternative names, abbreviations, or domain aliases for a column.' },
+  { type: 'value_mapping', label: 'Value Mapping',  icon: 'i-atlas-arrow-left-right', desc: 'Maps coded values to human-readable labels (e.g. "M" → "Male").' },
+  { type: 'business_rule', label: 'Business Rule',  icon: 'i-atlas-shield-check',   desc: 'Domain constraints or logic rules that govern data interpretation.' },
+  { type: 'constraint',    label: 'Constraint',    icon: 'i-atlas-alert-triangle', desc: 'Data constraints like NOT NULL, UNIQUE, range limits, or foreign keys.' },
+  { type: 'calculation',   label: 'Calculation',   icon: 'i-atlas-calculator',     desc: 'Derived metric formulas (e.g. profit = revenue − cost).' }
 ]
 
 const tableOptions = computed(() => 
@@ -481,7 +481,7 @@ async function handlePruneAll() {
           class="w-64"
         >
           <template #prefix>
-            <div class="i-lucide-search text-gray-400" />
+            <div class="i-atlas-search text-gray-400" />
           </template>
         </NInput>
 
@@ -509,7 +509,7 @@ async function handlePruneAll() {
           class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
           @click="workspaceStore.fetchContexts"
         >
-          <div class="i-lucide-refresh-cw text-sm" />
+          <div class="i-atlas-refresh-cw text-sm" />
           Refresh
         </button>
         <NPopconfirm
@@ -523,8 +523,8 @@ async function handlePruneAll() {
               :class="filteredContexts.length === 0 ? 'bg-gray-100 text-gray-400 border border-gray-200' : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300'"
               :disabled="filteredContexts.length === 0 || isPruning"
             >
-              <div v-if="isPruning" class="i-lucide-loader-2 animate-spin text-sm" />
-              <div v-else class="i-lucide-trash-2 text-sm" />
+              <div v-if="isPruning" class="i-atlas-loader-2 animate-spin text-sm" />
+              <div v-else class="i-atlas-trash-2 text-sm" />
               Clear All
             </button>
           </template>
@@ -537,14 +537,14 @@ async function handlePruneAll() {
           class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 border border-indigo-600 shadow-sm shadow-indigo-500/20 transition-all"
           @click="openGenerateConsole"
         >
-          <div class="i-lucide-brain text-sm" />
+          <div class="i-atlas-brain text-sm" />
           AI Generate
         </button>
         <button 
           class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 border border-primary-700 shadow-sm shadow-primary-500/20 transition-all"
           @click="openCreateDialog"
         >
-          <div class="i-lucide-plus text-sm" />
+          <div class="i-atlas-plus text-sm" />
           Add Context
         </button>
       </div>
@@ -556,7 +556,7 @@ async function handlePruneAll() {
         <NCollapseItem name="legend">
           <template #header>
             <div class="flex items-center gap-3 py-2.5 px-2">
-              <div class="i-lucide-book-open text-[18px] text-primary-500" />
+              <div class="i-atlas-book-open text-[18px] text-primary-500" />
               <span class="text-[15px] font-extrabold text-gray-800 tracking-wide">Context Type Guide</span>
             </div>
           </template>
@@ -588,7 +588,7 @@ async function handlePruneAll() {
     <!-- Empty -->
     <div v-else-if="filteredContexts.length === 0" class="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-gray-200/60 border-dashed">
       <div class="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-6 shadow-sm">
-        <div class="i-lucide-lightbulb text-4xl text-gray-300" />
+        <div class="i-atlas-lightbulb text-4xl text-gray-300" />
       </div>
       <h3 class="text-xl font-bold text-gray-800 tracking-tight mb-2">No Context Found</h3>
       <p class="text-sm text-gray-500 max-w-md text-center mb-6">
@@ -599,14 +599,14 @@ async function handlePruneAll() {
           class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-500 hover:bg-indigo-600 shadow-sm shadow-indigo-500/20 transition-all"
           @click="openGenerateConsole"
         >
-          <div class="i-lucide-brain text-base" />
+          <div class="i-atlas-brain text-base" />
           Auto Generate
         </button>
         <button 
           class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-200 shadow-sm transition-all"
           @click="openCreateDialog"
         >
-          <div class="i-lucide-plus text-base" />
+          <div class="i-atlas-plus text-base" />
           Manual Add
         </button>
       </div>
@@ -620,14 +620,14 @@ async function handlePruneAll() {
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
           @click="expandAll"
         >
-          <div class="i-lucide-unfold-vertical text-gray-500" />
+          <div class="i-atlas-unfold-vertical text-gray-500" />
           Expand All
         </button>
         <button 
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
           @click="collapseAll"
         >
-          <div class="i-lucide-fold-vertical text-gray-500" />
+          <div class="i-atlas-fold-vertical text-gray-500" />
           Collapse All
         </button>
 
@@ -639,7 +639,7 @@ async function handlePruneAll() {
           @click="isCompact = !isCompact"
           title="Toggle compact view"
         >
-          <div :class="isCompact ? 'i-lucide-rows-3' : 'i-lucide-rows-4'" class="text-sm" />
+          <div :class="isCompact ? 'i-atlas-rows-3' : 'i-atlas-rows-4'" class="text-sm" />
           Compact
         </button>
 
@@ -652,7 +652,7 @@ async function handlePruneAll() {
               :class="viewMode === 'flat' ? 'bg-white text-gray-800 shadow-sm border border-gray-200/60' : 'text-gray-500 hover:text-gray-700'"
               @click="viewMode = 'flat'"
             >
-              <div class="i-lucide-list text-xs" />
+              <div class="i-atlas-list text-xs" />
               A–Z
             </button>
             <button
@@ -660,7 +660,7 @@ async function handlePruneAll() {
               :class="viewMode === 'cluster' ? 'bg-white text-gray-800 shadow-sm border border-gray-200/60' : 'text-gray-500 hover:text-gray-700'"
               @click="viewMode = 'cluster'"
             >
-              <div class="i-lucide-network text-xs" />
+              <div class="i-atlas-network text-xs" />
               By Cluster
             </button>
           </div>
@@ -738,7 +738,7 @@ async function handlePruneAll() {
             <div class="ml-auto flex-shrink-0 w-6 h-6 rounded-md bg-gray-100/80 flex items-center justify-center transition-transform duration-300"
               :class="{ 'rotate-180 bg-indigo-50 text-indigo-600': expandedClusters.has(cg.cluster.index) }"
             >
-              <div class="i-lucide-chevron-down text-xs" :class="{ 'text-gray-500': !expandedClusters.has(cg.cluster.index) }" />
+              <div class="i-atlas-chevron-down text-xs" :class="{ 'text-gray-500': !expandedClusters.has(cg.cluster.index) }" />
             </div>
           </div>
 
@@ -756,7 +756,7 @@ async function handlePruneAll() {
                 @click="toggleTable(group.tableName)"
               >
                 <div class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100/50">
-                  <div class="i-lucide-table-2 text-sm text-blue-600" />
+                  <div class="i-atlas-table-2 text-sm text-blue-600" />
                 </div>
                 <span class="font-bold text-[14px] text-gray-800">{{ group.tableName }}</span>
 
@@ -778,12 +778,12 @@ async function handlePruneAll() {
                     @click.stop="openCreateDialogForTable(group.tableName)"
                     title="Add Context"
                   >
-                    <div class="i-lucide-plus text-xs text-gray-500" />
+                    <div class="i-atlas-plus text-xs text-gray-500" />
                   </button>
                   <div class="w-5 h-5 rounded-md flex items-center justify-center transition-transform duration-300"
                     :class="{ 'rotate-180 text-blue-600': expandedTables.has(group.tableName) }"
                   >
-                    <div class="i-lucide-chevron-down text-xs text-gray-400" />
+                    <div class="i-atlas-chevron-down text-xs text-gray-400" />
                   </div>
                 </div>
               </div>
@@ -798,10 +798,10 @@ async function handlePruneAll() {
                   <p class="text-[12px] text-gray-600 font-medium flex-1 truncate">{{ group.tableContext.content }}</p>
                   <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <button class="w-5 h-5 rounded bg-white/80 hover:bg-white border border-gray-200 flex items-center justify-center" @click="openEditDialog(group.tableContext!)" title="Edit">
-                      <div class="i-lucide-pencil text-[9px] text-gray-500" />
+                      <div class="i-atlas-pencil text-[9px] text-gray-500" />
                     </button>
                     <button class="w-5 h-5 rounded bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(group.tableContext!)" title="Delete">
-                      <div class="i-lucide-trash-2 text-[9px] text-red-500" />
+                      <div class="i-atlas-trash-2 text-[9px] text-red-500" />
                     </button>
                   </div>
                 </div>
@@ -819,10 +819,10 @@ async function handlePruneAll() {
                       <p class="text-[12px] text-gray-600 font-medium flex-1 truncate">{{ ctx.content }}</p>
                       <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         <button class="w-4 h-4 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center" @click="openEditDialog(ctx)" title="Edit">
-                          <div class="i-lucide-pencil text-[8px] text-gray-500" />
+                          <div class="i-atlas-pencil text-[8px] text-gray-500" />
                         </button>
                         <button class="w-4 h-4 rounded bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(ctx)" title="Delete">
-                          <div class="i-lucide-trash-2 text-[8px] text-red-500" />
+                          <div class="i-atlas-trash-2 text-[8px] text-red-500" />
                         </button>
                       </div>
                     </div>
@@ -851,7 +851,7 @@ async function handlePruneAll() {
               @click="toggleTable(group.tableName)"
             >
               <div class="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100/50">
-                <div class="i-lucide-table-2 text-sm text-blue-600" />
+                <div class="i-atlas-table-2 text-sm text-blue-600" />
               </div>
               <span class="font-bold text-[14px] text-gray-800">{{ group.tableName }}</span>
 
@@ -870,12 +870,12 @@ async function handlePruneAll() {
                   @click.stop="openCreateDialogForTable(group.tableName)"
                   title="Add Context"
                 >
-                  <div class="i-lucide-plus text-xs text-gray-500" />
+                  <div class="i-atlas-plus text-xs text-gray-500" />
                 </button>
                 <div class="w-5 h-5 rounded-md flex items-center justify-center transition-transform duration-300"
                   :class="{ 'rotate-180 text-blue-600': expandedTables.has(group.tableName) }"
                 >
-                  <div class="i-lucide-chevron-down text-xs text-gray-400" />
+                  <div class="i-atlas-chevron-down text-xs text-gray-400" />
                 </div>
               </div>
             </div>
@@ -890,10 +890,10 @@ async function handlePruneAll() {
                 <p class="text-[12px] text-gray-600 font-medium flex-1 truncate">{{ group.tableContext.content }}</p>
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button class="w-5 h-5 rounded bg-white/80 hover:bg-white border border-gray-200 flex items-center justify-center" @click="openEditDialog(group.tableContext!)" title="Edit">
-                    <div class="i-lucide-pencil text-[9px] text-gray-500" />
+                    <div class="i-atlas-pencil text-[9px] text-gray-500" />
                   </button>
                   <button class="w-5 h-5 rounded bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(group.tableContext!)" title="Delete">
-                    <div class="i-lucide-trash-2 text-[9px] text-red-500" />
+                    <div class="i-atlas-trash-2 text-[9px] text-red-500" />
                   </button>
                 </div>
               </div>
@@ -911,10 +911,10 @@ async function handlePruneAll() {
                     <p class="text-[11px] text-gray-600 font-medium flex-1 truncate">{{ ctx.content }}</p>
                     <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                       <button class="w-4 h-4 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center" @click="openEditDialog(ctx)" title="Edit">
-                        <div class="i-lucide-pencil text-[8px] text-gray-500" />
+                        <div class="i-atlas-pencil text-[8px] text-gray-500" />
                       </button>
                       <button class="w-4 h-4 rounded bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(ctx)" title="Delete">
-                        <div class="i-lucide-trash-2 text-[8px] text-red-500" />
+                        <div class="i-atlas-trash-2 text-[8px] text-red-500" />
                       </button>
                     </div>
                   </div>
@@ -939,7 +939,7 @@ async function handlePruneAll() {
               @click="toggleTable(group.tableName)"
             >
               <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100/50 shadow-sm">
-                <div class="i-lucide-table-2 text-xl text-blue-600" />
+                <div class="i-atlas-table-2 text-xl text-blue-600" />
               </div>
               
               <span class="font-extrabold text-[17px] text-gray-800 tracking-tight">{{ group.tableName }}</span>
@@ -959,7 +959,7 @@ async function handlePruneAll() {
                   @click.stop="openCreateDialogForTable(group.tableName)"
                   title="Add Context to Table"
                 >
-                  <div class="i-lucide-plus text-sm" />
+                  <div class="i-atlas-plus text-sm" />
                 </button>
                 
                 <!-- Modern expand/collapse indicator -->
@@ -967,7 +967,7 @@ async function handlePruneAll() {
                   class="w-8 h-8 rounded-lg bg-gray-100/80 flex items-center justify-center transition-transform duration-300"
                   :class="{ 'rotate-180 bg-blue-50 text-blue-600': expandedTables.has(group.tableName) }"
                 >
-                  <div class="i-lucide-chevron-down text-sm" :class="{ 'text-gray-500': !expandedTables.has(group.tableName) }" />
+                  <div class="i-atlas-chevron-down text-sm" :class="{ 'text-gray-500': !expandedTables.has(group.tableName) }" />
                 </div>
               </div>
             </div>
@@ -985,10 +985,10 @@ async function handlePruneAll() {
                 <p class="text-[13px] text-gray-700 font-medium leading-snug flex-1 truncate">{{ group.tableContext.content }}</p>
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button class="w-6 h-6 rounded bg-white/80 hover:bg-white border border-gray-200 flex items-center justify-center" @click="openEditDialog(group.tableContext!)" title="Edit">
-                    <div class="i-lucide-pencil text-[10px] text-gray-500" />
+                    <div class="i-atlas-pencil text-[10px] text-gray-500" />
                   </button>
                   <button class="w-6 h-6 rounded bg-red-50/80 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(group.tableContext!)" title="Delete">
-                    <div class="i-lucide-trash-2 text-[10px] text-red-500" />
+                    <div class="i-atlas-trash-2 text-[10px] text-red-500" />
                   </button>
                 </div>
               </div>
@@ -1019,10 +1019,10 @@ async function handlePruneAll() {
                       <p class="text-[13px] text-gray-600 font-medium leading-snug flex-1 truncate">{{ ctx.content }}</p>
                       <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         <button class="w-5 h-5 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center" @click="openEditDialog(ctx)" title="Edit">
-                          <div class="i-lucide-pencil text-[9px] text-gray-500" />
+                          <div class="i-atlas-pencil text-[9px] text-gray-500" />
                         </button>
                         <button class="w-5 h-5 rounded bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center" @click="handleDelete(ctx)" title="Delete">
-                          <div class="i-lucide-trash-2 text-[9px] text-red-500" />
+                          <div class="i-atlas-trash-2 text-[9px] text-red-500" />
                         </button>
                       </div>
                     </div>

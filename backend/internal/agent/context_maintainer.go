@@ -1,4 +1,4 @@
-// Package agent provides self-maintenance capabilities for LUCID.
+// Package agent provides self-maintenance capabilities for ATLAS.
 //
 // Deprecated: ContextMaintainer is superseded by the Signal→Coordinator→Executor
 // pipeline implemented via react.Engine agents. All context maintenance now flows

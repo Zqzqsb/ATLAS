@@ -24,13 +24,13 @@ working vector retrieval — **without needing any embedding/LLM API key**.
 To regenerate the seed from a running stack:
 
 ```bash
-docker exec lucid-mariadb sh -c \
+docker exec atlas-mariadb sh -c \
   "mariadb-dump -uroot -p\"$MARIADB_ROOT_PASSWORD\" \
-   --databases lucid lucid_evolution spider_tvshow spider_flight spider_wta tpch_enterprise \
+   --databases atlas atlas_evolution spider_tvshow spider_flight spider_wta tpch_enterprise \
    --hex-blob --routines --single-transaction --skip-comments --no-tablespaces" \
-  | { cat; printf '\nGRANT ALL PRIVILEGES ON \x60lucid\x60.* TO '"'"'lucid'"'"'@'"'"'%%'"'"';\n'; } \
+  | { cat; printf '\nGRANT ALL PRIVILEGES ON \x60atlas\x60.* TO '"'"'atlas'"'"'@'"'"'%%'"'"';\n'; } \
   | gzip -9 > deploy/init/mariadb/01_atlas_demo.sql.gz
 ```
 
-(Grant the `lucid` app user on every demo database; the entrypoint only grants
-on `lucid` itself. See the trailing `GRANT` lines in the generated file.)
+(Grant the `atlas` app user on every demo database; the entrypoint only grants
+on `atlas` itself. See the trailing `GRANT` lines in the generated file.)

@@ -63,3 +63,5 @@ spider/*
 .codebuddy
 .skills
 pics
+
+.third_party/

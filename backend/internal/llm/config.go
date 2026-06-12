@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,6 +9,10 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 )
+
+// DefaultModelFirstInJSON is the sentinel for system.yaml default_model:
+// use the first LLM entry in llm_config.json (JSON key order).
+const DefaultModelFirstInJSON = "first_in_json"
 
 // ModelConfig holds configuration for a single LLM model endpoint.
 type ModelConfig struct {
@@ -41,11 +46,13 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("llm: failed to read config %s: %w", path, err)
 	}
+	return parseConfigData(data, path)
+}
 
-	// Parse into raw map first to extract _embedding separately
+func parseConfigData(data []byte, label string) (*Config, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("llm: failed to parse config %s: %w", path, err)
+		return nil, fmt.Errorf("llm: failed to parse config %s: %w", label, err)
 	}
 
 	// Extract _embedding if present
@@ -53,7 +60,7 @@ func LoadConfig(path string) (*Config, error) {
 	if embRaw, ok := raw["_embedding"]; ok {
 		emb = &EmbeddingConfig{}
 		if err := json.Unmarshal(embRaw, emb); err != nil {
-			return nil, fmt.Errorf("llm: failed to parse _embedding in %s: %w", path, err)
+			return nil, fmt.Errorf("llm: failed to parse _embedding in %s: %w", label, err)
 		}
 		delete(raw, "_embedding")
 	}
@@ -69,14 +76,16 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	if len(models) == 0 {
-		return nil, fmt.Errorf("llm: config %s contains no models", path)
+		return nil, fmt.Errorf("llm: config %s contains no models", label)
 	}
 
-	// Pick first key as default (caller can override)
-	var defaultKey string
-	for k := range models {
-		defaultKey = k
-		break
+	orderedKeys, err := orderedTopLevelKeys(data)
+	if err != nil {
+		return nil, fmt.Errorf("llm: failed to read model key order in %s: %w", label, err)
+	}
+	defaultKey := firstModelKey(orderedKeys, models)
+	if defaultKey == "" {
+		return nil, fmt.Errorf("llm: config %s contains no models", label)
 	}
 
 	return &Config{
@@ -84,6 +93,67 @@ func LoadConfig(path string) (*Config, error) {
 		Embedding:    emb,
 		DefaultModel: defaultKey,
 	}, nil
+}
+
+func orderedTopLevelKeys(data []byte) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	t, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	delim, ok := t.(json.Delim)
+	if !ok || delim != '{' {
+		return nil, fmt.Errorf("expected JSON object at root")
+	}
+
+	var keys []string
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, ok := t.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected string object key")
+		}
+		keys = append(keys, key)
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+func firstModelKey(ordered []string, models map[string]ModelConfig) string {
+	for _, k := range ordered {
+		if k == "_embedding" {
+			continue
+		}
+		if _, ok := models[k]; ok {
+			return k
+		}
+	}
+	for k := range models {
+		return k
+	}
+	return ""
+}
+
+// ResolveDefaultModel picks the runtime default model key.
+// preferred may be empty, DefaultModelFirstInJSON, or an explicit llm_config.json key.
+// The second return value is true when preferred was explicit but missing from config.
+func ResolveDefaultModel(preferred string, cfg *Config) (string, bool) {
+	if preferred == "" || preferred == DefaultModelFirstInJSON {
+		return cfg.DefaultModel, false
+	}
+	if _, err := cfg.GetModel(preferred); err != nil {
+		return cfg.DefaultModel, true
+	}
+	return preferred, false
 }
 
 // FindConfig searches common paths for the LLM config file.

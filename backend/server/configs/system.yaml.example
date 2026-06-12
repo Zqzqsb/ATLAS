@@ -8,10 +8,10 @@ server:
   mode: "debug"  # debug | release
 
 # LLM configuration - loads from llm_config.json
-# Available models: deepseek_v3, deepseek_v3_2, qwen_max, qwen3_max, ali_deepseek_v3_2
+# default_model: "first_in_json" uses the first model key in llm_config.json (JSON order)
 llm:
   config_file: "llm_config.json"
-  default_model: "qwen3_max"  # Override via LLM_DEFAULT_MODEL env var
+  default_model: "first_in_json"  # or an explicit key; override via LLM_DEFAULT_MODEL
 
 # Lake-Base storage (MariaDB with VECTOR + HNSW)
 # All demo and production databases are in this single instance

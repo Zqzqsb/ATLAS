@@ -69,19 +69,13 @@ func main() {
 	if err != nil {
 		slog.Warn("LLM config not found, inference features limited", "error", err)
 	} else {
-		modelKey := cfg.LLM.DefaultModel
-		if modelKey == "" {
-			modelKey = llmCfg.DefaultModel
-		} else {
-			// Validate that the configured key actually exists in llm_config.json
-			if _, lookupErr := llmCfg.GetModel(modelKey); lookupErr != nil {
-				slog.Warn("Configured default_model not found in llm_config.json, falling back",
-					"configured", modelKey, "fallback", llmCfg.DefaultModel)
-				modelKey = llmCfg.DefaultModel
-			} else {
-				llmCfg.DefaultModel = modelKey
-			}
+		modelKey, fallback := llm.ResolveDefaultModel(cfg.LLM.DefaultModel, llmCfg)
+		if fallback {
+			slog.Warn("Configured default_model not found in llm_config.json, falling back",
+				"configured", cfg.LLM.DefaultModel, "fallback", modelKey)
 		}
+		cfg.LLM.DefaultModel = modelKey
+		llmCfg.DefaultModel = modelKey
 		llmModel, err = llmCfg.CreateLLMByKey(modelKey)
 		if err != nil {
 			slog.Warn("LLM initialization failed", "model", modelKey, "error", err)

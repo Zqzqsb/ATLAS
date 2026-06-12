@@ -8,7 +8,7 @@
 #
 # Ports: 19000 (frontend), 19001 (backend), 19010 (mariadb)
 
-.PHONY: rebuild clean-build check-config check-secrets wait-health verify-data \
+.PHONY: rebuild clean-build check-config check-secrets probe-endpoints wait-health verify-data \
         status doctor down logs clean-logs help
 
 COMPOSE := docker compose -f deploy/docker-compose.yml
@@ -55,10 +55,16 @@ check-secrets:
 	if [ $$warn -eq 0 ]; then printf "$(GREEN)✅ API keys configured (LLM + embedding in llm_config.json).$(NC)\n"; fi; \
 	printf "$(YELLOW)ℹ️  Demo uses default DB passwords (atlas2024). Change MARIADB_PASSWORD in .env for any non-local deployment.$(NC)\n"
 
+# Lightweight HTTP probes for each LLM + _embedding endpoint in llm_config.json.
+# Non-fatal by default; set STRICT=1 to fail the make target on probe errors.
+probe-endpoints:
+	@python3 scripts/probe-llm-endpoints.py llm_config.json \
+		$(if $(filter 1,$(STRICT)),--strict,)
+
 # ============== Primary Commands ==============
 # Default target: idempotent build (first run or rebuild). Preserves the data volume.
 # On a brand-new machine (no volume) this performs a clean cold start automatically.
-rebuild: check-config check-secrets
+rebuild: check-config check-secrets probe-endpoints
 	@printf "$(CYAN)🔄 Building ATLAS (preserving data volume)...$(NC)\n"
 	-$(COMPOSE) down --rmi local
 	rm -rf bin/ frontend/dist/ frontend/node_modules/.tmp/ frontend/.vite-cache/
@@ -70,7 +76,7 @@ rebuild: check-config check-secrets
 
 # Fresh cold start: wipes the MariaDB volume and re-initializes all demo databases.
 # DESTRUCTIVE — asks for confirmation unless FORCE=1.
-clean-build: check-config check-secrets
+clean-build: check-config check-secrets probe-endpoints
 	@if [ "$(FORCE)" != "1" ]; then \
 		printf "$(RED)⚠️  clean-build DELETES the MariaDB volume.$(NC)\n"; \
 		printf "$(YELLOW)   The demo (5 datasources + Rich Context + embeddings) is RE-SEEDED from$(NC)\n"; \
@@ -138,6 +144,8 @@ doctor:
 	done
 	@printf "$(CYAN)── Secrets ──$(NC)\n"
 	@$(MAKE) --no-print-directory check-secrets
+	@printf "$(CYAN)── LLM / embedding endpoints ──$(NC)\n"
+	@$(MAKE) --no-print-directory probe-endpoints
 	@printf "$(CYAN)── Containers ──$(NC)\n"
 	@$(COMPOSE) ps 2>/dev/null || printf "  $(YELLOW)compose not running$(NC)\n"
 	@printf "$(CYAN)── Datasources ──$(NC)\n"
@@ -162,6 +170,7 @@ help:
 	@printf "  $(GREEN)make$(NC) / $(GREEN)make rebuild$(NC)   Build + start (preserves data), then self-check\n"
 	@printf "  $(GREEN)make clean-build$(NC)     Fresh cold start (DESTROYS data; FORCE=1 to skip prompt)\n"
 	@printf "  $(GREEN)make doctor$(NC)          Diagnose config / containers / datasources\n"
+	@printf "  $(GREEN)make probe-endpoints$(NC) Probe llm_config.json chat + embedding APIs\n"
 	@printf "  $(GREEN)make status$(NC)          Show URLs + container status\n"
 	@printf "  $(GREEN)make down$(NC)            Stop all containers\n"
 	@printf "  $(GREEN)make logs$(NC)            Collect logs into logs/<timestamp>/\n"

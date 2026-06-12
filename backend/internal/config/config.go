@@ -138,6 +138,6 @@ func setDefaults(config *Config) {
 		config.React.MaxIterations = 5
 	}
 	if config.LLM.DefaultModel == "" {
-		config.LLM.DefaultModel = "deepseek_v3"
+		config.LLM.DefaultModel = "first_in_json"
 	}
 }

@@ -54,6 +54,14 @@ function goHome() {
     <div class="flex items-center gap-3">
       <button
         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all"
+        :class="route.name === 'Arch' ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200/50' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200/80'"
+        @click="router.push('/arch')"
+      >
+        <div class="i-lucide-route text-sm" />
+        Arch
+      </button>
+      <button
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all"
         :class="route.name === 'Features' ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-200/50' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-transparent hover:border-gray-200/80'"
         @click="router.push('/features')"
       >

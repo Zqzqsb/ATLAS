@@ -27,6 +27,14 @@ const router = createRouter({
       meta: { title: 'Workspace' }
     },
 
+    // Architecture Diagram
+    {
+      path: '/arch',
+      name: 'Arch',
+      component: () => import('@/features/arch/index.vue'),
+      meta: { title: 'ATLAS - Architecture' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

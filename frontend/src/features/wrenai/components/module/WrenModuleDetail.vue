@@ -6,6 +6,8 @@ import MdlDetail from './modules/MdlDetail.vue'
 import QueryFlowDetail from './modules/QueryFlowDetail.vue'
 import PlanningDetail from './modules/PlanningDetail.vue'
 import MemoryDetail from './modules/MemoryDetail.vue'
+import SkillsDetail from './modules/SkillsDetail.vue'
+import ExecutionDetail from './modules/ExecutionDetail.vue'
 
 const props = defineProps<{ flow: WrenFlowDef }>()
 const emit = defineEmits<{ back: [] }>()
@@ -20,6 +22,8 @@ const REGISTRY: Record<string, Component> = {
   query: QueryFlowDetail,
   planning: PlanningDetail,
   memory: MemoryDetail,
+  skills: SkillsDetail,
+  execution: ExecutionDetail,
 }
 const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? null)
 </script>

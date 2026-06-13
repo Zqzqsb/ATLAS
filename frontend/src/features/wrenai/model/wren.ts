@@ -32,6 +32,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'LangChain · LangGraph · Pydantic AI · 你已有的 Agent',
         icon: 'i-lucide-bot',
         accent: 'slate',
+        flow: 'skills',
         span: 1,
       },
       {
@@ -40,6 +41,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'Markdown 工作流：先建模 → 取上下文 → 写 SQL → 验证 → 记忆',
         icon: 'i-lucide-scroll-text',
         accent: 'slate',
+        flow: 'skills',
         span: 1,
         codeRefs: ['skills/wren/SKILL.md', 'core/wren/src/wren/skills_content/'],
       },
@@ -49,6 +51,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'wren-langchain · wren-pydantic（把原语包装成工具）',
         icon: 'i-lucide-plug',
         accent: 'slate',
+        flow: 'skills',
         span: 1,
         codeRefs: ['sdk/wren-langchain/', 'sdk/wren-pydantic/'],
       },
@@ -232,6 +235,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'Postgres / MySQL / BigQuery / Snowflake / DuckDB / Trino …',
         icon: 'i-lucide-plug',
         accent: 'indigo',
+        flow: 'execution',
         span: 1,
         codeRefs: ['core/wren/src/wren/connector/factory.py'],
       },
@@ -241,6 +245,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'LIMIT 0 对 live DB 校验，不返回行',
         icon: 'i-lucide-flask-conical',
         accent: 'indigo',
+        flow: 'execution',
         span: 1,
       },
       {
@@ -249,6 +254,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'table · CSV · JSON · SDK 返回值',
         icon: 'i-lucide-table',
         accent: 'indigo',
+        flow: 'execution',
         span: 1,
       },
     ],
@@ -297,6 +303,22 @@ export const wrenFlows: WrenFlowDef[] = [
     subtitle: 'index 把 MDL 工件向量化为 schema_items，把确认过的 NL-SQL 对沉淀进 query_history；查询时 fetch 做 schema linking、recall 做 few-shot，体量自适应',
     icon: 'i-lucide-database',
     accent: 'blue',
+  },
+  {
+    id: 'skills',
+    label: 'Agent Workflow',
+    title: 'Agent Workflow · BYO Agent + Skills',
+    subtitle: 'WrenAI 不内置 Agent：你已有的 Agent 通过 SDK 把原语当工具调用，Skills（Markdown 工作流）把"正确做法"沉淀成可发现、可约束步骤顺序的剧本',
+    icon: 'i-lucide-scroll-text',
+    accent: 'slate',
+  },
+  {
+    id: 'execution',
+    label: 'Execution Layer',
+    title: 'Execution Layer · Connectors + Dry-run',
+    subtitle: '可执行方言 SQL 经原生连接器跑到 live DB：凭据由 profiles 与项目分离，dry-run 先 LIMIT 0 校验，结果回 PyArrow（→ table / CSV / JSON / SDK）',
+    icon: 'i-lucide-plug-zap',
+    accent: 'indigo',
   },
 ]
 
@@ -429,6 +451,44 @@ export interface MemoryArch {
   }
 }
 
+/** Agent Workflow — BYO agent + SDK tools + Markdown skills. */
+export interface SkillsArch {
+  id: string
+  input: { label: string; note: string; frameworks: string[] }
+  /** SDK wraps primitives as callable tools */
+  sdk: { title: string; note: string; tools: NamedItem[] }
+  /** installed skills (mocked but grounded in skills_content) */
+  skills: { name: string; file: string; when: string; steps: string[]; accent: AccentKey }[]
+  /** `wren skills list` mocked terminal output */
+  listCmd: string
+  /** a sample skill markdown excerpt (right demo) */
+  sampleSkill: { name: string; md: string }
+  insights: {
+    input: string
+    sdk: Insight[]
+    skills: Insight[]
+  }
+}
+
+/** Execution Layer — connectors, credential separation, dry-run, results. */
+export interface ExecutionArch {
+  id: string
+  input: { label: string; note: string }
+  /** credential separation via profiles */
+  profiles: { title: string; note: string; fields: NamedItem[]; example: string }
+  /** grouped data sources (mocked realistic catalog) */
+  connectors: { group: string; icon: string; items: string }[]
+  /** dry-run validation */
+  dryrun: { cmd: string; points: string[] }
+  /** result formats + mocked preview */
+  result: { formats: NamedItem[]; preview: { cols: string[]; rows: string[][] } }
+  insights: {
+    input: string
+    connect: Insight[]
+    execute: Insight[]
+  }
+}
+
 export interface WrenModuleData {
   id: string
   accent: AccentKey
@@ -436,6 +496,8 @@ export interface WrenModuleData {
   query?: QueryArch
   planning?: PlanningArch
   memory?: MemoryArch
+  skills?: SkillsArch
+  execution?: ExecutionArch
 }
 
 const mdlArch: MdlArch = {
@@ -828,11 +890,169 @@ const memoryArch: MemoryArch = {
   },
 }
 
+const skillsArch: SkillsArch = {
+  id: 'skills',
+  input: {
+    label: 'BYO Agent（外置）',
+    note: 'WrenAI 不内置对话 / LLM 服务；你已有的 Agent 直接驱动整个流程',
+    frameworks: ['LangChain', 'LangGraph', 'Pydantic AI', 'Claude / Cursor 等 coding agent'],
+  },
+  sdk: {
+    title: 'Agent SDK · 原语即工具',
+    note: 'wren-langchain / wren-pydantic 把 CLI 原语包装成 Agent 可调用的 tool，结构化入参出参',
+    tools: [
+      { name: 'memory.fetch', desc: 'schema linking：取相关 schema_items' },
+      { name: 'memory.recall', desc: 'few-shot：召回相似 NL-SQL 对' },
+      { name: 'context.instructions', desc: '取业务规则注入 system prompt' },
+      { name: 'dry_plan', desc: '不连库展开 modeled SQL，返回轨迹' },
+      { name: 'dry_run', desc: 'LIMIT 0 live 校验' },
+      { name: 'query', desc: '执行并返回 PyArrow 结果' },
+      { name: 'memory.store', desc: '确认对回写 query_history' },
+    ],
+  },
+  skills: [
+    {
+      name: 'onboarding',
+      file: 'skills_content/onboarding.md',
+      when: '接入一个新数据源 / 新项目时',
+      steps: ['检查环境与 wren 版本', '配置 profile 连接', 'wren init 建项目', '生成 MDL', 'context build 编译', 'memory index 建索引'],
+      accent: 'blue',
+    },
+    {
+      name: 'generate-mdl',
+      file: 'skills_content/generate-mdl.md',
+      when: '需要从已有库 schema 起一份 MDL',
+      steps: ['introspect 库表 / 列 / 主键', 'parse-type 归一化类型', 'FK → relationships（缺 FK 按命名推断）', '写 models/ · relationships.yml', '人工评审'],
+      accent: 'violet',
+    },
+    {
+      name: 'enrich-context',
+      file: 'skills_content/enrich-context.md',
+      when: 'MDL 已有但语义稀薄、生成不准时',
+      steps: ['扫 raw/ 文档与样例查询', '补列描述 / enum 含义 / 单位 / NULL 语义', '加同义词与业务别名', '提炼可复用 cubes / metrics', 'grill 复核 · auto-pilot 批量'],
+      accent: 'rose',
+    },
+    {
+      name: 'dlt-connector',
+      file: 'skills_content/dlt-connector.md',
+      when: '数据在 SaaS（HubSpot / Stripe …）里',
+      steps: ['配置 dlt pipeline', '抽取 SaaS → DuckDB 落地', 'introspect 生成 MDL', '增量调度刷新'],
+      accent: 'indigo',
+    },
+    {
+      name: 'query',
+      file: 'skills_content/query.md',
+      when: '把一个业务问题安全地变成 SQL 答案',
+      steps: ['recall + fetch 取上下文', '针对 MDL 模型写 SQL', 'dry-plan 检查展开轨迹', 'dry-run 校验', 'query 执行', '确认后 memory store 沉淀'],
+      accent: 'emerald',
+    },
+  ],
+  listCmd: `$ wren skills list
+  onboarding        接入新数据源的端到端引导
+  generate-mdl      从库 schema 生成 MDL
+  enrich-context    补全业务语义（enum/单位/同义词/cubes）
+  dlt-connector     从 SaaS 抽数到 DuckDB 再建模
+  query             安全跑 NL2SQL（取上下文→写→验证→记忆）
+5 skills · 来源 core/wren/src/wren/skills_content/`,
+  sampleSkill: {
+    name: 'query.md',
+    md: `# Skill: query
+当用户问一个数据问题时，按序使用原语，不要跳步：
+
+1. \`memory.recall(nl)\` — 找相似的、已确认的 SQL 当 few-shot
+2. \`memory.fetch(nl)\` — 取相关模型 / 列做 schema linking
+3. 针对 **MDL 模型名** 写 SQL（不要写物理表名）
+4. \`dry_plan(sql)\` — 看展开轨迹；用了对的 join / 计算列吗？
+5. \`dry_run(sql)\` — LIMIT 0 校验语法与权限
+6. \`query(sql)\` — 执行，返回结果
+7. 用户确认无误 → \`memory.store(nl, sql)\` 沉淀
+
+> 失败时读 WrenError.phase 定位（plan / dry-run / execute）并修复重试。`,
+  },
+  insights: {
+    input: '入口是你已有的 Agent —— WrenAI 把"对话与生成"完全外置，自己只暴露上下文与正确性原语。换任何 Agent / 模型都不动平台。',
+    sdk: [
+      { icon: 'i-lucide-plug', title: '原语即工具', body: 'SDK 把 fetch / recall / dry-plan / dry-run / query / store 包装成结构化 tool，Agent 用 function-calling 直接编排，无需理解 CLI 细节。' },
+      { icon: 'i-lucide-boxes', title: '正确性是可组合的', body: '每个原语职责单一、可独立调用，Agent 按需拼装出"取上下文→写→验证→执行→记忆"的链路——正确性是一组积木，不是一个黑盒特性。' },
+    ],
+    skills: [
+      { icon: 'i-lucide-scroll-text', title: 'Skills 约束步骤顺序', body: 'Markdown 工作流把"先取上下文再写、先验证再执行、成功才记忆"写成 Agent 可发现的剧本，避免它跳步乱来——把团队的最佳实践沉淀成可执行文档。' },
+      { icon: 'i-lucide-git-fork', title: '覆盖建模到查询全链路', body: 'onboarding / generate-mdl / enrich-context / dlt-connector / query 分别对应接入、起模、补义、抽数、查询——同一套 skill 机制贯穿语义层的整个生命周期。' },
+    ],
+  },
+}
+
+const executionArch: ExecutionArch = {
+  id: 'execution',
+  input: { label: '可执行方言 SQL', note: '由 Planning Engine 转译输出，已是目标库方言' },
+  profiles: {
+    title: 'Profiles · 凭据与项目分离',
+    note: '连接信息存 ~/.wren，与可 Git 化的项目工件（MDL / instructions）分离，项目可安全共享',
+    fields: [
+      { name: 'name', desc: 'profile 名（query 时 --profile 指定）' },
+      { name: 'type', desc: 'datasource 类型（postgres / bigquery …）' },
+      { name: 'connection', desc: 'host / port / database / schema' },
+      { name: 'credentials', desc: '密钥引用（env / keyring，不落项目）' },
+    ],
+    example: `# ~/.wren/profiles.yml
+jaffle_pg:
+  type: postgres
+  host: \${WREN_PG_HOST}
+  port: 5432
+  database: jaffle_shop
+  user: \${WREN_PG_USER}
+  password: \${WREN_PG_PASSWORD}`,
+  },
+  connectors: [
+    { group: '数仓 / OLAP', icon: 'i-lucide-warehouse', items: 'BigQuery · Snowflake · Redshift · Databricks · ClickHouse' },
+    { group: 'OLTP', icon: 'i-lucide-database', items: 'Postgres · MySQL · SQL Server · Oracle' },
+    { group: 'Lake / 文件', icon: 'i-lucide-folder-tree', items: 'DuckDB · Trino · Athena · Spark · S3/Parquet' },
+    { group: 'SaaS（经 dlt）', icon: 'i-lucide-cloud', items: 'HubSpot · Stripe · Salesforce · Notion' },
+  ],
+  dryrun: {
+    cmd: 'wren dry-run',
+    points: [
+      'LIMIT 0 提交到 live DB：验证语法 / 列存在 / 权限，不返回行、几乎零成本',
+      '校验失败抛 WrenError(phase=dry-run, code) 供 Agent 定位修复',
+      '通过后才走真正执行，避免错 SQL 直接打到生产库',
+    ],
+  },
+  result: {
+    formats: [
+      { name: 'table', desc: '终端表格（默认）' },
+      { name: 'CSV / JSON', desc: '导出文件' },
+      { name: 'PyArrow', desc: 'SDK 返回 Arrow table（零拷贝转 pandas / polars）' },
+    ],
+    preview: {
+      cols: ['customer_id', 'lifetime_value'],
+      rows: [
+        ['1042', '8,930.50'],
+        ['1071', '7,415.00'],
+        ['1008', '6,220.75'],
+        ['1135', '5,980.20'],
+      ],
+    },
+  },
+  insights: {
+    input: '执行层拿到的已是某个具体方言的可执行 SQL —— 语义正确性在上游 Planning 已保证，这一层只管"连得上、跑得稳、收得回"。',
+    connect: [
+      { icon: 'i-lucide-key-round', title: '凭据与项目分离', body: 'MDL / instructions / queries 可 Git 化、可评审、可共享；连接凭据单独存 ~/.wren，避免密钥进仓库——语义层可移植、连接环境各自配。' },
+      { icon: 'i-lucide-plug', title: '原生连接器、20+ 数据源', body: '从数仓到 OLTP 到 SaaS（经 dlt 落 DuckDB）统一接入；同一份 MDL 配不同 profile 就能切库，建模与执行解耦。' },
+    ],
+    execute: [
+      { icon: 'i-lucide-flask-conical', title: 'dry-run 先于执行', body: 'LIMIT 0 几乎零成本地在 live DB 上验证语法 / 列 / 权限，错 SQL 不会直接打到生产；失败抛结构化 WrenError 供 Agent 修复重试。' },
+      { icon: 'i-lucide-table', title: 'PyArrow 作为返回边界', body: '结果统一回 PyArrow，可零拷贝转 pandas / polars 或导出 CSV / JSON；执行层只到"返回数据"为止，可视化 / 报表交给上层。' },
+    ],
+  },
+}
+
 export const WREN_MODULES: Record<string, WrenModuleData> = {
   mdl: { id: 'mdl', accent: 'emerald', mdl: mdlArch },
   query: { id: 'query', accent: 'violet', query: queryArch },
   planning: { id: 'planning', accent: 'amber', planning: planningArch },
   memory: { id: 'memory', accent: 'blue', memory: memoryArch },
+  skills: { id: 'skills', accent: 'slate', skills: skillsArch },
+  execution: { id: 'execution', accent: 'indigo', execution: executionArch },
 }
 
 export function getWrenModule(id: string | null): WrenModuleData | null {

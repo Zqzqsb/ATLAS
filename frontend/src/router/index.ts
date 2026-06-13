@@ -35,6 +35,14 @@ const router = createRouter({
       meta: { title: 'ATLAS - Architecture' }
     },
 
+    // WrenAI Architecture (comparison deck)
+    {
+      path: '/wrenai',
+      name: 'Wrenai',
+      component: () => import('@/features/wrenai/index.vue'),
+      meta: { title: 'ATLAS - WrenAI Architecture' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

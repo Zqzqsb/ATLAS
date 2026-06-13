@@ -95,6 +95,17 @@ export const ACCENTS = {
     chip: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     gradient: 'from-indigo-500 to-blue-500',
   },
+  rose: {
+    bar: 'bg-rose-500',
+    dot: 'bg-rose-500',
+    surface: 'bg-rose-50/40 border-rose-200/60',
+    iconBg: 'bg-rose-100',
+    iconText: 'text-rose-600',
+    hover: 'hover:border-rose-300 hover:shadow-rose-100',
+    text: 'text-rose-600',
+    chip: 'bg-rose-50 text-rose-700 border-rose-200',
+    gradient: 'from-rose-500 to-pink-500',
+  },
 } satisfies Record<string, Accent>
 
 export type AccentKey = keyof typeof ACCENTS

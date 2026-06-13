@@ -39,6 +39,22 @@ export const flows: FlowDef[] = [
     icon: 'i-lucide-bot',
     accent: 'amber',
   },
+  {
+    id: 'kernel',
+    label: 'ReAct Kernel',
+    title: 'ReAct Kernel · 共用推理内核',
+    subtitle: '三大流程共用同一条 Reason→Act→Observe 循环：场景只注入 prompt / 工具子集 / 预算（EngineConfig），内核基于 langchaingo 文本 ReAct，旁路采集 Step 推 SSE',
+    icon: 'i-lucide-cpu',
+    accent: 'violet',
+  },
+  {
+    id: 'storage',
+    label: 'Lakebase Storage',
+    title: 'Lakebase Storage · MariaDB 12',
+    subtitle: '以 rc_datasources 为根的 rc_* 表族：结构 / 语义 / 向量同库，rc_embeddings 用原生 VECTOR(2048) + HNSW(COSINE)，is_expired/is_stale/is_deleted 驱动自维护',
+    icon: 'i-lucide-database',
+    accent: 'indigo',
+  },
 ]
 
 export function getFlow(id: string | null): FlowDef | null {

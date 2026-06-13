@@ -5,6 +5,8 @@ import type { FlowDef } from '../../model/flows'
 import OnboardingDetail from './modules/OnboardingDetail.vue'
 import InferenceDetail from './modules/InferenceDetail.vue'
 import MaintainDetail from './modules/MaintainDetail.vue'
+import KernelDetail from './modules/KernelDetail.vue'
+import StorageDetail from './modules/StorageDetail.vue'
 
 const props = defineProps<{ flow: FlowDef }>()
 const emit = defineEmits<{ back: [] }>()
@@ -19,6 +21,8 @@ const REGISTRY: Record<string, Component> = {
   onboarding: OnboardingDetail,
   inference: InferenceDetail,
   maintain: MaintainDetail,
+  kernel: KernelDetail,
+  storage: StorageDetail,
 }
 const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? null)
 </script>

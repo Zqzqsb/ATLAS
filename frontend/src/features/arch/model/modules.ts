@@ -165,12 +165,86 @@ export interface MaintainArch {
   }
 }
 
+/** ReAct Kernel internal architecture: Scenario config → Engine loop → Tool Belt. */
+export interface KernelArch {
+  id: string
+  /** scenarios parameterize the shared kernel via EngineConfig */
+  scenarios: {
+    title: string
+    role: string
+    /** EngineConfig fields a scenario sets */
+    config: NamedItem[]
+    /** the scenario builders + their tool subset / budget */
+    list: { name: string; tools: string; budget: string }[]
+    note: string
+  }
+  /** the ReAct loop itself (langchaingo ZeroShotReactDescription) */
+  engine: {
+    title: string
+    role: string
+    base: string
+    /** Reason / Act / Observe phases */
+    loop: NamedItem[]
+    format: string
+    parser: string
+    budget: string
+  }
+  /** a sample transcript (right demo) */
+  transcript: { kind: 'thought' | 'action' | 'input' | 'observation' | 'final'; text: string }[]
+  /** the Tool Belt, grouped */
+  toolGroups: { name: string; icon: string; accent: AccentKey; items: NamedItem[] }[]
+  /** LLM provider + step/SSE output */
+  llm: { provider: string; encoding: string; note: string }
+  output: { label: string; parts: string[] }
+  insights: {
+    scenarios: Insight[]
+    engine: Insight[]
+    tools: Insight[]
+  }
+}
+
+/** Lakebase Storage internal architecture: datasource root → RC tables → vectors. */
+export interface StorageArch {
+  id: string
+  /** the FK-cascade root */
+  root: { table: string; label: string; note: string; cascade: string }
+  /** RC metadata + semantic tables */
+  tables: {
+    title: string
+    role: string
+    items: { table: string; label: string; cols: string; flag?: string; accent: AccentKey }[]
+  }
+  /** simple ER mini-map (right demo) */
+  er: { root: string; edges: { table: string; rel: string }[] }
+  /** the vector layer */
+  vector: {
+    title: string
+    role: string
+    spec: NamedItem[]
+    ddl: string
+    search: string
+    searchNote: string
+  }
+  /** embedding write path */
+  embed: { provider: string; dim: string; model: string; paths: string[]; upsert: string }
+  /** change log + invalidation flags */
+  changelog: { table: string; types: NamedItem[]; note: string }
+  flags: NamedItem[]
+  insights: {
+    root: string
+    tables: Insight[]
+    vector: Insight[]
+  }
+}
+
 export interface ModuleData {
   id: string
   accent: AccentKey
   onboarding?: OnboardingArch
   inference?: InferenceArch
   maintain?: MaintainArch
+  kernel?: KernelArch
+  storage?: StorageArch
 }
 
 const onboardingArch: OnboardingArch = {
@@ -453,10 +527,224 @@ const maintainArch: MaintainArch = {
   },
 }
 
+const kernelArch: KernelArch = {
+  id: 'kernel',
+  scenarios: {
+    title: 'Scenario Config',
+    role: '场景即配置',
+    config: [
+      { name: 'SystemPrompt', desc: '场景专属的任务 / 工作流 / 约束提示' },
+      { name: 'Tools', desc: '本场景挂载的工具子集（最小权限）' },
+      { name: 'Max/Min Iterations', desc: '写进 prompt 的迭代预算声明' },
+      { name: 'ActualMaxOverride', desc: '真实硬上限（langchaingo 实际执行）' },
+      { name: 'StepCallback', desc: '步骤回调 → SSE 流式推送' },
+    ],
+    list: [
+      { name: 'onboarding', tools: 'execute_sql · set_rich_context', budget: 'tables×3+10' },
+      { name: 'rc_gen', tools: 'execute_sql · set_rich_context', budget: '按簇' },
+      { name: 'inference', tools: 'execute_sql · verify_sql', budget: 'claimed 5 / +3' },
+      { name: 'schema_linking', tools: 'execute_sql', budget: 'actual 15' },
+      { name: 'maintain_coordinator', tools: 'inspect · mark_expired · register_task · read · get_columns', budget: 'max 15 / min 3' },
+      { name: 'maintain_executor', tools: 'execute_sql · set_rich_context · delete · clear_expired', budget: 'tasks×5 [10,30]' },
+    ],
+    note: 'grounding 的 LinkAsync 直接构造 EngineConfig（含 get_candidate_schema），是 scenarios 包外的第 7 种用法',
+  },
+  engine: {
+    title: 'ReAct Engine',
+    role: 'Reason → Act → Observe',
+    base: 'langchaingo · agents.Initialize · ZeroShotReactDescription（ATLAS 薄封装，不自造循环）',
+    loop: [
+      { name: 'Reason', desc: 'LLM 生成 Thought：下一步该探查什么 / 写什么' },
+      { name: 'Act', desc: '解析 Action + Action Input → tools.Tool.Call() 顺序执行' },
+      { name: 'Observe', desc: '工具结果写回 scratchpad 作为 Observation，进入下一轮' },
+    ],
+    format: '纯文本 Thought / Action / Action Input / Observation（非 JSON function-call）—— 工具名取 Tool.Name()，Input 为 SQL 或 JSON 文本',
+    parser: 'ParserErrorHandler：解析失败注入格式纠错提示让 LLM 重试，不终止循环',
+    budget: '真实上限 = ActualMaxOverride 或 MaxIterations×3（且 ≥15）；prompt 里的 Max/Min 仅是「声称」',
+  },
+  transcript: [
+    { kind: 'thought', text: '先确认 orders 表的 status 有哪些取值' },
+    { kind: 'action', text: 'execute_sql' },
+    { kind: 'input', text: 'SELECT DISTINCT status FROM orders LIMIT 20' },
+    { kind: 'observation', text: '5 rows → paid, refunded, pending, shipped, cancelled' },
+    { kind: 'thought', text: '取值已确认，写聚合 SQL 并送校验' },
+    { kind: 'action', text: 'verify_sql' },
+    { kind: 'input', text: 'SELECT customer_id, SUM(amount) … WHERE status=\'paid\'' },
+    { kind: 'observation', text: 'PASS · EXPLAIN 计划正常，无全表扫描告警' },
+    { kind: 'final', text: '校验通过，返回该 SQL' },
+  ],
+  toolGroups: [
+    {
+      name: 'SQL 执行 / 校验',
+      icon: 'i-lucide-terminal',
+      accent: 'blue',
+      items: [
+        { name: 'execute_sql', desc: '只读 SELECT/SHOW/DESCRIBE 探查（含推理版 inference_sql · DryRun）' },
+        { name: 'verify_sql', desc: 'EXPLAIN 校验语法 + 计划 + 性能告警，返回 PASS/FAIL' },
+      ],
+    },
+    {
+      name: 'Rich Context 读写',
+      icon: 'i-lucide-book-text',
+      accent: 'emerald',
+      items: [
+        { name: 'set_rich_context', desc: '写 RC（单条或 JSON 数组 batch）' },
+        { name: 'read_current_context', desc: '读表 / 列当前 RC' },
+        { name: 'get_table_columns', desc: '列出某表全部列 + RC 元数据' },
+      ],
+    },
+    {
+      name: '失效 / 维护',
+      icon: 'i-lucide-wrench',
+      accent: 'amber',
+      items: [
+        { name: 'inspect_schema_change', desc: '查变更影响的实体及现有 RC' },
+        { name: 'mark_expired', desc: '标记表 / 列 RC 过期（标表级联列）' },
+        { name: 'clear_expired', desc: '刷新后清除 expired 标记' },
+        { name: 'register_task', desc: 'Coordinator 注册 create/refresh/delete 任务' },
+        { name: 'delete_rich_context', desc: '删 RC 行 + 软删向量' },
+      ],
+    },
+    {
+      name: '并发协同',
+      icon: 'i-lucide-share-2',
+      accent: 'violet',
+      items: [
+        { name: 'get_candidate_schema', desc: '从 atomic 共享槽取候选 schema（空则轮询等待召回）' },
+      ],
+    },
+  ],
+  llm: {
+    provider: 'OpenAI 兼容 · langchaingo llms.Model（llm.CreateLLMByKey 注入 BaseURL/Token/Model）',
+    encoding: '文本 ReAct',
+    note: '不依赖模型的 function-calling 能力，任意 OpenAI 兼容端点可用',
+  },
+  output: {
+    label: 'Result · Step[] · SSE',
+    parts: ['Final Answer', 'Steps[]（Iteration/Thought/Action/Observation）', 'SSE: action / observation / finish', 'Iterations · Duration'],
+  },
+  insights: {
+    scenarios: [
+      { icon: 'i-lucide-layers', title: '同一内核、场景即配置', body: '6 个 Build*Engine 只产出 EngineConfig（prompt + 工具子集 + 预算 + 回调），复用同一条 ReAct 循环；新增场景零改内核，agentic 能力靠配置组合而非分叉代码。' },
+      { icon: 'i-lucide-shield', title: '工具子集即权限边界', body: '每个场景只挂它需要的工具：onboarding 只能探查+写 RC，coordinator 只能标记+注册任务，executor 才能删——最小权限把 Agent 的能力约束在职责内。' },
+    ],
+    engine: [
+      { icon: 'i-lucide-type', title: '文本 ReAct 而非 JSON tool-call', body: '用 langchaingo ZeroShotReact 的纯文本 Thought/Action/Observation 协议，不依赖模型 function-calling，任意 OpenAI 兼容模型都能驱动；代价是要靠 ParserErrorHandler 兜格式。' },
+      { icon: 'i-lucide-life-buoy', title: 'ParserErrorHandler 韧性', body: 'LLM 偶尔输出跑格式时不崩溃：注入一段格式纠错说明让它重写，循环继续——把 LLM 的不确定性挡在引擎内部。' },
+      { icon: 'i-lucide-radio', title: '旁路采集 → 实时 SSE', body: 'Handler 把 langchaingo 回调映射成 Step 并经 SSE 推送 action/observation/finish，前端能实时看到 Agent 的 Reason→Act→Observe，而非黑盒等结果。' },
+    ],
+    tools: [
+      { icon: 'i-lucide-boxes', title: '12 个工具 = 能力积木', body: '执行/校验、RC 读写、失效维护、并发协同四类工具构成内核的全部「手脚」；三大流程都是这套积木的不同编排。' },
+      { icon: 'i-lucide-git-merge', title: '唯一并发是检索∥推理', body: '内核本身单线程顺序执行工具；唯一的重叠发生在 grounding：召回 goroutine 把 schema 写入 atomic 槽，Agent 用 get_candidate_schema 轮询取用，让检索与推理时间重叠。' },
+    ],
+  },
+}
+
+const storageArch: StorageArch = {
+  id: 'storage',
+  root: {
+    table: 'rc_datasources',
+    label: '数据源注册表',
+    note: 'MySQL / PG / SQLite / MariaDB 业务库登记（name 唯一 · status · last_sync_at）',
+    cascade: '所有 rc_* 业务表 FK datasource_id → rc_datasources ON DELETE CASCADE，删源即级联清空',
+  },
+  tables: {
+    title: 'Rich Context 表',
+    role: 'MariaDB 12 · AutoMigrate',
+    items: [
+      { table: 'rc_tables', label: '表级 RC + 物理元数据', cols: 'description · row_count · source · confidence', flag: 'is_expired', accent: 'indigo' },
+      { table: 'rc_columns', label: '列级 RC + schema', cols: 'data_type · sample_values · synonyms · value_mapping · pk/fk', flag: 'is_expired', accent: 'indigo' },
+      { table: 'rc_business_context', label: '结构化业务上下文', cols: 'context_type(枚举) · content · version', flag: 'is_expired', accent: 'indigo' },
+      { table: 'rc_relations', label: '表间关系（join 边）', cols: 'from/to table·column · relation_type', accent: 'blue' },
+      { table: 'rc_terms', label: '业务术语词典', cols: 'term · definition · synonyms · FULLTEXT', accent: 'blue' },
+    ],
+  },
+  er: {
+    root: 'rc_datasources',
+    edges: [
+      { table: 'rc_tables', rel: '1-N · is_expired' },
+      { table: 'rc_columns', rel: '1-N · is_expired' },
+      { table: 'rc_business_context', rel: '1-N · is_expired' },
+      { table: 'rc_relations', rel: '1-N · FK 图' },
+      { table: 'rc_terms', rel: '1-N · FULLTEXT' },
+      { table: 'rc_embeddings', rel: '1-N · VECTOR(2048)' },
+      { table: 'rc_change_log', rel: '1-N · 审计' },
+    ],
+  },
+  vector: {
+    title: 'rc_embeddings · 向量层',
+    role: 'VECTOR(2048) · HNSW',
+    spec: [
+      { name: 'embedding VECTOR(2048)', desc: 'MariaDB 12 原生向量列，VEC_FromText 写入' },
+      { name: 'VECTOR INDEX … DISTANCE=COSINE', desc: 'HNSW 索引（idx_embedding_hnsw）' },
+      { name: 'uq_entity', desc: 'UNIQUE(datasource_id, entity_type, entity_id) 去重' },
+      { name: 'is_stale / is_deleted', desc: 'RC 改动待重嵌 / 软删待 purge' },
+    ],
+    ddl: `CREATE TABLE rc_embeddings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  datasource_id INT NOT NULL,
+  entity_type ENUM('table','column','term','query'),
+  entity_id   INT NOT NULL,
+  entity_text TEXT NOT NULL,
+  embedding   VECTOR(2048) NOT NULL,
+  is_stale    TINYINT(1) DEFAULT 0,
+  is_deleted  TINYINT(1) DEFAULT 0,
+  UNIQUE KEY uq_entity (datasource_id, entity_type, entity_id),
+  VECTOR INDEX idx_embedding_hnsw (embedding) DISTANCE=COSINE
+)`,
+    search: `SELECT id, entity_type, entity_id, entity_text,
+  VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
+FROM rc_embeddings IGNORE INDEX (idx_embedding_hnsw)
+WHERE datasource_id = ? AND is_deleted = 0
+ORDER BY distance ASC
+LIMIT ?;   -- score = 1.0 - distance`,
+    searchNote: '刻意 IGNORE INDEX：HNSW 是全局图，按 datasource_id 后过滤会召回不足；故对单数据源做 scoped 暴力扫描（数据量可控，精度优先）。',
+  },
+  embed: {
+    provider: 'Doubao Embedding（OpenAI 兼容 / Volcengine Ark）',
+    dim: '2048d',
+    model: 'doubao-embedding',
+    paths: [
+      'on-write 异步：RC 写入触发 goroutine 单条 EmbedEntityByName',
+      'batch catch-up：阶段末全量扫 tables/columns/terms，EmbedBatch（100/批）',
+      '维护：写 RC 即 MarkEmbeddingStale，后续 UpsertEmbedding 把 is_stale=0',
+    ],
+    upsert: 'INSERT … VALUES(VEC_FromText(?)) ON DUPLICATE KEY UPDATE … is_stale=0',
+  },
+  changelog: {
+    table: 'rc_change_log',
+    types: [
+      { name: 'schema_change', desc: 'DDL 检测（table/column/fk add·drop·modify）' },
+      { name: 'context_expire', desc: '上下文被标记过期' },
+      { name: 'context_update', desc: '上下文创建 / 更新 / 维护运行' },
+    ],
+    note: '记 change_detail(JSON) · old/new_value · trigger_source(agent/user/system) · change_reason，供自维护审计',
+  },
+  flags: [
+    { name: 'is_expired', desc: 'rc_tables / rc_columns / rc_business_context · RC 语义过期待 refresh' },
+    { name: 'is_stale', desc: 'rc_embeddings · RC 改动后向量过期待重嵌' },
+    { name: 'is_deleted', desc: 'rc_embeddings · 实体删除软删待 purge' },
+  ],
+  insights: {
+    root: '一切以数据源为根：所有 rc_* 表都 FK 到 rc_datasources 且 ON DELETE CASCADE，多数据源天然隔离，删源即一键清空其全部语义与向量。',
+    tables: [
+      { icon: 'i-lucide-database', title: '结构 / 语义 / 向量同库', body: 'MariaDB 12 一库装下物理 schema、Rich Context 与向量，省掉独立向量库；启动 AutoMigrate 对比嵌入 DDL 增量加列，强一致、易运维。' },
+      { icon: 'i-lucide-link', title: '逻辑关联而非硬 FK', body: 'rc_business_context / rc_embeddings 用 (datasource_id, table_name[, column_name]) 或 (entity_type, entity_id) 关联，不与 rc_tables 建硬 FK——便于跨实体类型统一存储与去重。' },
+    ],
+    vector: [
+      { icon: 'i-lucide-radar', title: '原生向量、零外部依赖', body: 'VECTOR(2048) + VEC_DISTANCE_COSINE 直接在 SQL 里算相似度，向量召回和结构查询同一条连接、同一事务，不必把数据同步到外部向量库。' },
+      { icon: 'i-lucide-crosshair', title: 'scoped 暴力胜过全局 HNSW', body: 'HNSW 建了却 IGNORE INDEX：因为它是跨数据源的全局图，按 datasource_id 过滤后近邻会被「挤掉」导致召回不足；改对单源做暴力扫描，数据量可控下精度更稳。' },
+      { icon: 'i-lucide-recycle', title: '三标志驱动重嵌', body: 'is_stale 标向量过期、is_deleted 标软删；写 RC 即标 stale，收尾 UpsertEmbedding 重算并归零——语义与向量的新鲜度各自独立管理。' },
+    ],
+  },
+}
+
 export const MODULES: Record<string, ModuleData> = {
   onboarding: { id: 'onboarding', accent: 'emerald', onboarding: onboardingArch },
   inference: { id: 'inference', accent: 'blue', inference: inferenceArch },
   maintain: { id: 'maintain', accent: 'amber', maintain: maintainArch },
+  kernel: { id: 'kernel', accent: 'violet', kernel: kernelArch },
+  storage: { id: 'storage', accent: 'indigo', storage: storageArch },
 }
 
 export function getModule(id: string | null): ModuleData | null {

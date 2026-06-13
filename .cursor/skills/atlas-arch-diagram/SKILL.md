@@ -15,10 +15,11 @@ A componentized, data-driven architecture presentation under
 `frontend/src/features/arch/`. Two zoom levels:
 
 - **L0 Panorama** — the whole system at a glance (layers → nodes).
-- **L1 Module detail** — click a drillable node → zoom-focus into its
-  end-to-end **dataflow** plus a dense, **non-expandable** detailed architecture
-  (dispatch strategy, prompt engineering, storage, insights). L1 is the deepest
-  level; do not add further drill-downs inside it.
+- **L1 Module detail** — click a drillable node → zoom-focus into **one internal
+  architecture diagram with clear module boundaries**. L1 is the deepest level;
+  it is **not** a stack of separate section-graphs and has **no further
+  drill-down**. Everything (prompt rules, produced data shapes, storage tables)
+  is a *detail/annotation on the diagram*, not its own section.
 
 ## File Map
 
@@ -27,16 +28,15 @@ features/arch/
 ├── index.vue                     # stage: overview<->module state machine + zoom transition
 ├── model/
 │   ├── architecture.ts           # L0 source of truth: ACCENTS, ARCH_LAYERS[]
-│   ├── flows.ts                  # L1 dataflow steps: FlowDef + flows[] + getFlow()
-│   └── modules.ts                # L1 detail sections: ModuleData + MODULES + getModule()
+│   ├── flows.ts                  # module identity: FlowDef + flows[] + getFlow()
+│   └── modules.ts                # L1 internal-architecture data: MODULES + getModule()
 └── components/
     ├── overview/ ArchOverview · ArchLayer · ArchNode   # render ARCH_LAYERS
     └── module/
-        ├── ModuleDetail.vue      # generic header + ribbon + REGISTRY dispatch by flow.id
-        ├── DataflowStepper.vue   # animated step-by-step dataflow (reusable)
-        ├── sections/             # reusable L1 section primitives
-        │   SectionHeading · StrategySection · PromptSection · StorageSection · InsightSection
-        └── modules/              # per-module composition: <Xxx>Detail.vue
+        ├── ModuleDetail.vue      # header + REGISTRY dispatch by flow.id
+        ├── diagram/              # reusable diagram primitives
+        │   ArchBox · Connector · PeekPanel
+        └── modules/              # per-module diagram composition: <Xxx>Detail.vue
 ```
 
 ## Core Principles
@@ -69,63 +69,68 @@ span?, flow?, codeRefs? }`.
 - `codeRefs` documents the backend files the node maps to.
 - No component edits needed — `ArchOverview` renders the array.
 
-## Recipe B — Add a Module's Internal Detail (the template)
+## Recipe B — Add a Module's Internal Architecture Diagram (the template)
 
-Copy how `onboarding` is built. Steps:
+Copy how `onboarding` is built. The L1 is ONE top-to-bottom architecture diagram:
+boxes are modules with clear boundaries; connectors are the dataflow; long lists
+are peek-on-demand details inside the boxes.
 
 ```
 - [ ] 1. Research the real backend flow (handlers + scenarios + tools + models)
-- [ ] 2. Add dataflow steps   → model/flows.ts  (FlowDef in flows[])
-- [ ] 3. Add detail sections  → model/modules.ts (ModuleData in MODULES)
-- [ ] 4. Compose the page      → components/module/modules/<Xxx>Detail.vue
-- [ ] 5. Register              → REGISTRY in ModuleDetail.vue
+- [ ] 2. Add module identity   → model/flows.ts  (FlowDef in flows[])
+- [ ] 3. Add architecture data → model/modules.ts (entry in MODULES)
+- [ ] 4. Compose the diagram    → components/module/modules/<Xxx>Detail.vue
+- [ ] 5. Register               → REGISTRY in ModuleDetail.vue
 - [ ] 6. Make the node drillable → set node.flow in architecture.ts
 - [ ] 7. Verify (typecheck + dev server)
 ```
 
-**Step 2 — dataflow (`flows.ts`).** Add a `FlowDef { id, label, title, subtitle,
-icon, accent, steps[] }`. Each step = `{ id, title, subtitle, icon, accent,
-summary, detail, artifact }` where `artifact = { input, output, store, code, lang }`.
-This drives the animated `DataflowStepper` (auto-play + clickable steps + code panel).
+**Step 2 — identity (`flows.ts`).** Add a `FlowDef { id, label, title, subtitle,
+icon, accent }`. Used by the overview drill target + the `ModuleDetail` header only.
 
-**Step 3 — detail sections (`modules.ts`).** Add a `ModuleData { id, strategy,
-prompt, storage, insights }`. `id` must equal the `FlowDef.id`. Section shapes:
+**Step 3 — architecture data (`modules.ts`).** Add a `MODULES[id]` entry whose `id`
+equals the `FlowDef.id`. Model the diagram as boxes + their contents. Onboarding's
+shape: `{ input, coordinator, worker{ prompt{blocks,rules}, tools, loop, output{types} },
+storage{items} }`. Keep long lists here: prompt **rules**, produced data **types**,
+**storage tables**. Different modules can have different shapes — model what the
+real architecture is, not a fixed template.
 
-| Section | Purpose | Shape |
-|---|---|---|
-| `strategy` | task registration / dispatch, branch handling (e.g. small vs large) | `{ title, subtitle, decision, options[] }` |
-| `prompt` | prompt-engineering recipe | `{ title, subtitle, engine, tools[], blocks[], rules[] }` |
-| `storage` | what gets persisted; grouped by `StorageKind` (`schema/context/catalog/log`) | `{ title, subtitle, items[] }` |
-| `insights` | key design decisions + rationale | `{ title, subtitle, items[] }` |
-
-**Step 4 — composition.** Create `modules/<Xxx>Detail.vue` taking `defineProps<{
-flow: FlowDef }>()`, look up `getModule(flow.id)`, and stack sections separated by
-`<hr class="border-gray-100" />`:
+**Step 4 — compose the diagram.** Create `modules/<Xxx>Detail.vue` taking
+`defineProps<{ flow: FlowDef }>()`, look up `getModule(flow.id)`, and lay out the
+diagram with the primitives:
 
 ```
-<SectionHeading icon=... title="端到端 Dataflow" .../>  <DataflowStepper :flow="flow" />
-<StrategySection :data="mod.strategy" />
-<PromptSection :data="mod.prompt" />
-<StorageSection :data="mod.storage" />
-<InsightSection :data="mod.insights" />
+<ArchBox icon title role accent [badge] [muted]> ...box body... </ArchBox>
+<Connector [label="dispatch × N"] />          <!-- arrow + flowing dot between boxes -->
+<ArchBox ...>
+  ...sub-boxes (plain divs with ACCENTS.<c>.surface) for Prompt / Tools...
+  <PeekPanel label count accent> ...collapsed list (rules / types)... </PeekPanel>
+</ArchBox>
 ```
 
-**Step 5 — register.** In `ModuleDetail.vue` add to `REGISTRY`:
-`{ <id>: <Xxx>Detail }`. Modules without an entry fall back to the bare
-`DataflowStepper`.
+Rules for module boundaries & details:
+- One box = one module (Input · Coordinator · Worker · Storage…). Nest sub-boxes
+  (Prompt, Tools) as plain divs inside a box.
+- Put dense lists (prompt rules, output type definitions) inside a `PeekPanel`
+  (collapsed by default, click to expand inline — never a new zoom level).
+- Annotate variations on the diagram (e.g. small-DB shortcut) as a dashed inline
+  note, not a separate branch/section.
 
-## Section Primitives (reuse, don't reinvent)
+**Step 5 — register.** In `ModuleDetail.vue` add `{ <id>: <Xxx>Detail }` to
+`REGISTRY`. Modules without an entry show a "建设中" placeholder.
 
-- `SectionHeading` — eyebrow icon + title + subtitle (every section starts with one).
-- `StrategySection` — decision pill + N strategy cards with bullet points.
-- `PromptSection` — left: numbered prompt building blocks; right: rules/constraints.
-- `StorageSection` — tables grouped by kind (basic schema → context → vector catalog → log).
-- `InsightSection` — 2-col "why" cards.
-- `DataflowStepper` — the animated pipeline; reused as the first section.
+## Diagram Primitives (reuse, don't reinvent)
 
-If a module needs a genuinely new layout, add a new primitive under
-`sections/` (data type in `modules.ts`) rather than hard-coding markup in the
-composition file.
+- `ArchBox` — a module box: accent top-bar, icon + title + role pill + optional
+  badge (`× N`), `muted` for dashed boundary/input boxes; body via default slot.
+- `Connector` — vertical line + down chevron + optional `label`, with a subtle
+  downward "data flow" dot. Place between boxes.
+- `PeekPanel` — collapsed-by-default detail; click header (label + count) to
+  expand its slot inline. Use for rules / type lists / any dense detail.
+
+If a module needs a genuinely new shape, extend the data in `modules.ts` and
+compose existing primitives; only add a new primitive under `diagram/` when a
+layout truly can't be expressed with the current three.
 
 ## Conventions
 
@@ -144,5 +149,6 @@ curl -s -o /dev/null -w "%{http_code}\n" \
   http://localhost:5173/src/features/arch/components/module/modules/<Xxx>Detail.vue
 ```
 
-Then open `/arch`, drill into the node, and check: dataflow plays, sections
-render, accents/icons resolve (no missing UnoCSS classes), Esc/breadcrumb return.
+Then open `/arch`, drill into the node, and check: the diagram renders with
+clear boxes + connectors, PeekPanels expand inline, accents/icons resolve (no
+missing UnoCSS classes), and Esc/breadcrumb return to the panorama.

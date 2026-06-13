@@ -54,7 +54,7 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
               <span class="text-xs font-bold text-gray-700">Prompt</span>
               <span class="text-[10px] text-gray-400 font-mono ml-auto truncate">{{ arch.worker.prompt.engine }}</span>
             </div>
-            <div class="flex flex-wrap gap-1 mb-2">
+            <div class="flex flex-wrap gap-1">
               <span
                 v-for="b in arch.worker.prompt.blocks"
                 :key="b.label"
@@ -62,14 +62,6 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
                 :title="b.desc"
               >{{ b.label }}</span>
             </div>
-            <PeekPanel label="关键约束 / 技巧" icon="i-lucide-shield-alert" :count="arch.worker.prompt.rules.length" accent="amber">
-              <ol class="space-y-1.5">
-                <li v-for="(r, i) in arch.worker.prompt.rules" :key="i" class="flex items-start gap-2 text-[11px] text-gray-700 leading-relaxed">
-                  <span class="w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700 flex-center text-[8px] font-bold flex-shrink-0 mt-0.5">{{ i + 1 }}</span>
-                  <span>{{ r }}</span>
-                </li>
-              </ol>
-            </PeekPanel>
           </div>
 
           <!-- Tools -->
@@ -94,27 +86,42 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
           </div>
         </div>
 
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-2.5">
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <div class="i-lucide-arrow-down-to-line text-emerald-600 text-sm" />
-            <span class="text-xs font-bold text-gray-700">OUTPUT · {{ arch.worker.output.label }}</span>
-            <code class="text-[10px] font-mono text-emerald-700 bg-white border border-emerald-200 rounded px-1 ml-auto">{{ arch.worker.output.store }}</code>
-          </div>
-          <PeekPanel :label="`${arch.worker.output.label} 的 5 类内容`" icon="i-lucide-tags" :count="arch.worker.output.types.length" accent="emerald">
-            <div class="space-y-1.5">
-              <div v-for="t in arch.worker.output.types" :key="t.name" class="flex items-baseline gap-2">
-                <code class="text-[11px] font-mono font-semibold text-emerald-700 flex-shrink-0">{{ t.name }}</code>
-                <span class="text-[11px] text-gray-500 leading-snug">{{ t.desc }}</span>
-              </div>
-            </div>
-          </PeekPanel>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 px-2.5 py-2 flex items-center gap-1.5">
+          <div class="i-lucide-arrow-down-to-line text-emerald-600 text-sm" />
+          <span class="text-xs font-bold text-gray-700">OUTPUT · {{ arch.worker.output.label }}</span>
+          <span class="text-[11px] text-gray-400">{{ arch.worker.output.types.length }} 类</span>
+          <code class="text-[10px] font-mono text-emerald-700 bg-white border border-emerald-200 rounded px-1 ml-auto">{{ arch.worker.output.store }}</code>
         </div>
       </ArchBox>
     </div>
 
-    <!-- right: treemap demo + process insights (aligned to Coordinator↔Worker) -->
+    <!-- right: treemap demo + worker reference details + process insights -->
     <div class="space-y-3 lg:pt-7">
       <ChunkTreemap />
+
+      <!-- Worker reference details (moved out of the spine to keep it structural) -->
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          <div class="i-lucide-bot text-gray-300" /> Worker 细节
+        </div>
+        <PeekPanel label="关键约束 / 技巧" icon="i-lucide-shield-alert" :count="arch.worker.prompt.rules.length" accent="amber">
+          <ol class="space-y-1.5">
+            <li v-for="(r, i) in arch.worker.prompt.rules" :key="i" class="flex items-start gap-2 text-[11px] text-gray-700 leading-relaxed">
+              <span class="w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700 flex-center text-[8px] font-bold flex-shrink-0 mt-0.5">{{ i + 1 }}</span>
+              <span>{{ r }}</span>
+            </li>
+          </ol>
+        </PeekPanel>
+        <PeekPanel :label="`${arch.worker.output.label} 的 ${arch.worker.output.types.length} 类内容`" icon="i-lucide-tags" :count="arch.worker.output.types.length" accent="emerald">
+          <div class="space-y-1.5">
+            <div v-for="t in arch.worker.output.types" :key="t.name" class="flex items-baseline gap-2">
+              <code class="text-[11px] font-mono font-semibold text-emerald-700 flex-shrink-0">{{ t.name }}</code>
+              <span class="text-[11px] text-gray-500 leading-snug">{{ t.desc }}</span>
+            </div>
+          </div>
+        </PeekPanel>
+      </div>
+
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
         <div
           v-for="ins in arch.insights.process"

@@ -4,6 +4,8 @@ import { ACCENTS } from '../../../arch/model/architecture'
 import type { WrenFlowDef } from '../../model/wren'
 import MdlDetail from './modules/MdlDetail.vue'
 import QueryFlowDetail from './modules/QueryFlowDetail.vue'
+import PlanningDetail from './modules/PlanningDetail.vue'
+import MemoryDetail from './modules/MemoryDetail.vue'
 
 const props = defineProps<{ flow: WrenFlowDef }>()
 const emit = defineEmits<{ back: [] }>()
@@ -16,6 +18,8 @@ const showNotes = ref(true)
 const REGISTRY: Record<string, Component> = {
   mdl: MdlDetail,
   query: QueryFlowDetail,
+  planning: PlanningDetail,
+  memory: MemoryDetail,
 }
 const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? null)
 </script>

@@ -20,12 +20,26 @@ const gridCols = computed(() =>
 
 <template>
   <div v-if="arch" class="grid grid-cols-1 gap-x-6 gap-y-3 items-start lg:items-center" :class="gridCols">
-    <!-- ════ Stage 1: Input ════ -->
+    <!-- ════ Stage 1: Sourcing (where MDL comes from) ════ -->
     <div v-if="showNotes" class="hidden lg:block">
-      <InsightNotes accent="slate" :intro="arch.insights.input" />
+      <InsightNotes accent="emerald" :intro="arch.insights.sourcing" />
     </div>
-    <ArchBox icon="i-lucide-table-2" :title="arch.input.label" accent="slate" muted>
-      <div class="text-xs text-gray-500 leading-snug">{{ arch.input.note }}</div>
+    <ArchBox icon="i-lucide-git-fork" :title="arch.sourcing.title" accent="emerald" badge="× 6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        <div
+          v-for="p in arch.sourcing.paths"
+          :key="p.name"
+          class="rounded-xl border p-2 flex flex-col gap-1"
+          :class="ACCENTS[p.accent].surface"
+        >
+          <div class="flex items-center gap-1.5">
+            <div :class="[p.icon, ACCENTS[p.accent].text, 'text-sm flex-shrink-0']" />
+            <span class="text-xs font-bold text-gray-800 leading-tight">{{ p.name }}</span>
+            <code v-if="p.badge" class="ml-auto px-1 rounded text-[9px] font-mono font-bold flex-shrink-0" :class="ACCENTS[p.accent].chip">{{ p.badge }}</code>
+          </div>
+          <span class="text-[11px] text-gray-500 leading-snug">{{ p.desc }}</span>
+        </div>
+      </div>
     </ArchBox>
     <div class="hidden lg:block" />
 
@@ -34,8 +48,16 @@ const gridCols = computed(() =>
       <InsightNotes accent="emerald" :items="arch.insights.model" />
     </div>
     <div>
-      <Connector label="建模 (YAML)" />
-      <ArchBox icon="i-lucide-box" title="MDL Manifest" role="语义契约" accent="emerald">
+      <Connector label="统一为项目 YAML" />
+      <ArchBox icon="i-lucide-box" title="MDL Manifest" role="语义契约" accent="emerald" :badge="arch.project.name">
+        <!-- demo project identity (mocked from jaffle_shop) -->
+        <div class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 px-2.5 py-1.5 mb-2.5">
+          <div class="i-lucide-folder-git-2 text-emerald-500 text-sm flex-shrink-0" />
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold text-emerald-700 font-mono">{{ arch.project.stats }}</div>
+            <div class="text-[10.5px] text-gray-500 leading-snug truncate">{{ arch.project.desc }}</div>
+          </div>
+        </div>
         <!-- modeled entities -->
         <div class="space-y-2 mb-2.5">
           <div v-for="e in arch.entities" :key="e.title" class="rounded-xl border p-2.5" :class="ACCENTS[e.accent].surface">

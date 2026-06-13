@@ -8,30 +8,14 @@ const emit = defineEmits<{ select: [node: ArchNode, ev: MouseEvent] }>()
 <template>
   <div class="max-w-5xl mx-auto px-6 py-8">
     <!-- Title -->
-    <div class="text-center mb-5">
+    <div class="text-center mb-6">
       <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">WrenAI 全景架构</h1>
       <p class="text-sm text-gray-400 mt-1">开放上下文层 for agents · 点击带「展开」的模块查看内部 dataflow</p>
-    </div>
-
-    <!-- Contrast banner: agentic (ATLAS) vs semantic-layer + primitives (WrenAI) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-7">
-      <div class="rounded-xl border border-emerald-200/70 bg-emerald-50/40 px-4 py-3">
-        <div class="flex items-center gap-1.5 mb-1">
-          <div class="i-lucide-bot text-emerald-600 text-sm" />
-          <span class="text-sm font-bold text-emerald-800">ATLAS · Agentic</span>
-        </div>
-        <p class="text-[11px] text-emerald-700/90 leading-relaxed">
-          Coordinator / Worker ReAct 内核<b>内置</b>，Agent 自动探查数据、生成 Rich Context、端到端跑 NL2SQL 与自维护。
-        </p>
-      </div>
-      <div class="rounded-xl border border-violet-200/70 bg-violet-50/40 px-4 py-3">
-        <div class="flex items-center gap-1.5 mb-1">
-          <div class="i-lucide-box text-violet-600 text-sm" />
-          <span class="text-sm font-bold text-violet-800">WrenAI · Semantic Layer + 原语</span>
-        </div>
-        <p class="text-[11px] text-violet-700/90 leading-relaxed">
-          Agent <b>外置</b>（BYO）。平台提供人工建模的语义契约（MDL）与一组正确性<b>原语</b>（memory / dry-plan / dry-run），由 Agent 自行编排。
-        </p>
+      <div class="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">BYO Agent · 不内置 NL2SQL LLM</span>
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">人工建模语义契约 MDL</span>
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">正确性即原语</span>
+        <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">LanceDB 记忆 / few-shot</span>
       </div>
     </div>
 

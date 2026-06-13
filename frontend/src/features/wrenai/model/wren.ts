@@ -143,6 +143,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'models / 列 / 关系 / views / cubes（+ instructions）',
         icon: 'i-lucide-table-2',
         accent: 'blue',
+        flow: 'memory',
         span: 1,
         codeRefs: ['core/wren/src/wren/memory/schema_indexer.py'],
       },
@@ -152,6 +153,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: '确认过的 NL-SQL 对（recall 复用）',
         icon: 'i-lucide-history',
         accent: 'blue',
+        flow: 'memory',
         span: 1,
         codeRefs: ['core/wren/src/wren/memory/store.py'],
       },
@@ -161,6 +163,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'sentence-transformers · 多语 MiniLM · 384d',
         icon: 'i-lucide-spline',
         accent: 'blue',
+        flow: 'memory',
         span: 1,
         codeRefs: ['core/wren/src/wren/memory/embeddings.py'],
       },
@@ -180,6 +183,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'parse · qualify · 方言转译',
         icon: 'i-lucide-code-2',
         accent: 'amber',
+        flow: 'planning',
         span: 1,
       },
       {
@@ -188,6 +192,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: '识别引用模型 → 注入展开后的 CTE',
         icon: 'i-lucide-git-merge',
         accent: 'amber',
+        flow: 'planning',
         span: 1,
         codeRefs: ['core/wren/src/wren/mdl/cte_rewriter.py'],
       },
@@ -197,6 +202,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'Rust · Apache DataFusion · MDL 语义展开',
         icon: 'i-lucide-cog',
         accent: 'amber',
+        flow: 'planning',
         span: 1,
         codeRefs: ['core/wren-core/core/src/mdl/mod.rs'],
       },
@@ -206,6 +212,7 @@ export const WREN_LAYERS: ArchLayer[] = [
         sublabel: 'strict mode · RLAC/CLAC · denied funcs · row limit',
         icon: 'i-lucide-shield-check',
         accent: 'amber',
+        flow: 'planning',
         span: 1,
         codeRefs: ['core/wren/src/wren/policy.py'],
       },
@@ -275,6 +282,22 @@ export const wrenFlows: WrenFlowDef[] = [
     icon: 'i-lucide-workflow',
     accent: 'violet',
   },
+  {
+    id: 'planning',
+    label: 'Planning Engine',
+    title: 'Planning Engine · Modeled SQL → 可执行 SQL',
+    subtitle: 'wren-core（Rust / Apache DataFusion）是 MDL → SQL 的唯一真相源：解析限定 → 抽取最小切片 → 展开模型/关系/计算列 → 注入 CTE → 策略校验 → 转译目标方言',
+    icon: 'i-lucide-cpu',
+    accent: 'amber',
+  },
+  {
+    id: 'memory',
+    label: 'Memory',
+    title: 'Memory · LanceDB 向量检索层',
+    subtitle: 'index 把 MDL 工件向量化为 schema_items，把确认过的 NL-SQL 对沉淀进 query_history；查询时 fetch 做 schema linking、recall 做 few-shot，体量自适应',
+    icon: 'i-lucide-database',
+    accent: 'blue',
+  },
 ]
 
 export function getWrenFlow(id: string | null): WrenFlowDef | null {
@@ -287,7 +310,13 @@ export function getWrenFlow(id: string | null): WrenFlowDef | null {
 /** MDL — the semantic contract. */
 export interface MdlArch {
   id: string
-  input: { label: string; note: string }
+  /** the multiple provenance pathways an MDL can be created from */
+  sourcing: {
+    title: string
+    paths: { name: string; icon: string; accent: AccentKey; badge?: string; desc: string }[]
+  }
+  /** demo project identity + scale (mocked from jaffle_shop) */
+  project: { name: string; stats: string; desc: string }
   /** the modeled entities (each a box with a peek list) */
   entities: { title: string; desc: string; icon: string; accent: AccentKey; items: NamedItem[] }[]
   /** governance baked into the model */
@@ -300,7 +329,7 @@ export interface MdlArch {
   yamlExample: string
   jsonExample: string
   insights: {
-    input: string
+    sourcing: string
     model: Insight[]
     compile: Insight[]
   }
@@ -351,18 +380,116 @@ export interface QueryArch {
   }
 }
 
+/** Planning Engine — Modeled SQL → executable SQL (the semantic source of truth). */
+export interface PlanningArch {
+  id: string
+  input: { label: string; note: string; example: string }
+  /** the three collaborating engines */
+  collaborators: { name: string; desc: string; icon: string; accent: AccentKey; lang: string }[]
+  /** the numbered transform pipeline */
+  steps: { name: string; desc: string }[]
+  /** what wren-core expands (peek) */
+  expands: NamedItem[]
+  /** policy gate checks (peek) */
+  policy: NamedItem[]
+  /** target dialects */
+  dialects: { count: string; list: string }
+  output: { label: string; note: string }
+  /** richer before/after expansion demo */
+  sqlBefore: string
+  sqlAfter: string
+  insights: {
+    input: string
+    transform: Insight[]
+    policy: Insight[]
+  }
+}
+
+/** Memory — LanceDB vector layer (schema linking + few-shot recall). */
+export interface MemoryArch {
+  id: string
+  input: { label: string; note: string }
+  /** indexing step */
+  index: { cmd: string; items: NamedItem[]; note: string }
+  /** embedding config (mocked but realistic) */
+  embed: { model: string; dim: string; engine: string; note: string }
+  /** the two LanceDB collections, with mocked live counts */
+  collections: { table: string; count: string; desc: string; use: string; icon: string }[]
+  /** retrieval primitives */
+  retrieve: { fetch: string; recall: string; strategy: string }
+  /** seed + store lifecycle */
+  seed: { cmd: string; note: string }
+  store: { cmd: string; note: string }
+  /** mocked query_history sample pairs */
+  samples: { nl: string; sql: string; tag: string }[]
+  insights: {
+    input: string
+    index: Insight[]
+    retrieve: Insight[]
+  }
+}
+
 export interface WrenModuleData {
   id: string
   accent: AccentKey
   mdl?: MdlArch
   query?: QueryArch
+  planning?: PlanningArch
+  memory?: MemoryArch
 }
 
 const mdlArch: MdlArch = {
   id: 'mdl',
-  input: {
-    label: '物理 Schema（warehouse 表）',
-    note: '已有数仓 / 转换管道 / 既有语义层 —— WrenAI 叠加其上，不替换',
+  sourcing: {
+    title: 'MDL 从哪来 · 五条来源路径',
+    paths: [
+      {
+        name: '人工编写 YAML',
+        icon: 'i-lucide-file-pen',
+        accent: 'emerald',
+        desc: '手写 models/ · relationships.yml · cubes/ · views/ —— 完全可控、可评审',
+      },
+      {
+        name: 'Agent 生成',
+        icon: 'i-lucide-bot',
+        accent: 'violet',
+        badge: 'generate-mdl',
+        desc: 'introspect 库 schema → parse-type 类型归一化 → 写 YAML；FK 推关系，缺 FK 按命名约定推断',
+      },
+      {
+        name: '端到端引导',
+        icon: 'i-lucide-rocket',
+        accent: 'blue',
+        badge: 'onboarding',
+        desc: '环境检查 → profile 连接 → init → 生成 MDL → context build → memory index 一条龙',
+      },
+      {
+        name: 'dbt 导入',
+        icon: 'i-lucide-package',
+        accent: 'amber',
+        badge: 'dbt',
+        desc: '读 dbt manifest.json / catalog.json，按 adapter→datasource 映射转成 MDL 模型与关系',
+      },
+      {
+        name: 'dlt / SaaS 抽取',
+        icon: 'i-lucide-cloud-download',
+        accent: 'indigo',
+        badge: 'dlt-connector',
+        desc: 'HubSpot / Stripe / Salesforce → DuckDB 落地 → introspect 生成 MDL（SaaS 也能建模）',
+      },
+      {
+        name: 'enrich-context 补全',
+        icon: 'i-lucide-sparkles',
+        accent: 'rose',
+        badge: 'skill',
+        desc: '在已有 MDL 上从 raw/ 文档补 enum 含义 / 单位 / NULL 语义 / 同义词 / cubes（grill · auto-pilot）',
+      },
+    ],
+  },
+  project: {
+    name: 'jaffle_shop',
+    stats: '6 models · 5 relationships · 2 cubes',
+    desc: 'customers · orders · order_items · products · stores · supplies',
   },
   entities: [
     {
@@ -446,9 +573,9 @@ columns:
   "rowLevelAccessControls": [ /* RLAC */ ]
 } ], "relationships": [ /* … */ ] }`,
   insights: {
-    input: 'WrenAI 坐在你已有的栈之上：数仓、转换管道、既有语义层都不动，只在其上叠加一层可移植的业务语义契约。',
+    sourcing: 'MDL 不是只有手写一条路：可以手写、可让 Agent 从库 introspect 生成、走 onboarding 端到端引导、从 dbt 项目导入、用 dlt 把 SaaS 抽到 DuckDB 再建模，最后再用 enrich-context 补业务语义。形式统一为可评审、可移植的项目 YAML。',
     model: [
-      { icon: 'i-lucide-file-signature', title: '语义层即契约', body: 'MDL 是数据团队、Agent、查询引擎三方共同遵守的合约：data team 评审业务逻辑、Agent 据此选模型/join/计算、引擎据此规划 SQL。与 ATLAS 用 Agent 自动生成 Rich Context 的路线相反，WrenAI 强调人工建模的稳定契约。' },
+      { icon: 'i-lucide-file-signature', title: '语义层即契约', body: 'MDL 是数据团队、Agent、查询引擎三方共同遵守的合约：data team 评审业务逻辑、Agent 据此选模型/join/计算、引擎据此规划 SQL。语义不是模型临场猜出来的，而是被人工评审过、可复用的稳定契约。' },
       { icon: 'i-lucide-git-pull-request', title: 'Git 化、可评审', body: '模型存为可读 YAML，契约变更走 diff 评审；这让语义层像代码一样被版本化与审查，而非藏在某个应用元数据库里。' },
       { icon: 'i-lucide-shield', title: '建模即治理', body: 'RLAC / CLAC 与列暴露直接写在模型里，权限是语义层的一等公民，规划 SQL 时由 wren-core 强制执行，而非事后在应用层补。' },
     ],
@@ -547,7 +674,7 @@ SELECT customer_id, lifetime_value FROM customers`,
       { icon: 'i-lucide-history', title: '召回即 few-shot', body: 'query_history 里"以前work过"的 NL-SQL 对被向量召回作示例，把历史成功直接喂给 Agent，减少重复试错。' },
     ],
     generate: [
-      { icon: 'i-lucide-bot', title: 'Agent 外置', body: '与 ATLAS（Coordinator/Worker 自有 ReAct 内核）不同，WrenAI 不内置生成；生成质量取决于你接的 Agent / 模型，平台只负责喂对上下文、给对原语。' },
+      { icon: 'i-lucide-bot', title: 'Agent 外置', body: 'WrenAI 不内置生成内核：写 SQL 这步交给你已有的 Agent / 模型，生成质量取决于它；平台只负责喂对上下文、给对原语、把住正确性。' },
       { icon: 'i-lucide-scroll-text', title: 'Skills 约束顺序', body: 'Markdown Skills 教 Agent 安全地按序使用原语（先取上下文再写、先验证再执行、成功才记忆），把"正确做法"沉淀成可发现的工作流。' },
     ],
     plan: [
@@ -561,9 +688,151 @@ SELECT customer_id, lifetime_value FROM customers`,
   },
 }
 
+const planningArch: PlanningArch = {
+  id: 'planning',
+  input: {
+    label: 'Modeled SQL',
+    note: 'Agent 针对 MDL 模型 / 列名书写的 SQL（不写物理表名）',
+    example: 'SELECT customer_id, lifetime_value FROM customers',
+  },
+  collaborators: [
+    { name: 'sqlglot', desc: '解析 / 限定引用 / 转译目标方言', icon: 'i-lucide-code-2', accent: 'amber', lang: 'Python' },
+    { name: 'CTE Rewriter', desc: '识别引用模型 → 注入展开后的 CTE', icon: 'i-lucide-git-merge', accent: 'amber', lang: 'Python' },
+    { name: 'wren-core', desc: 'MDL 语义展开（关系 / 计算列 / views）', icon: 'i-lucide-cog', accent: 'violet', lang: 'Rust · DataFusion 53' },
+  ],
+  steps: [
+    { name: 'parse + qualify', desc: 'sqlglot 解析 SQL，限定表 / 列引用到 MDL 对象' },
+    { name: 'ManifestExtractor', desc: '只抽取本次查询命中的最小 MDL 切片，避免整库注入' },
+    { name: 'expand (wren-core)', desc: '展开 models / relationships / calculatedFields / views → DataFusion 逻辑计划' },
+    { name: 'inject CTEs', desc: 'CTE Rewriter 把展开后的模型 SQL 注入为命名 CTE' },
+    { name: 'policy checks', desc: 'strict mode / RLAC / CLAC / denied funcs / row limit 校验' },
+    { name: 'transpile', desc: 'sqlglot 输出目标方言的可执行 SQL' },
+  ],
+  expands: [
+    { name: 'models', desc: '逻辑表 → 物理 table_reference / ref_sql 的 CTE' },
+    { name: 'relationships', desc: '声明的 join key → 自动展开 join path（无需手写 join）' },
+    { name: 'calculatedFields', desc: '派生列表达式（经关系展开为聚合 / 子查询）' },
+    { name: 'views', desc: 'statement 原样作为 CTE 复用（不经语义展开）' },
+    { name: 'cubes', desc: 'measures / dimensions → 预聚合 SQL' },
+  ],
+  policy: [
+    { name: 'strict_mode', desc: '禁止裸物理表 / 未建模列，强制走 MDL' },
+    { name: 'rowLevelAccessControls', desc: '按 session property 注入行过滤 WHERE' },
+    { name: 'columnLevelAccessControl', desc: 'operator / threshold 判定列是否可见' },
+    { name: 'denied_functions', desc: '黑名单函数（如危险 UDF）直接拒绝' },
+    { name: 'row limit', desc: '默认 limit 100 / 硬顶 1000' },
+  ],
+  dialects: {
+    count: '20+',
+    list: 'Postgres · MySQL · BigQuery · Snowflake · DuckDB · Trino · ClickHouse · Databricks · Redshift · Oracle · Athena · Spark …',
+  },
+  output: { label: '可执行方言 SQL', note: '交连接器 dry-run 校验后执行' },
+  sqlBefore: `-- Agent 针对 MDL 模型写的 SQL
+SELECT customer_id, lifetime_value
+FROM customers
+WHERE lifetime_value > 1000
+ORDER BY lifetime_value DESC`,
+  sqlAfter: `-- wren-core 展开后（注入 CTE · 展开计算列 · 自动 join · 注入 RLAC）
+WITH customers AS (
+  SELECT c.customer_id,
+         SUM(o.total) AS lifetime_value   -- calculatedField 经 1-N 关系展开
+  FROM jaffle_shop.main.customers c
+  LEFT JOIN jaffle_shop.main.orders o
+    ON c.customer_id = o.customer_id
+  WHERE c.region = $session.region          -- RLAC 行级过滤注入
+  GROUP BY c.customer_id
+)
+SELECT customer_id, lifetime_value
+FROM customers
+WHERE lifetime_value > 1000
+ORDER BY lifetime_value DESC
+LIMIT 100                                    -- row limit 策略`,
+  insights: {
+    input: 'Agent 只写"模型语言"的 SQL——引用 MDL 的模型名 / 列名 / 计算列，不碰物理表名、不手写 join。把"翻译成正确物理 SQL"这件事整体交给引擎。',
+    transform: [
+      { icon: 'i-lucide-cpu', title: 'wren-core 是唯一真相源', body: 'MDL → SQL 的展开规则（关系 join、计算列、views）集中在 Rust/DataFusion 引擎里，保证任何 Agent、任何方言下生成的 SQL 都与语义契约一致——正确性不依赖 prompt。' },
+      { icon: 'i-lucide-scissors', title: '最小切片注入', body: 'ManifestExtractor 只挑出本次查询命中的模型 / 关系，而不是把整个 manifest 塞进去；这让规划在大 schema 下依然轻、可预期。' },
+      { icon: 'i-lucide-route', title: 'dry-plan = 可解释', body: '展开后的 SQL（用了哪些 CTE / join / 计算列）就是生成轨迹，可以不连库直接看；把"黑盒生成"变成可检视的逻辑计划。' },
+    ],
+    policy: [
+      { icon: 'i-lucide-shield-check', title: '建模即治理、规划即执法', body: 'RLAC / CLAC / denied funcs 不是事后在应用层补的，而是在规划阶段由引擎强制注入到 SQL 里——权限是语义层的一等公民。' },
+    ],
+  },
+}
+
+const memoryArch: MemoryArch = {
+  id: 'memory',
+  input: { label: 'MDL + instructions', note: 'wren memory index 解析项目工件作为输入' },
+  index: {
+    cmd: 'wren memory index',
+    items: [
+      { name: 'model', desc: '每个逻辑表一条（名 + 描述 + 列摘要）' },
+      { name: 'column', desc: '业务名 / 类型 / 枚举 / 描述' },
+      { name: 'relationship', desc: 'join 语义（1-N / N-1 …）' },
+      { name: 'view / cube', desc: '复用查询与预聚合指标' },
+      { name: 'measure / dimension', desc: 'cube 内度量与维度' },
+      { name: 'instruction', desc: 'instructions.md 段落（业务规则）' },
+    ],
+    note: 'schema_indexer 把每类工件拆成可检索条目，逐条 embed 后写入 LanceDB',
+  },
+  embed: {
+    model: 'paraphrase-multilingual-MiniLM-L12-v2',
+    dim: '384d',
+    engine: 'sentence-transformers（本地推理，无需外部 API）',
+    note: 'LanceDB 自带 embedding registry，索引与查询用同一模型',
+  },
+  collections: [
+    { table: 'schema_items', count: '142 条', desc: 'models / 列 / 关系 / views / cubes（+ instructions）', use: 'schema linking', icon: 'i-lucide-table-2' },
+    { table: 'query_history', count: '37 对', desc: '确认过的 NL-SQL 对（含 seed + 真实使用沉淀）', use: 'few-shot 召回', icon: 'i-lucide-history' },
+  ],
+  retrieve: {
+    fetch: 'wren memory fetch — 召回相关 schema_items 做 schema linking',
+    recall: 'wren memory recall — 召回相似 NL-SQL 对做 few-shot',
+    strategy: 'get_context 体量自适应：schema ≤ 30k 字符时全量注入，超出才走向量检索（无 BM25 / rerank 混合召回）',
+  },
+  seed: {
+    cmd: 'wren memory seed-queries',
+    note: '从 MDL 自动生成 canonical NL-SQL 对（打 tag source:seed），冷启动即有 few-shot',
+  },
+  store: {
+    cmd: 'wren memory store --nl … --sql …',
+    note: 'Agent 确认无误的 NL-SQL 对追加进 query_history（tag source:confirmed），使用即沉淀',
+  },
+  samples: [
+    {
+      nl: '上月每个客户的订单总额',
+      sql: 'SELECT customer_id, SUM(total) AS revenue\nFROM orders\nWHERE order_date >= date_trunc(\'month\', current_date - interval \'1 month\')\nGROUP BY customer_id',
+      tag: 'confirmed',
+    },
+    {
+      nl: '销量 Top 5 的产品',
+      sql: 'SELECT product_id, SUM(quantity) AS qty\nFROM order_items\nGROUP BY product_id\nORDER BY qty DESC\nLIMIT 5',
+      tag: 'confirmed',
+    },
+    {
+      nl: '每家门店本月营收',
+      sql: 'SELECT store_id, SUM(total) AS revenue\nFROM orders\nWHERE order_date >= date_trunc(\'month\', current_date)\nGROUP BY store_id',
+      tag: 'seed',
+    },
+  ],
+  insights: {
+    input: '记忆层的输入不是原始数据库，而是已经建模好的 MDL + instructions——记忆检索的是"语义条目"和"历史成功"，而非物理 schema。',
+    index: [
+      { icon: 'i-lucide-boxes', title: '工件 → 可检索条目', body: 'schema_indexer 把 MDL 拆成 model / 列 / 关系 / view / cube / instruction 等细粒度条目逐条向量化；检索精度落在"哪个模型、哪一列"，而非整张表。' },
+      { icon: 'i-lucide-spline', title: '本地多语 embedding', body: '用 sentence-transformers 多语 MiniLM（384d）本地推理，索引和查询同模型；不依赖外部 embedding API，中英文混合 schema 也能召回。' },
+    ],
+    retrieve: [
+      { icon: 'i-lucide-layers', title: '体量自适应、实现轻', body: '小 schema 直接全量注入、大 schema 才走向量检索——一个由体量驱动的简单阈值策略，没有关键词 / rerank 混合管道，行为可预期、易调试。' },
+      { icon: 'i-lucide-recycle', title: '使用即沉淀的 few-shot', body: 'seed 提供冷启动样例，confirmed 把真实成功回写 query_history；recall 把"以前 work 过"的 NL-SQL 对喂给 Agent，越用越准——是显式可评审的闭环，而非自动微调。' },
+    ],
+  },
+}
+
 export const WREN_MODULES: Record<string, WrenModuleData> = {
   mdl: { id: 'mdl', accent: 'emerald', mdl: mdlArch },
   query: { id: 'query', accent: 'violet', query: queryArch },
+  planning: { id: 'planning', accent: 'amber', planning: planningArch },
+  memory: { id: 'memory', accent: 'blue', memory: memoryArch },
 }
 
 export function getWrenModule(id: string | null): WrenModuleData | null {

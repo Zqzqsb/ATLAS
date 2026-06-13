@@ -17,7 +17,7 @@ const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? n
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto px-6 py-7">
+  <div class="max-w-5xl mx-auto px-6 py-7">
     <!-- Header -->
     <div class="flex items-start gap-3 mb-6">
       <button

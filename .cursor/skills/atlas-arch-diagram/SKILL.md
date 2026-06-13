@@ -35,7 +35,7 @@ features/arch/
     └── module/
         ├── ModuleDetail.vue      # header + REGISTRY dispatch by flow.id
         ├── diagram/              # reusable diagram primitives
-        │   ArchBox · Connector · PeekPanel
+        │   ArchBox · Connector · PeekPanel · ChunkTreemap
         └── modules/              # per-module diagram composition: <Xxx>Detail.vue
 ```
 
@@ -127,6 +127,20 @@ Rules for module boundaries & details:
   downward "data flow" dot. Place between boxes.
 - `PeekPanel` — collapsed-by-default detail; click header (label + count) to
   expand its slot inline. Use for rules / type lists / any dense detail.
+- `ChunkTreemap` — self-contained accelerated demo (squarified treemap with a
+  looping pending→running→done fill) of the Coordinator's chunks being processed.
+
+## Two-Column Layout (spine + annotation/demo lane)
+
+A bare vertical flow reads as "linear" and hides the engineering. Prefer a
+2-column layout: **left = the architecture spine** (boxes + connectors), **right
+= an annotation/demo lane** aligned to stages. Use a grid
+`lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]` with `items-start`; emit paired
+left/right cells per stage (merge tightly-coupled boxes like Coordinator+Worker
+into one stage so a tall right element — e.g. `ChunkTreemap` — aligns beside
+them). The right lane carries: a live demo where it helps (treemap) + short
+**insight** cards (the "why"), each aligned to its stage. Keep insight copy in
+`modules.ts` (e.g. `insights.{input,process,storage}`).
 
 If a module needs a genuinely new shape, extend the data in `modules.ts` and
 compose existing primitives; only add a new primitive under `diagram/` when a

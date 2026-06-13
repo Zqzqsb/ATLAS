@@ -22,6 +22,11 @@ export interface StorageItem {
   spec: string
   note: string
 }
+export interface Insight {
+  icon: string
+  title: string
+  body: string
+}
 
 /** Onboarding internal architecture: Coordinator → Worker(×N) → Storage. */
 export interface OnboardingArch {
@@ -53,6 +58,12 @@ export interface OnboardingArch {
   storage: {
     title: string
     items: StorageItem[]
+  }
+  /** side-lane annotations explaining the engineering design, aligned to stages */
+  insights: {
+    input: string
+    process: Insight[]
+    storage: Insight[]
   }
 }
 
@@ -123,6 +134,18 @@ const onboardingArch: OnboardingArch = {
     items: [
       { table: 'rc_business_context', label: 'Rich Context', spec: '5 类 · is_expired 软失效', note: 'Worker 产出的语义上下文' },
       { table: 'rc_embeddings', label: '向量 Catalog', spec: 'VECTOR(2048) · HNSW · COSINE · is_deleted', note: 'Doubao 嵌入，VEC_FromText 写入，亚毫秒召回' },
+    ],
+  },
+  insights: {
+    input: '从 INFORMATION_SCHEMA 全量抽取表 / 列 / 外键，作为后续一切处理的骨架。',
+    process: [
+      { icon: 'i-lucide-git-fork', title: 'Forest 分簇控成本', body: '按外键连通性切簇，单 Worker 的上下文 / Token 随簇规模线性增长，而非全库平方膨胀；孤立表批量化减少 Agent 启停开销。' },
+      { icon: 'i-lucide-search-check', title: 'Explore-before-write', body: 'Worker 先 execute_sql 看真实数据再写 context，从源头杜绝凭表名臆造元数据的幻觉。' },
+      { icon: 'i-lucide-layers', title: '统一路径', body: '大库小库同一套 Coordinator → Worker；小库退化为单 Worker，无需另写分支逻辑。' },
+    ],
+    storage: [
+      { icon: 'i-lucide-box', title: '原生向量零依赖', body: 'VECTOR(2048) + HNSW 直接落 MariaDB，省掉独立向量库；结构、语义、向量同库，强一致、易运维。' },
+      { icon: 'i-lucide-recycle', title: '为演进留钩子', body: 'is_expired / is_deleted 软标记，为 Self-Maintenance 的失效标记与重嵌入预留接缝。' },
     ],
   },
 }

@@ -7,27 +7,36 @@ import ArchBox from '../diagram/ArchBox.vue'
 import Connector from '../diagram/Connector.vue'
 import PeekPanel from '../diagram/PeekPanel.vue'
 import ChunkTreemap from '../diagram/ChunkTreemap.vue'
+import InsightNotes from '../diagram/InsightNotes.vue'
 
-const props = defineProps<{ flow: FlowDef }>()
+const props = defineProps<{ flow: FlowDef; showNotes?: boolean }>()
 const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
+
+const gridCols = computed(() =>
+  props.showNotes
+    ? 'lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(0,1fr)]'
+    : 'lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]',
+)
 </script>
 
 <template>
-  <div v-if="arch" class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-x-7 gap-y-3 items-start">
+  <div v-if="arch" class="grid grid-cols-1 gap-x-6 gap-y-3 items-start lg:items-center" :class="gridCols">
     <!-- ════ Stage 1: Input ════ -->
+    <div v-if="showNotes" class="hidden lg:block">
+      <InsightNotes accent="slate" :intro="arch.insights.input" />
+    </div>
     <ArchBox icon="i-lucide-table-2" :title="arch.input.label" accent="slate" muted>
       <div class="flex items-center gap-2 text-xs text-gray-500">
         <code class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono text-[11px]">{{ arch.input.table }}</code>
         <span>{{ arch.input.note }}</span>
       </div>
     </ArchBox>
-    <!-- right: input annotation -->
-    <div class="hidden lg:flex items-center gap-2 text-xs text-gray-400 px-1 pt-3">
-      <div class="i-lucide-corner-left-down text-gray-300" />
-      {{ arch.insights.input }}
-    </div>
+    <div class="hidden lg:block" />
 
     <!-- ════ Stage 2: Coordinator + Worker (merged) ════ -->
+    <div v-if="showNotes" class="hidden lg:block">
+      <InsightNotes accent="emerald" :items="arch.insights.process" />
+    </div>
     <div>
       <Connector />
       <ArchBox icon="i-lucide-split" :title="arch.coordinator.title" :role="arch.coordinator.role" accent="violet">
@@ -63,7 +72,7 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
               >{{ b.label }}</span>
             </div>
             <PeekPanel label="关键约束 / 技巧" icon="i-lucide-shield-alert" :count="arch.worker.prompt.rules.length" accent="amber">
-              <ol class="space-y-1.5">
+              <ol class="space-y-1.5 pl-0 list-none">
                 <li v-for="(r, i) in arch.worker.prompt.rules" :key="i" class="flex items-start gap-2 text-[11px] text-gray-700 leading-relaxed">
                   <span class="w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700 flex-center text-[8px] font-bold flex-shrink-0 mt-0.5">{{ i + 1 }}</span>
                   <span>{{ r }}</span>
@@ -102,26 +111,15 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
         </div>
       </ArchBox>
     </div>
-
-    <!-- right: treemap demo + process insights (aligned to Coordinator↔Worker) -->
-    <div class="space-y-3 lg:pt-7">
+    <!-- right: treemap demo (aligned to Coordinator↔Worker) -->
+    <div>
       <ChunkTreemap />
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-        <div
-          v-for="ins in arch.insights.process"
-          :key="ins.title"
-          class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50/60 px-3 py-2"
-        >
-          <div class="flex items-center gap-1.5 mb-0.5">
-            <div class="w-5 h-5 rounded-md bg-emerald-50 flex-center"><div :class="[ins.icon, 'text-emerald-600 text-[11px]']" /></div>
-            <span class="text-xs font-bold text-gray-800">{{ ins.title }}</span>
-          </div>
-          <p class="text-[11px] text-gray-500 leading-relaxed">{{ ins.body }}</p>
-        </div>
-      </div>
     </div>
 
     <!-- ════ Stage 3: Storage ════ -->
+    <div v-if="showNotes" class="hidden lg:block">
+      <InsightNotes accent="indigo" :items="arch.insights.storage" />
+    </div>
     <div>
       <Connector label="RC produced" />
       <ArchBox icon="i-lucide-database" :title="arch.storage.title" accent="indigo">
@@ -145,20 +143,6 @@ const arch = computed(() => getModule(props.flow.id)?.onboarding ?? null)
         </PeekPanel>
       </ArchBox>
     </div>
-
-    <!-- right: storage insights -->
-    <div class="space-y-2 lg:pt-9">
-      <div
-        v-for="ins in arch.insights.storage"
-        :key="ins.title"
-        class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50/60 px-3 py-2"
-      >
-        <div class="flex items-center gap-1.5 mb-0.5">
-          <div class="w-5 h-5 rounded-md bg-indigo-50 flex-center"><div :class="[ins.icon, 'text-indigo-600 text-[11px]']" /></div>
-          <span class="text-xs font-bold text-gray-800">{{ ins.title }}</span>
-        </div>
-        <p class="text-[11px] text-gray-500 leading-relaxed">{{ ins.body }}</p>
-      </div>
-    </div>
+    <div class="hidden lg:block" />
   </div>
 </template>

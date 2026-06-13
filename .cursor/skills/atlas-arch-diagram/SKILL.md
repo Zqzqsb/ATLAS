@@ -33,9 +33,9 @@ features/arch/
 └── components/
     ├── overview/ ArchOverview · ArchLayer · ArchNode   # render ARCH_LAYERS
     └── module/
-        ├── ModuleDetail.vue      # header + REGISTRY dispatch by flow.id
+        ├── ModuleDetail.vue      # header + notes toggle + REGISTRY dispatch by flow.id
         ├── diagram/              # reusable diagram primitives
-        │   ArchBox · Connector · PeekPanel · ChunkTreemap
+        │   ArchBox · Connector · PeekPanel · ChunkTreemap · LinkingDemo · InsightNotes
         └── modules/              # per-module diagram composition: <Xxx>Detail.vue
 ```
 
@@ -51,6 +51,13 @@ features/arch/
 4. **UnoCSS needs literal class strings.** Never interpolate color classes
    (`` `bg-${c}-100` ``); UnoCSS won't generate them. Use the `ACCENTS` map in
    `architecture.ts`, which holds full literal class strings per accent.
+   - **Icons/classes that live only in `model/*.ts`** (e.g. `node.icon`,
+     `insights[].icon`) require UnoCSS to scan `.ts`. `uno.config.ts` adds `.ts`/
+     `.js` to `content.pipeline.include` for this; without it those icons render
+     as empty boxes. Use only `i-lucide-*` names (the one collection wired up).
+   - presetIcons under pnpm can't auto-discover `@iconify-json/*`; `uno.config.ts`
+     registers the `lucide` collection explicitly via `collections`. If icons
+     vanish app-wide, that loader is the first place to check.
 
 ## Accent System
 
@@ -96,8 +103,8 @@ storage{items} }`. Keep long lists here: prompt **rules**, produced data **types
 real architecture is, not a fixed template.
 
 **Step 4 — compose the diagram.** Create `modules/<Xxx>Detail.vue` taking
-`defineProps<{ flow: FlowDef }>()`, look up `getModule(flow.id)`, and lay out the
-diagram with the primitives:
+`defineProps<{ flow: FlowDef; showNotes?: boolean }>()`, look up `getModule(flow.id)`,
+and lay out the three-zone grid (see "Three-Zone Layout" below) with the primitives:
 
 ```
 <ArchBox icon title role accent [badge] [muted]> ...box body... </ArchBox>
@@ -125,26 +132,48 @@ Rules for module boundaries & details:
   badge (`× N`), `muted` for dashed boundary/input boxes; body via default slot.
 - `Connector` — vertical line + down chevron + optional `label`, with a subtle
   downward "data flow" dot. Place between boxes.
-- `PeekPanel` — collapsed-by-default detail; click header (label + count) to
-  expand its slot inline. Use for rules / type lists / any dense detail.
+- `PeekPanel` — click-to-open **popover** (naive-ui `NPopover`, teleports to
+  body so it floats above the diagram with **no layout reflow**); header = label +
+  count, slot = the dense list (rules / type defs). Use for any dense detail.
+  (Inline expansion was dropped because it squeezed neighboring columns.)
 - `ChunkTreemap` — self-contained accelerated demo (squarified treemap with a
   looping pending→running→done fill) of the Coordinator's chunks being processed.
+- `LinkingDemo` — self-contained accelerated demo of inference grounding: a recall
+  funnel (all→HNSW→LLM) stacked over a **concurrency Gantt** (Agent ∥ Retrieval,
+  schema-slot handoff, overlap savings). Use to make timing/parallelism legible.
+- `InsightNotes` — a stack of insight cards (+ optional `intro` line) for the
+  hideable left notes column; takes `accent` + `items: Insight[]`.
 
-## Two-Column Layout (spine + annotation/demo lane)
+## Three-Zone Layout: notes ｜ spine ｜ demo
 
-A bare vertical flow reads as "linear" and hides the engineering. Prefer a
-2-column layout: **left = the architecture spine** (boxes + connectors), **right
-= an annotation/demo lane** aligned to stages. Use a grid
-`lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]` with `items-start`; emit paired
-left/right cells per stage (merge tightly-coupled boxes like Coordinator+Worker
-into one stage so a tall right element — e.g. `ChunkTreemap` — aligns beside
-them). The right lane carries: a live demo where it helps (treemap) + short
-**insight** cards (the "why"), each aligned to its stage. Keep insight copy in
-`modules.ts` (e.g. `insights.{input,process,storage}`).
+A bare vertical flow reads as "linear" and hides the engineering. Lay each module
+out as up to three aligned columns, one stage per grid row (`items-start`):
+
+- **Left — presenter notes (hideable).** The "why we designed it this way"
+  insight cards, like PPT speaker notes. Off by default; `ModuleDetail.vue` owns a
+  `showNotes` ref + "讲解备注" toggle and passes `:show-notes` down (it also widens
+  its container `max-w-5xl → max-w-7xl` when on). Render via `InsightNotes`.
+- **Center — the architecture spine.** Boxes (`ArchBox`) + `Connector`s. This is
+  the focal column; give it the largest fraction.
+- **Right — live demo lane.** A looping demo where it helps (`ChunkTreemap`,
+  `LinkingDemo`), aligned to the stage it explains; empty cells elsewhere.
+
+Implementation: bind the grid template to `showNotes` —
+`showNotes ? 'lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_minmax(0,1fr)]'
+: 'lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]'`. Per stage emit cells in column
+order: a left notes cell **`v-if="showNotes"`**, the spine cell, then the demo
+cell. **Always render every center+right cell** (use an empty `<div class="hidden
+lg:block" />` when a stage has no demo) so rows stay column-aligned. Use
+`items-start lg:items-center` so notes/demo sit **vertically centered** against
+the (taller) spine box per row — no manual `pt-*` offsets. Merge tightly-coupled
+boxes (Coordinator+Worker) into one stage so a tall demo aligns beside them. Keep
+all copy in `modules.ts` (`insights.{input,<stage>,…}`).
+
+The `<Xxx>Detail.vue` takes `defineProps<{ flow: FlowDef; showNotes?: boolean }>()`.
 
 If a module needs a genuinely new shape, extend the data in `modules.ts` and
 compose existing primitives; only add a new primitive under `diagram/` when a
-layout truly can't be expressed with the current three.
+layout truly can't be expressed with the existing ones.
 
 ## Conventions
 

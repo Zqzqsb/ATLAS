@@ -180,8 +180,12 @@ export const ARCH_LAYERS: ArchLayer[] = [
         sublabel: 'Schema Linking → SQL → 校验执行',
         icon: 'i-lucide-git-graph',
         accent: 'blue',
+        flow: 'inference',
         span: 1,
-        codeRefs: ['backend/internal/inference/pipeline.go'],
+        codeRefs: [
+          'backend/internal/inference/pipeline.go',
+          'backend/internal/grounding/adaptive_pipeline.go',
+        ],
       },
       {
         id: 'maintain',

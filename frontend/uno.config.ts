@@ -16,13 +16,31 @@ export default defineConfig({
       extraProperties: {
         'display': 'inline-block',
         'vertical-align': 'middle'
-      }
+      },
+      // pnpm's strict node_modules breaks presetIcons' auto-discovery of
+      // @iconify-json/* collections, so no icon CSS was generated at all.
+      // Provide the lucide collection explicitly (the only set we use).
+      collections: {
+        lucide: () => import('@iconify-json/lucide/icons.json').then(i => i.default),
+      },
     })
   ],
   transformers: [
     transformerDirectives(),
     transformerVariantGroup()
   ],
+  content: {
+    pipeline: {
+      // Default scans .vue/.tsx/etc only. Also scan plain .ts/.js so utility &
+      // icon class names that live in data files (model/*.ts: ARCH_LAYERS,
+      // flows, MODULES — icon names, ACCENTS) get generated. include REPLACES
+      // the default, so keep the default patterns too.
+      include: [
+        /\.(vue|svelte|[jt]sx|mdx?|astro|elm|php|phtml|html)($|\?)/,
+        /\.[jt]s($|\?)/,
+      ],
+    },
+  },
   shortcuts: {
     'btn': 'px-3.5 py-2 rounded-lg font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm',
     'btn-primary': 'btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800',

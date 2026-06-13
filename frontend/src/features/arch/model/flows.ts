@@ -23,6 +23,14 @@ export const flows: FlowDef[] = [
     icon: 'i-lucide-database-zap',
     accent: 'emerald',
   },
+  {
+    id: 'inference',
+    label: 'Inference',
+    title: 'Text-to-SQL Inference',
+    subtitle: '自适应 Grounding 定位表/列，ReAct 生成并自校验 SQL，最终执行返回结果',
+    icon: 'i-lucide-git-graph',
+    accent: 'blue',
+  },
 ]
 
 export function getFlow(id: string | null): FlowDef | null {

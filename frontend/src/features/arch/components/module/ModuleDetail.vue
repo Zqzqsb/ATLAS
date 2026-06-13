@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { ACCENTS } from '../../model/architecture'
 import type { FlowDef } from '../../model/flows'
 import OnboardingDetail from './modules/OnboardingDetail.vue'
+import InferenceDetail from './modules/InferenceDetail.vue'
 
 const props = defineProps<{ flow: FlowDef }>()
 const emit = defineEmits<{ back: [] }>()
 
 const a = computed(() => ACCENTS[props.flow.accent])
 
+// "Presenter notes" column — on by default; toggle to hide like PPT speaker notes.
+const showNotes = ref(true)
+
 // Registry: per-module internal architecture diagram, keyed by flow id.
 const REGISTRY: Record<string, Component> = {
   onboarding: OnboardingDetail,
+  inference: InferenceDetail,
 }
 const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? null)
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-6 py-7">
+  <div class="mx-auto px-6 py-7 transition-[max-width] duration-300" :class="showNotes ? 'max-w-7xl' : 'max-w-5xl'">
     <!-- Header -->
     <div class="flex items-start gap-3 mb-6">
       <button
@@ -34,10 +39,22 @@ const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? n
         <h2 class="text-xl font-extrabold text-gray-900 m-0">{{ flow.title }}</h2>
         <p class="text-sm text-gray-500 mt-1 leading-snug">{{ flow.subtitle }}</p>
       </div>
+      <!-- Presenter-notes toggle -->
+      <button
+        class="mt-0.5 inline-flex items-center gap-1.5 px-2.5 h-9 rounded-lg text-xs font-semibold border transition-colors flex-shrink-0"
+        :class="showNotes
+          ? 'border-violet-300 bg-violet-50 text-violet-700'
+          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-800'"
+        :title="showNotes ? '隐藏讲解备注' : '展开讲解备注'"
+        @click="showNotes = !showNotes"
+      >
+        <div :class="showNotes ? 'i-lucide-panel-left-close' : 'i-lucide-sticky-note'" />
+        讲解备注
+      </button>
     </div>
 
     <!-- Module internal architecture diagram -->
-    <component :is="detailComp" v-if="detailComp" :flow="flow" />
+    <component :is="detailComp" v-if="detailComp" :flow="flow" :show-notes="showNotes" />
     <div v-else class="text-center text-sm text-gray-400 py-16">
       <div class="i-lucide-construction text-2xl mx-auto mb-2" />
       该模块内部架构图建设中

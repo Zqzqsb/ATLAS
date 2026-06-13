@@ -31,6 +31,14 @@ export const flows: FlowDef[] = [
     icon: 'i-lucide-git-graph',
     accent: 'blue',
   },
+  {
+    id: 'maintain',
+    label: 'Self-Maintenance',
+    title: 'Self-Maintenance',
+    subtitle: 'Schema 变更触发 Signal，Coordinator 标记失效并派发任务，Executor 探查重写自愈，收尾重嵌入',
+    icon: 'i-lucide-bot',
+    accent: 'amber',
+  },
 ]
 
 export function getFlow(id: string | null): FlowDef | null {

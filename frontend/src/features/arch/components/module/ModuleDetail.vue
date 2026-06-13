@@ -4,6 +4,7 @@ import { ACCENTS } from '../../model/architecture'
 import type { FlowDef } from '../../model/flows'
 import OnboardingDetail from './modules/OnboardingDetail.vue'
 import InferenceDetail from './modules/InferenceDetail.vue'
+import MaintainDetail from './modules/MaintainDetail.vue'
 
 const props = defineProps<{ flow: FlowDef }>()
 const emit = defineEmits<{ back: [] }>()
@@ -17,6 +18,7 @@ const showNotes = ref(true)
 const REGISTRY: Record<string, Component> = {
   onboarding: OnboardingDetail,
   inference: InferenceDetail,
+  maintain: MaintainDetail,
 }
 const detailComp = computed<Component | null>(() => REGISTRY[props.flow.id] ?? null)
 </script>

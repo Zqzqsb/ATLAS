@@ -110,11 +110,67 @@ export interface InferenceArch {
   }
 }
 
+/** Self-Maintenance internal architecture: Signal → Coordinator → Executor → Re-embed. */
+export interface MaintainArch {
+  id: string
+  /** schema-change signal that kicks off maintenance */
+  trigger: {
+    label: string
+    note: string
+    /** DDL change types ParseDDLStatement recognizes */
+    changeTypes: NamedItem[]
+    /** how the change is detected + catalog synced (not a diff) */
+    detect: string
+  }
+  /** Coordinator ReAct agent: decide tasks + invalidate stale RC */
+  coordinator: {
+    title: string
+    role: string
+    engine: string
+    /** decision guide points */
+    points: string[]
+    /** tools (peek) */
+    tools: NamedItem[]
+    budget: string
+    output: { label: string; parts: string[] }
+  }
+  /** Executor ReAct agent: heal (regenerate / delete) per task */
+  executor: {
+    title: string
+    role: string
+    engine: string
+    /** how tasks are handed over */
+    dispatch: string
+    steps: string[]
+    /** tools (peek) */
+    tools: NamedItem[]
+    budget: string
+    /** skip-when-no-task annotation */
+    note: string
+  }
+  /** invalidation soft-flags + re-embed at storage layer */
+  storage: {
+    title: string
+    /** the three soft-delete / staleness flags (peek) */
+    flags: NamedItem[]
+    items: StorageItem[]
+    /** full re-embed annotation */
+    embed: string
+  }
+  insights: {
+    trigger: string
+    coordinator: Insight[]
+    executor: Insight[]
+    storage: Insight[]
+  }
+}
+
 export interface ModuleData {
   id: string
   accent: AccentKey
   onboarding?: OnboardingArch
   inference?: InferenceArch
+  maintain?: MaintainArch
 }
 
 const onboardingArch: OnboardingArch = {
@@ -305,9 +361,102 @@ const inferenceArch: InferenceArch = {
   },
 }
 
+const maintainArch: MaintainArch = {
+  id: 'maintain',
+  trigger: {
+    label: 'Schema Change Signal',
+    note: 'MaintenanceSignal · SignalDDL（DDLStatements + Changes[]）',
+    changeTypes: [
+      { name: 'table_added / dropped', desc: 'CREATE / DROP TABLE' },
+      { name: 'column_added / dropped', desc: 'ALTER TABLE … ADD / DROP COLUMN' },
+      { name: 'column_modified', desc: 'MODIFY / CHANGE 列类型或定义' },
+      { name: 'fk_added / dropped', desc: 'ADD / DROP FOREIGN KEY' },
+      { name: 'index_added / dropped', desc: 'ADD / DROP INDEX / KEY' },
+    ],
+    detect: 'Evolution 演示：执行预定义 DDL → ParseDDLStatement 解析出变更类型 → SyncSchemaToLakebase 把 INFORMATION_SCHEMA upsert 进 catalog（仅同步物理结构，不覆盖语义 RC）。生产侧自动监测（cron / webhook）为预留接缝。',
+  },
+  coordinator: {
+    title: 'Coordinator · ReAct Agent',
+    role: '决策 + 失效标记',
+    engine: 'Maintain Coordinator Engine · max 15 iter',
+    points: [
+      '逐条变更判定动作：新增 → create、改动 → refresh、删除 → delete',
+      'inspect_schema_change 查现有 RC，确认是否真受影响（避免空转）',
+      'mark_expired 把受影响表 / 列的 RC 置 is_expired（标表级联所有列）',
+      'register_task 在内存累积任务，GetTasksJSON 一次性交给 Executor',
+    ],
+    tools: [
+      { name: 'inspect_schema_change', desc: '按变更类型查 rc_tables / rc_columns 现有 RC' },
+      { name: 'read_current_context', desc: '读单表 / 列的 description · 样例 · 同义词 · is_expired' },
+      { name: 'mark_expired', desc: '标记表 / 列 RC 过期（标表时级联列）' },
+      { name: 'register_task', desc: '内存累积 create / refresh / delete 任务' },
+      { name: 'get_table_columns', desc: '列出某表全部列及其 RC 元数据' },
+    ],
+    budget: 'prompt max 15 / min 3（langchaingo 实际上限 ×3）',
+    output: {
+      label: 'Tasks JSON + 失效标记',
+      parts: [
+        'create / refresh / delete 任务清单',
+        '受影响 RC 已置 is_expired（挂起待愈）',
+      ],
+    },
+  },
+  executor: {
+    title: 'Executor · ReAct Agent',
+    role: '只管自愈',
+    engine: 'Maintain Executor Engine',
+    dispatch: 'tasks JSON',
+    steps: [
+      'execute_sql 探查新列 / 改动列的真实数据分布',
+      'set_rich_context 批量重写 description / 样例 / 同义词',
+      'clear_expired 清除 is_expired —— 该 RC 自愈完成',
+      'delete 任务 → delete_rich_context 删 RC 行 + 软删向量',
+    ],
+    tools: [
+      { name: 'execute_sql', desc: '业务库只读探查（采样 / 分布），绝不臆测' },
+      { name: 'set_rich_context', desc: '批量写 RC；写入即自动标 is_stale' },
+      { name: 'delete_rich_context', desc: '删 rc_tables / rc_columns 行 + SoftDeleteEmbedding' },
+      { name: 'clear_expired', desc: '清除 is_expired，标记该项自愈完成' },
+    ],
+    budget: 'taskCount × 5，clamp [10, 30]（实际上限 ×3）',
+    note: 'Coordinator 判定无实质影响、未注册任务时，直接跳过 Executor —— 零 LLM 开销',
+  },
+  storage: {
+    title: 'Invalidation & Re-embed · Lakebase',
+    flags: [
+      { name: 'is_expired', desc: 'rc_tables / rc_columns · RC 语义过期，待 refresh' },
+      { name: 'is_stale', desc: 'rc_embeddings · RC 改动后向量过期，待重嵌入' },
+      { name: 'is_deleted', desc: 'rc_embeddings · 实体删除软删，待 purge' },
+    ],
+    items: [
+      { table: 'rc_tables · rc_columns', label: 'Rich Context 主存', spec: 'is_expired 软失效', note: 'mark_expired 挂起 / clear_expired 自愈' },
+      { table: 'rc_embeddings', label: '向量 Catalog', spec: 'VECTOR(2048) · is_stale / is_deleted', note: '写时标 stale，收尾批量重算' },
+      { table: 'rc_change_log', label: 'Change Log', spec: 'schema_change · trigger=agent', note: '每条变更落审计日志' },
+    ],
+    embed: '阶段收尾 GenerateAndSaveEmbeddings 全量重算向量（batch 100）并刷新 HNSW —— 当前为全量重嵌入而非 stale-only 增量，保证召回命中最新语义。',
+  },
+  insights: {
+    trigger: 'Schema 一变，旧 Rich Context 即可能与现实不符；先用 DDL 解析 + catalog upsert 把「哪里变了」对齐出来，再交给 Agent 处理。',
+    coordinator: [
+      { icon: 'i-lucide-split', title: '决策与执行解耦', body: 'Coordinator 只判定 + 标记失效 + 注册任务，从不碰数据；判定逻辑全在 LLM + prompt 指南，无硬编码变更矩阵，新增变更类型零改码。' },
+      { icon: 'i-lucide-flag', title: '失效即标记，不急删', body: 'mark_expired 把受影响 RC 置 is_expired（标表级联列），先「挂起」而非立即删，给 Executor 留出按需重生的窗口。' },
+    ],
+    executor: [
+      { icon: 'i-lucide-search-check', title: '自愈也先探查', body: '与 Onboarding 一致：先 execute_sql 看真实数据再 set_rich_context，杜绝凭 DDL 文本臆测新列语义。' },
+      { icon: 'i-lucide-skip-forward', title: '无任务即跳过', body: 'Coordinator 判定无实质影响时不注册任务，Executor 整段跳过，无谓的 LLM 调用与开销归零。' },
+      { icon: 'i-lucide-gauge', title: '预算随任务缩放', body: 'Executor 迭代预算 = taskCount×5 并 clamp[10,30]：任务多给更多步、少则收紧，避免空转又不至于截断。' },
+    ],
+    storage: [
+      { icon: 'i-lucide-layers', title: '三标志分层失效', body: 'is_expired 管 RC 语义、is_stale 管向量新鲜度、is_deleted 管软删；语义层与向量层各自独立失效与回收，互不阻塞。' },
+      { icon: 'i-lucide-recycle', title: '写即标脏，收尾重嵌', body: 'set_rich_context 写入即 MarkEmbeddingStale；阶段末 GenerateAndSaveEmbeddings 统一重算向量，让检索召回的始终是最新语义。' },
+    ],
+  },
+}
+
 export const MODULES: Record<string, ModuleData> = {
   onboarding: { id: 'onboarding', accent: 'emerald', onboarding: onboardingArch },
   inference: { id: 'inference', accent: 'blue', inference: inferenceArch },
+  maintain: { id: 'maintain', accent: 'amber', maintain: maintainArch },
 }
 
 export function getModule(id: string | null): ModuleData | null {

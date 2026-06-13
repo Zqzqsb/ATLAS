@@ -190,11 +190,16 @@ export const ARCH_LAYERS: ArchLayer[] = [
       {
         id: 'maintain',
         label: 'Self-Maintenance',
-        sublabel: 'DDL 监测 → 失效标记 → 自愈',
+        sublabel: 'Signal → 失效标记 → 自愈重嵌',
         icon: 'i-lucide-bot',
         accent: 'amber',
+        flow: 'maintain',
         span: 1,
-        codeRefs: ['backend/internal/agent/context_maintainer.go'],
+        codeRefs: [
+          'backend/internal/agent/agent_service.go',
+          'backend/internal/react/scenarios/maintain_coordinator.go',
+          'backend/internal/react/scenarios/maintain_executor.go',
+        ],
       },
     ],
   },

@@ -35,7 +35,8 @@ features/arch/
     └── module/
         ├── ModuleDetail.vue      # header + notes toggle + REGISTRY dispatch by flow.id
         ├── diagram/              # reusable diagram primitives
-        │   ArchBox · Connector · PeekPanel · ChunkTreemap · LinkingDemo · InsightNotes
+        │   ArchBox · Connector · PeekPanel · ChunkTreemap · LinkingDemo
+        │   · HealLoopDemo · InsightNotes
         └── modules/              # per-module diagram composition: <Xxx>Detail.vue
 ```
 
@@ -141,8 +142,40 @@ Rules for module boundaries & details:
 - `LinkingDemo` — self-contained accelerated demo of inference grounding: a recall
   funnel (all→HNSW→LLM) stacked over a **concurrency Gantt** (Agent ∥ Retrieval,
   schema-slot handoff, overlap savings). Use to make timing/parallelism legible.
+- `HealLoopDemo` — self-contained accelerated demo of self-maintenance: per-row
+  Rich Context lifecycle (fresh → `is_expired` → healing → healed / deleted) with
+  the three soft-flag chips (`is_expired` / `is_stale` / `is_deleted`) flipping as
+  the Coordinator marks and the Executor heals, then a re-embed sweep clears stale.
 - `InsightNotes` — a stack of insight cards (+ optional `intro` line) for the
   hideable left notes column; takes `accent` + `items: Insight[]`.
+
+## Layout Design SOP (the distilled principles)
+
+The look every L1 module must converge on — apply these before writing markup:
+
+1. **One internal architecture diagram, not a section stack.** A module is ONE
+   top→bottom diagram. Prompt rules / output shapes / storage tables are
+   *annotations inside boxes* (peek/dashed notes), never their own section-graphs.
+2. **Three zones, one stage per row:** `notes ｜ spine ｜ demo` (see below). Every
+   stage is a grid row; columns stay aligned across rows.
+3. **Spine = boxes + connectors.** `ArchBox` per module (clear boundary), nested
+   sub-boxes (Prompt/Tools) as plain `ACCENTS.<c>.surface` divs, `Connector`
+   (with `label` = the data handed downstream) between them. Give the spine the
+   largest column fraction.
+4. **Merge tightly-coupled agents into one stage** (Coordinator+Worker /
+   Coordinator+Executor) so a single tall right-column demo aligns beside the pair.
+5. **Dense detail is peek-on-demand.** Long lists (rules, modes, signals, RC
+   types) go in a `PeekPanel` popover — never inline-expanded (it reflows columns).
+6. **Right column is a looping "accelerated demo"** of the stage's hardest idea
+   (`ChunkTreemap`, `LinkingDemo`, `HealLoopDemo`…), aligned to the stage it
+   explains; empty `<div class="hidden lg:block"/>` elsewhere to keep rows aligned.
+7. **Engineering highlights as inline dashed notes** (concurrency timing,
+   small-DB shortcut, verify gate). The "why" lives in the left notes column.
+8. **Accent per stage, semantically:** violet=agent/reasoning, blue=retrieval/tools,
+   amber=prompt/expire, emerald=output/heal/execute, indigo=storage, slate=input.
+9. **Vertically center rows** (`items-start lg:items-center`) — no manual `pt-*`.
+10. **All copy lives in `modules.ts`.** Components stay dumb. Ground every value in
+    real backend code.
 
 ## Three-Zone Layout: notes ｜ spine ｜ demo
 

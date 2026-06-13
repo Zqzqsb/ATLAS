@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import { ACCENTS } from '../../model/architecture'
 import type { FlowDef } from '../../model/flows'
 import DataflowStepper from './DataflowStepper.vue'
+import OnboardingDetail from './modules/OnboardingDetail.vue'
 
 const props = defineProps<{ flow: FlowDef }>()
 const emit = defineEmits<{ back: [] }>()
 
 const a = computed(() => ACCENTS[props.flow.accent])
+
+// Registry: per-module detail composition. Falls back to the bare dataflow
+// stepper for modules that only have flow data so far.
+const REGISTRY: Record<string, Component> = {
+  onboarding: OnboardingDetail,
+}
+const detailComp = computed<Component>(() => REGISTRY[props.flow.id] ?? DataflowStepper)
 </script>
 
 <template>
@@ -34,7 +42,7 @@ const a = computed(() => ACCENTS[props.flow.accent])
     </div>
 
     <!-- Pipeline ribbon (horizontal flow at a glance) -->
-    <div class="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
+    <div class="flex items-center gap-1 mb-7 overflow-x-auto pb-1">
       <template v-for="(step, idx) in flow.steps" :key="step.id">
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white flex-shrink-0" :class="ACCENTS[step.accent].surface">
           <div :class="[step.icon, ACCENTS[step.accent].text, 'text-sm']" />
@@ -44,7 +52,7 @@ const a = computed(() => ACCENTS[props.flow.accent])
       </template>
     </div>
 
-    <!-- Animated dataflow -->
-    <DataflowStepper :flow="flow" />
+    <!-- Module-specific detailed architecture -->
+    <component :is="detailComp" :flow="flow" />
   </div>
 </template>

@@ -43,6 +43,14 @@ const router = createRouter({
       meta: { title: 'ATLAS - WrenAI Architecture' }
     },
 
+    // ktx Architecture (comparison deck)
+    {
+      path: '/ktx',
+      name: 'Ktx',
+      component: () => import('@/features/ktx/index.vue'),
+      meta: { title: 'ATLAS - ktx Architecture' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

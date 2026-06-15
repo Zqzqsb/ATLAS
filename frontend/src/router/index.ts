@@ -51,6 +51,14 @@ const router = createRouter({
       meta: { title: 'ATLAS - ktx Architecture' }
     },
 
+    // Common framework (cross-vendor design dimensions)
+    {
+      path: '/comm',
+      name: 'Comm',
+      component: () => import('@/features/comm/index.vue'),
+      meta: { title: 'ATLAS - Context Layer Framework' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

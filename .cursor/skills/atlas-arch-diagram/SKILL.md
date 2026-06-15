@@ -6,13 +6,16 @@ description: >-
   (L1). Use when adding/editing the architecture overview, wiring a module's
   drill-down, authoring dataflow steps, strategy/prompt/storage/insight sections,
   or when the user mentions arch route, 全景架构, 模块内部细节, dataflow, or
-  features/arch components.
+  WiseCat/multi-products-archs features.
 ---
 
 # ATLAS Architecture Diagram (`/arch`)
 
-A componentized, data-driven architecture presentation under
-`frontend/src/features/arch/`. Two zoom levels:
+独立前端包（副本）：`WiseCat/multi-products-archs/`（`npm run dev` → http://localhost:5174）。
+
+主仓库副本：`frontend/src/features/arch/`（ATLAS 主应用 `/arch` 路由）。
+
+架构 deck 源码在两处各有一份 copy，结构相同。Two zoom levels:
 
 - **L0 Panorama** — the whole system at a glance (layers → nodes).
 - **L1 Module detail** — click a drillable node → zoom-focus into **one internal

@@ -353,16 +353,183 @@ export interface VendorVariant {
   desc: string
 }
 
-/** A sub-question within a stage: the single design choice that splits vendors apart. */
+/* ─── Code-ref system: chips that auto-link to a public github file ─── */
+
+export type RepoKey = 'wrenai' | 'dbt-sl' | 'cube' | 'atlas' | 'ktx' | 'metricflow'
+
+/** Public-repo registry — codebases we can deep-link into.
+ *  Vendors that are closed-source (Snowflake, Databricks, Fabric, Oracle …)
+ *  use the EvidenceChip / SourceCatalog system in arch/components/module/diagram instead. */
+export const REPO_REGISTRY: Record<RepoKey, { label: string; base: string | null }> = {
+  'wrenai':     { label: 'Canner/WrenAI',                 base: 'https://github.com/Canner/WrenAI/blob/main' },
+  'dbt-sl':     { label: 'dbt-labs/dbt-semantic-interfaces', base: 'https://github.com/dbt-labs/dbt-semantic-interfaces/blob/main' },
+  'metricflow': { label: 'dbt-labs/metricflow',           base: 'https://github.com/dbt-labs/metricflow/blob/main' },
+  'cube':       { label: 'cube-js/cube',                  base: 'https://github.com/cube-js/cube/blob/master' },
+  'atlas':      { label: 'ATLAS (internal)',              base: null },
+  'ktx':        { label: 'Kaelio/ktx',                    base: 'https://github.com/Kaelio/ktx/blob/main' },
+}
+
+export interface CodeRef {
+  repo: RepoKey
+  /** path within the repo (e.g. `wren-ai-service/src/pipelines/generation/sql_generation.py`) */
+  path: string
+  /** optional line range — appended as `#L10-L20` */
+  lines?: [number, number]
+  /** override the displayed text (defaults to the file basename) */
+  label?: string
+}
+
+/** One vendor's concrete take on a public step. */
+export interface VendorTake {
+  vendor: string
+  school: VendorVariant['school']
+  /** primary axis (WrenAI / Cortex Analyst by default) — rendered first, slightly bolder */
+  primary?: boolean
+  /** one-liner of how this vendor does THIS step */
+  desc: string
+  /** optional longer explanation. String = plain prose; object = structured
+   *  summary + bullet list (rendered as a stylish "PeekPanel-style" expansion). */
+  detail?: string | VendorDetail
+  /** optional concrete example: code / YAML / SQL / shell snippet. Rendered as a code block when expanded. */
+  example?: {
+    /** language hint for syntax highlighting (yaml / sql / python / bash / json …) */
+    lang?: string
+    /** caption above the snippet */
+    caption?: string
+    /** the snippet body (newlines preserved) */
+    code: string
+  }
+  /** white-box: github file refs (rendered as clickable chips) */
+  code?: CodeRef[]
+  /** black-box: external evidence ids (resolved against a SourceCatalog if provided) */
+  refs?: string[]
+  /** optional structured diagram (rendered above the example block when present) */
+  diagram?: AdapterDiagram
+}
+
+/** Structured detail: a 1-line summary + bullet points + optional closing line. */
+export interface VendorDetail {
+  /** one-paragraph headline shown collapsed; clicking expands the bullets */
+  summary: string
+  /** ordered, expandable bullets */
+  bullets: VendorBullet[]
+  /** optional closing punchline (rendered emphasized below the bullets) */
+  closing?: string
+}
+
+export interface VendorBullet {
+  /** short label rendered bolder in front, e.g. "重命名列" / "选择性暴露" */
+  label: string
+  /** body of the bullet (one line preferred) */
+  body: string
+  /** optional small icon on the leading bullet marker */
+  icon?: string
+  /** accent color override (defaults to the active vendor's school accent) */
+  accent?: AccentKey
+}
+
+/** "Adapter" diagram — renders a physical table on the left, a logical model on the
+ *  right, and color-coded mapping lines in between.  Captures the four kinds of
+ *  exposure: rename / expose / hidden (no mapping line) / computed / relation. */
+export interface AdapterDiagram {
+  kind: 'adapter'
+  caption?: string
+  physical: {
+    label: string
+    sublabel?: string
+    columns: AdapterPhysicalCol[]
+  }
+  logical: {
+    label: string
+    sublabel?: string
+    columns: AdapterLogicalCol[]
+  }
+}
+
+export interface AdapterPhysicalCol {
+  name: string
+  type?: string
+  /** when true, render struck-through with "敏感/隐藏" badge — no mapping line out */
+  hidden?: boolean
+  /** semantic-only flag for the "敏感" red label (still hidden=true for layout) */
+  sensitive?: boolean
+}
+
+export interface AdapterLogicalCol {
+  name: string
+  /** how this column came to exist on the logical side */
+  kind: 'rename' | 'expose' | 'computed' | 'relation'
+  /** physical column name(s) it maps from (for rename/expose, single; computed/relation may be 0/many) */
+  from?: string | string[]
+  /** SQL expression (computed) or join hint (relation) — shown inline in monospace */
+  expr?: string
+  /** optional short note shown under the row */
+  note?: string
+}
+
+/** A "common-sense" step in the stage. Vendor takes are listed under it. */
+export interface Step {
+  id: string
+  /** short imperative label, e.g. `从 schema 起骨架` */
+  name: string
+  /** one-line description of the step */
+  desc: string
+  /** optional icon */
+  icon?: string
+  /** vendor-by-vendor takes; primaries appear first */
+  takes: VendorTake[]
+}
+
+/** A sub-question within a stage: the single design choice that splits vendors apart.
+ *  Two presentation modes:
+ *  - `variants[]`  (legacy):  group vendors by school
+ *  - `steps[]`     (preferred): public common-sense steps × per-vendor takes */
 export interface SubQuestion {
   id: string
   question: string
   /** short framing of why this question matters */
   why: string
-  /** one row per VARIANT (i.e. an "answer school"). Vendors get bucketed under variants. */
-  variants: { name: string; desc: string; vendors: string[]; accent: AccentKey }[]
+  variants?: { name: string; desc: string; vendors: string[]; accent: AccentKey }[]
+  steps?: Step[]
   /** our common-sense / opinion. NOT the same as a vendor — this is the framework's stance. */
   commonSense: string
+}
+
+/** Build a github URL from a CodeRef. Returns null for closed/unknown repos. */
+export function codeRefUrl(c: CodeRef): string | null {
+  const base = REPO_REGISTRY[c.repo]?.base
+  if (!base) return null
+  const line = c.lines ? `#L${c.lines[0]}-L${c.lines[1]}` : ''
+  return `${base}/${c.path}${line}`
+}
+
+/** Default chip text for a CodeRef (basename or last 2 path segments). */
+export function codeRefLabel(c: CodeRef): string {
+  if (c.label) return c.label
+  const segs = c.path.split('/')
+  return segs[segs.length - 1] ?? c.path
+}
+
+/** Axis classification: white-box (open codebase) vs black-box (managed/closed).
+ *  Used by the comm StageDetail to split each step's vendor takes into two
+ *  facing card decks (WrenAI vs Cortex Analyst as the two primaries). */
+export type VendorAxis = 'white' | 'black'
+
+export function vendorAxis(t: VendorTake): VendorAxis {
+  return t.school === 'managed-cloud' ? 'black' : 'white'
+}
+
+/** Split + sort vendor takes into the two axis decks; primaries first. */
+export function splitTakesByAxis(takes: VendorTake[]): { white: VendorTake[]; black: VendorTake[] } {
+  const white: VendorTake[] = []
+  const black: VendorTake[] = []
+  for (const t of takes) {
+    if (vendorAxis(t) === 'white') white.push(t)
+    else black.push(t)
+  }
+  const sortPrimaryFirst = (arr: VendorTake[]) =>
+    arr.sort((a, b) => Number(!!b.primary) - Number(!!a.primary))
+  return { white: sortPrimaryFirst(white), black: sortPrimaryFirst(black) }
 }
 
 /** A concrete stage drilled down: principles + ordered sub-questions + tradeoffs. */

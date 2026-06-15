@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ACCENTS, SCHOOL_META, getCommStage, type CommFlowDef } from '../../model/comm'
+import VendorStage from './VendorStage.vue'
 
 const props = defineProps<{ flow: CommFlowDef; showNotes?: boolean }>()
 const arch = computed(() => getCommStage(props.flow.id))
 const a = computed(() => ACCENTS[props.flow.accent])
 
-const gridCols = computed(() =>
+/** Layout when steps[] are present: vendor showcase takes ~80% */
+const stepGridCols = computed(() =>
+  props.showNotes
+    ? 'lg:grid-cols-[minmax(0,0.18fr)_minmax(0,1fr)]'
+    : 'lg:grid-cols-1',
+)
+/** Layout when legacy variants[] are present (kept for older flows) */
+const legacyGridCols = computed(() =>
   props.showNotes
     ? 'lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(0,0.95fr)]'
     : 'lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]',
@@ -57,42 +65,106 @@ const gridCols = computed(() =>
           <p class="text-[11.5px] text-gray-500 mt-1 leading-snug">{{ q.why }}</p>
         </div>
 
-        <!-- body grid -->
-        <div class="grid grid-cols-1 gap-x-5 gap-y-3 p-4 items-start" :class="gridCols">
+        <!-- body: steps[] use a vertical full-width vendor showcase; legacy variants[] keep 3-col grid -->
+        <div
+          v-if="q.steps && q.steps.length"
+          class="grid grid-cols-1 gap-x-5 gap-y-3 p-4 items-start"
+          :class="stepGridCols"
+        >
+          <div v-if="showNotes" class="hidden lg:block">
+            <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 px-3 py-2.5 sticky top-2">
+              <div class="flex items-center gap-1.5 mb-1">
+                <div class="i-lucide-sticky-note text-gray-400 text-xs" />
+                <span class="text-[10px] font-bold text-gray-500 tracking-wider">讲解备注</span>
+              </div>
+              <p class="text-[11px] text-gray-500 leading-relaxed">
+                公约数 {{ q.steps.length }} 步——每一步先看 <b class="text-emerald-700">白盒</b>（WrenAI 主轴）再看 <b class="text-blue-700">黑盒</b>（Cortex 主轴）。点 vendor pill 切产品；点 <code class="font-mono text-violet-600">file</code> 跳 GitHub，<code class="font-mono text-blue-600">[Sn]</code> 跳官方文档。
+              </p>
+              <p class="text-[10.5px] text-gray-500 leading-relaxed mt-2 pt-2 border-t border-dashed border-gray-200">
+                <b class="text-gray-600">DETAIL · ADAPTER · EXAMPLE 三块默认折叠</b>——讲框架时保持页面紧凑，需要展开哪一项再点对应横条。
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div
+              v-for="(step, si) in q.steps"
+              :key="step.id"
+              class="rounded-xl border border-gray-200 bg-white overflow-hidden"
+            >
+              <div class="px-3 py-2 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-transparent flex items-baseline gap-2">
+                <div
+                  class="w-5 h-5 rounded-md flex-center text-[10px] font-bold flex-shrink-0"
+                  :class="[a.iconBg, a.iconText]"
+                >
+                  {{ si + 1 }}
+                </div>
+                <div :class="[step.icon ?? 'i-lucide-circle-dot', a.text, 'text-sm flex-shrink-0']" />
+                <span class="text-[12.5px] font-bold text-gray-800">{{ step.name }}</span>
+                <span class="text-[10.5px] text-gray-500 leading-snug ml-1">{{ step.desc }}</span>
+              </div>
+
+              <div class="p-3">
+                <VendorStage
+                  :takes="step.takes"
+                  :scope-key="q.id + '::' + step.id"
+                />
+              </div>
+            </div>
+
+            <!-- common-sense block stays under the showcase for steps[] mode -->
+            <div class="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50/70 to-white p-3.5">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <div class="i-lucide-lightbulb text-rose-500 text-sm" />
+                <span class="text-[11px] font-bold tracking-wider text-rose-600">COMMON SENSE</span>
+              </div>
+              <p class="text-[12px] text-gray-700 leading-relaxed">{{ q.commonSense }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- legacy variants[] body grid -->
+        <div
+          v-else
+          class="grid grid-cols-1 gap-x-5 gap-y-3 p-4 items-start"
+          :class="legacyGridCols"
+        >
           <div v-if="showNotes" class="hidden lg:block">
             <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 px-3 py-2.5">
               <div class="flex items-center gap-1.5 mb-1">
                 <div class="i-lucide-sticky-note text-gray-400 text-xs" />
                 <span class="text-[10px] font-bold text-gray-500 tracking-wider">讲解备注</span>
               </div>
-              <p class="text-[11px] text-gray-500 leading-relaxed">
+              <p v-if="q.variants?.length" class="text-[11px] text-gray-500 leading-relaxed">
                 这一问把这个 stage 在不同体系下"怎么实现"细分成 {{ q.variants.length }} 种取舍。每种取舍下面列出有代表性的产品。
               </p>
             </div>
           </div>
 
-          <!-- variants: each variant is a horizontal row showing vendors bucketed under it -->
+          <!-- variants: data-driven body -->
           <div class="space-y-2">
-            <div
-              v-for="v in q.variants"
-              :key="v.name"
-              class="rounded-xl border p-2.5"
-              :class="ACCENTS[v.accent].surface"
-            >
-              <div class="flex items-baseline gap-2 mb-1">
-                <div class="w-1.5 h-1.5 rounded-full" :class="ACCENTS[v.accent].dot" />
-                <span class="text-[12.5px] font-bold text-gray-800">{{ v.name }}</span>
-                <span class="text-[10.5px] text-gray-500 ml-1.5 leading-snug">{{ v.desc }}</span>
+            <template v-if="q.variants">
+              <div
+                v-for="v in q.variants"
+                :key="v.name"
+                class="rounded-xl border p-2.5"
+                :class="ACCENTS[v.accent].surface"
+              >
+                <div class="flex items-baseline gap-2 mb-1">
+                  <div class="w-1.5 h-1.5 rounded-full" :class="ACCENTS[v.accent].dot" />
+                  <span class="text-[12.5px] font-bold text-gray-800">{{ v.name }}</span>
+                  <span class="text-[10.5px] text-gray-500 ml-1.5 leading-snug">{{ v.desc }}</span>
+                </div>
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                  <span
+                    v-for="ven in v.vendors"
+                    :key="ven"
+                    class="px-2 py-0.5 rounded-md text-[10.5px] font-mono font-semibold border bg-white"
+                    :class="ACCENTS[v.accent].text + ' border-' + v.accent + '-200'"
+                  >{{ ven }}</span>
+                </div>
               </div>
-              <div class="flex flex-wrap gap-1 mt-1.5">
-                <span
-                  v-for="ven in v.vendors"
-                  :key="ven"
-                  class="px-2 py-0.5 rounded-md text-[10.5px] font-mono font-semibold border bg-white"
-                  :class="ACCENTS[v.accent].text + ' border-' + v.accent + '-200'"
-                >{{ ven }}</span>
-              </div>
-            </div>
+            </template>
           </div>
 
           <!-- commonSense: our framework opinion -->

@@ -123,6 +123,8 @@ export interface ArchNode {
   span?: number
   /** backend source files this node maps to (for future "view code") */
   codeRefs?: string[]
+  /** evidence source IDs (used by black-box vendor decks like Databricks/Snowflake) */
+  refs?: string[]
 }
 
 export interface ArchLayer {

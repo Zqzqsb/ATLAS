@@ -59,6 +59,22 @@ const router = createRouter({
       meta: { title: 'ATLAS - Context Layer Framework' }
     },
 
+    // Databricks Architecture (black-box deck w/ external evidence)
+    {
+      path: '/databricks',
+      name: 'Databricks',
+      component: () => import('@/features/databricks/index.vue'),
+      meta: { title: 'ATLAS - Databricks Architecture' }
+    },
+
+    // Snowflake Architecture (black-box deck w/ external evidence)
+    {
+      path: '/snowflake',
+      name: 'Snowflake',
+      component: () => import('@/features/snowflake/index.vue'),
+      meta: { title: 'ATLAS - Snowflake Architecture' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

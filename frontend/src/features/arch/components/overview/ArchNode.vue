@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, type InjectionKey } from 'vue'
 import { ACCENTS, type ArchNode } from '../../model/architecture'
+import EvidenceChip from '../module/diagram/EvidenceChip.vue'
+import type { SourceCatalog } from '../module/diagram/evidence-types'
+
+export const SOURCE_CATALOG_KEY: InjectionKey<SourceCatalog> = Symbol('source-catalog')
 
 const props = defineProps<{ node: ArchNode }>()
 const emit = defineEmits<{ select: [node: ArchNode, ev: MouseEvent] }>()
 
 const a = computed(() => ACCENTS[props.node.accent])
 const drillable = computed(() => !!props.node.flow)
+const catalog = inject(SOURCE_CATALOG_KEY, null)
 
 function onClick(ev: MouseEvent) {
   if (!drillable.value) return
@@ -32,6 +37,13 @@ function onClick(ev: MouseEvent) {
       <div class="flex-1 min-w-0">
         <div class="text-sm font-bold text-gray-800 leading-tight truncate">{{ node.label }}</div>
         <div v-if="node.sublabel" class="text-xs text-gray-400 mt-0.5 leading-snug">{{ node.sublabel }}</div>
+        <EvidenceChip
+          v-if="node.refs && node.refs.length && catalog"
+          class="mt-1.5"
+          :refs="node.refs"
+          :catalog="catalog"
+          size="xs"
+        />
       </div>
     </div>
 

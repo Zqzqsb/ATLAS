@@ -33,6 +33,7 @@ const a = computed(() => ACCENTS[props.accent])
           <span v-if="role" class="px-2 py-0.5 rounded-full text-[11px] font-semibold border" :class="a.chip">{{ role }}</span>
         </div>
         <span v-if="badge" class="text-xs font-mono font-bold flex-shrink-0" :class="a.text">{{ badge }}</span>
+        <slot name="refs" />
       </div>
       <slot />
     </div>

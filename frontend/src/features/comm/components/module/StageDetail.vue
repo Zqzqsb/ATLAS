@@ -24,9 +24,12 @@ const legacyGridCols = computed(() =>
 <template>
   <div v-if="arch">
     <!-- ════ Top: stage abstract + principles strip ════ -->
-    <div class="rounded-2xl border bg-white px-5 py-4 mb-4" :class="a.surface">
-      <div class="flex items-start gap-3">
-        <div class="i-lucide-quote text-2xl flex-shrink-0" :class="a.text" />
+    <div class="relative rounded-2xl border px-5 py-4 mb-4 overflow-hidden shadow-sm" :class="a.surface">
+      <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b" :class="a.gradient" />
+      <div class="flex items-start gap-3 pl-1.5">
+        <div class="w-9 h-9 rounded-lg flex-center flex-shrink-0 bg-gradient-to-br text-white shadow-sm" :class="a.gradient">
+          <div class="i-lucide-quote text-lg" />
+        </div>
         <p class="text-[13px] text-gray-700 leading-relaxed font-medium">{{ arch.abstract }}</p>
       </div>
     </div>
@@ -35,15 +38,17 @@ const legacyGridCols = computed(() =>
       <div
         v-for="(p, i) in arch.principles"
         :key="p.name"
-        class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50/60 px-3 py-2.5"
+        class="relative rounded-xl border overflow-hidden px-3 py-2.5 pl-4 shadow-sm"
+        :class="a.surface"
       >
+        <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b" :class="a.gradient" />
         <div class="flex items-center gap-1.5 mb-1">
-          <div class="w-5 h-5 rounded-md flex-center text-[10px] font-bold" :class="[a.iconBg, a.iconText]">
+          <div class="w-5 h-5 rounded-md flex-center text-[10px] font-bold text-white bg-gradient-to-br shadow-sm" :class="a.gradient">
             {{ i + 1 }}
           </div>
           <span class="text-[12px] font-bold text-gray-800 leading-tight">{{ p.name }}</span>
         </div>
-        <p class="text-[11px] text-gray-500 leading-relaxed">{{ p.desc }}</p>
+        <p class="text-[11px] text-gray-600 leading-relaxed">{{ p.desc }}</p>
       </div>
     </div>
 
@@ -52,12 +57,14 @@ const legacyGridCols = computed(() =>
       <div
         v-for="(q, qi) in arch.subQuestions"
         :key="q.id"
-        class="rounded-2xl border border-gray-200 bg-white overflow-hidden"
+        class="relative rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm"
       >
+        <!-- accent left rail -->
+        <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b" :class="a.gradient" />
         <!-- header -->
-        <div class="px-5 py-3 border-b border-gray-100 bg-gradient-to-r" :class="`from-${flow.accent}-50/50 to-transparent`">
+        <div class="px-5 py-3 border-b border-gray-100 pl-6" :class="a.surface">
           <div class="flex items-baseline gap-2.5">
-            <div class="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded" :class="[a.chip]">
+            <div class="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded text-white bg-gradient-to-br shadow-sm" :class="a.gradient">
               Q{{ qi + 1 }}
             </div>
             <h3 class="text-[15px] font-extrabold text-gray-900 leading-tight">{{ q.question }}</h3>
@@ -90,12 +97,14 @@ const legacyGridCols = computed(() =>
             <div
               v-for="(step, si) in q.steps"
               :key="step.id"
-              class="rounded-xl border border-gray-200 bg-white overflow-hidden"
+              class="relative rounded-xl border bg-white overflow-hidden shadow-sm"
+              :class="a.surface"
             >
-              <div class="px-3 py-2 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-transparent flex items-baseline gap-2">
+              <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b" :class="a.gradient" />
+              <div class="px-3 py-2 border-b border-gray-100 flex items-baseline gap-2 pl-4" :class="a.surface">
                 <div
-                  class="w-5 h-5 rounded-md flex-center text-[10px] font-bold flex-shrink-0"
-                  :class="[a.iconBg, a.iconText]"
+                  class="w-5 h-5 rounded-md flex-center text-[10px] font-bold flex-shrink-0 bg-gradient-to-br text-white shadow-sm"
+                  :class="a.gradient"
                 >
                   {{ si + 1 }}
                 </div>
@@ -104,7 +113,7 @@ const legacyGridCols = computed(() =>
                 <span class="text-[10.5px] text-gray-500 leading-snug ml-1">{{ step.desc }}</span>
               </div>
 
-              <div class="p-3">
+              <div class="p-3 pl-4">
                 <VendorStage
                   :takes="step.takes"
                   :scope-key="q.id + '::' + step.id"

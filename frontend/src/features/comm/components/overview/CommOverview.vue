@@ -72,11 +72,19 @@ function onNodeClick(node: ArchNode, ev: MouseEvent) {
 
     <!-- Layered stack -->
     <template v-for="(layer, idx) in COMM_LAYERS" :key="layer.id">
-      <div class="rounded-2xl border bg-white px-5 py-4" :class="layerAccentClasses(layer).surface">
+      <div
+        class="relative rounded-2xl border px-5 py-4 overflow-hidden shadow-sm"
+        :class="layerAccentClasses(layer).surface"
+      >
+        <!-- accent left rail -->
+        <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b" :class="layerAccentClasses(layer).gradient" />
         <!-- layer header -->
-        <div class="flex items-baseline gap-2 mb-3">
-          <div class="w-8 h-8 rounded-lg flex-center flex-shrink-0" :class="layerAccentClasses(layer).iconBg">
-            <div :class="[layer.icon, layerAccentClasses(layer).iconText, 'text-base']" />
+        <div class="flex items-baseline gap-2 mb-3 pl-1.5">
+          <div
+            class="w-8 h-8 rounded-lg flex-center flex-shrink-0 bg-gradient-to-br text-white shadow-sm"
+            :class="layerAccentClasses(layer).gradient"
+          >
+            <div :class="[layer.icon, 'text-base text-white']" />
           </div>
           <div class="flex-1 min-w-0">
             <div class="text-[15px] font-extrabold text-gray-900 leading-tight">{{ layer.title }}</div>
@@ -88,21 +96,27 @@ function onNodeClick(node: ArchNode, ev: MouseEvent) {
         </div>
 
         <!-- nodes -->
-        <div class="grid gap-2" :class="gridColsClass(layer.cols)">
+        <div class="grid gap-2 pl-1.5" :class="gridColsClass(layer.cols)">
           <button
             v-for="node in layer.nodes"
             :key="node.id"
             type="button"
-            class="rounded-xl border bg-white px-3 py-2.5 text-left transition-all hover:shadow-sm"
+            class="relative rounded-xl border bg-white/70 backdrop-blur-sm pl-4 pr-3 py-2.5 text-left transition-all hover:shadow-md overflow-hidden"
             :class="nodeAccentClasses(node)"
             @click="(ev) => onNodeClick(node, ev)"
           >
+            <div class="absolute left-0 top-0 bottom-0 w-1" :class="ACCENTS[node.accent].dot" />
             <div class="flex items-center gap-1.5 mb-0.5">
-              <div :class="[node.icon, ACCENTS[node.accent].text, 'text-sm flex-shrink-0']" />
+              <div
+                class="w-5 h-5 rounded-md flex-center flex-shrink-0"
+                :class="ACCENTS[node.accent].iconBg"
+              >
+                <div :class="[node.icon, ACCENTS[node.accent].iconText, 'text-[12px]']" />
+              </div>
               <span class="text-[12.5px] font-bold text-gray-800 leading-tight">{{ node.label }}</span>
-              <div v-if="node.flow" class="i-lucide-chevron-right text-gray-300 text-xs ml-auto" />
+              <div v-if="node.flow" class="i-lucide-chevron-right text-xs ml-auto" :class="ACCENTS[node.accent].text" />
             </div>
-            <div v-if="node.sublabel" class="text-[10.5px] text-gray-500 leading-snug">{{ node.sublabel }}</div>
+            <div v-if="node.sublabel" class="text-[10.5px] text-gray-500 leading-snug pl-6">{{ node.sublabel }}</div>
           </button>
         </div>
       </div>

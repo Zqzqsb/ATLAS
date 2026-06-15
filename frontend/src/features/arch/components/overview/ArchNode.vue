@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, type InjectionKey } from 'vue'
+import { computed, inject } from 'vue'
 import { ACCENTS, type ArchNode } from '../../model/architecture'
 import EvidenceChip from '../module/diagram/EvidenceChip.vue'
-import type { SourceCatalog } from '../module/diagram/evidence-types'
-
-export const SOURCE_CATALOG_KEY: InjectionKey<SourceCatalog> = Symbol('source-catalog')
+import { SOURCE_CATALOG_KEY } from './source-catalog'
 
 const props = defineProps<{ node: ArchNode }>()
 const emit = defineEmits<{ select: [node: ArchNode, ev: MouseEvent] }>()

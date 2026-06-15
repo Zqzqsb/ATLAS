@@ -3,7 +3,7 @@ import { provide } from 'vue'
 import { DBX_LAYERS, type ArchNode } from '../../model/architecture'
 import { SOURCES } from '../../model/sources'
 import ArchLayer from '../../../arch/components/overview/ArchLayer.vue'
-import { SOURCE_CATALOG_KEY } from '../../../arch/components/overview/ArchNode.vue'
+import { SOURCE_CATALOG_KEY } from '../../../arch/components/overview/source-catalog'
 
 defineEmits<{ select: [node: ArchNode, ev: MouseEvent] }>()
 

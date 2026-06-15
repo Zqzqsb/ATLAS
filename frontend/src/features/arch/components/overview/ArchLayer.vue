@@ -13,13 +13,13 @@ const gridStyle = computed(() => ({
 </script>
 
 <template>
-  <section class="rounded-2xl border overflow-hidden" :class="a.surface">
-    <div class="h-1" :class="a.bar" />
+  <section class="rounded-2xl border overflow-hidden shadow-sm" :class="a.surface">
+    <div class="h-1.5 bg-gradient-to-r" :class="a.gradient" />
     <div class="px-4 pt-3 pb-3">
       <!-- Layer header -->
       <div class="flex items-center gap-2 mb-3">
-        <div class="w-6 h-6 rounded-md flex-center" :class="a.iconBg">
-          <div :class="[layer.icon, a.iconText, 'text-sm']" />
+        <div class="w-7 h-7 rounded-lg flex-center bg-gradient-to-br text-white shadow-sm" :class="a.gradient">
+          <div :class="[layer.icon, 'text-sm text-white']" />
         </div>
         <span class="text-sm font-bold text-gray-700">{{ layer.title }}</span>
         <span v-if="layer.subtitle" class="text-xs text-gray-400">· {{ layer.subtitle }}</span>

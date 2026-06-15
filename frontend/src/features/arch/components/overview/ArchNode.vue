@@ -20,7 +20,7 @@ function onClick(ev: MouseEvent) {
 <template>
   <component
     :is="drillable ? 'button' : 'div'"
-    class="group relative w-full h-full text-left rounded-xl border bg-white px-3.5 py-3 transition-all duration-200"
+    class="group relative w-full h-full text-left rounded-xl border bg-white pl-4 pr-3.5 py-3 transition-all duration-200 overflow-hidden"
     :class="[
       drillable
         ? `cursor-pointer border-gray-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md ${a.hover}`
@@ -28,9 +28,10 @@ function onClick(ev: MouseEvent) {
     ]"
     @click="onClick"
   >
+    <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b" :class="a.gradient" />
     <div class="flex items-start gap-2.5">
-      <div class="w-8 h-8 rounded-lg flex-center flex-shrink-0" :class="a.iconBg">
-        <div :class="[node.icon, a.iconText, 'text-base']" />
+      <div class="w-8 h-8 rounded-lg flex-center flex-shrink-0 bg-gradient-to-br text-white shadow-sm" :class="a.gradient">
+        <div :class="[node.icon, 'text-base text-white']" />
       </div>
       <div class="flex-1 min-w-0">
         <div class="text-sm font-bold text-gray-800 leading-tight truncate">{{ node.label }}</div>

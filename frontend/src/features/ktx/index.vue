@@ -39,7 +39,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="ktx-page bg-gradient-to-b from-slate-50/60 to-white">
+  <div class="ktx-page bg-gradient-to-br from-slate-100 via-amber-50/40 to-emerald-50/30">
     <div class="bg-white/80 backdrop-blur border-b border-gray-200/80 px-8 py-3 flex-shrink-0">
       <div class="max-w-5xl mx-auto flex items-center gap-2 text-sm">
         <button

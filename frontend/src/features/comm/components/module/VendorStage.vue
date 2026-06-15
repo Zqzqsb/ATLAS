@@ -150,6 +150,14 @@ function toggleExample() {
           class="text-[9px] font-bold tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded leading-none"
         >主轴</span>
         <span
+          v-if="active.notSupported"
+          class="text-[9px] font-bold tracking-wider text-gray-600 bg-gray-100 border border-gray-300 px-1.5 py-0.5 rounded leading-none"
+        >不形式化</span>
+        <span
+          v-else-if="active.selfContained"
+          class="text-[9px] font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded leading-none"
+        >一句话契约</span>
+        <span
           class="text-[10.5px] font-mono"
           :class="ACCENTS[SCHOOL_META[active.school].accent].text"
         >{{ SCHOOL_META[active.school].label }}</span>
@@ -279,11 +287,36 @@ function toggleExample() {
         </Transition>
       </div>
 
+      <!-- explicit "this vendor does NOT do this step" -->
       <div
-        v-if="!active.detail && !active.example"
-        class="text-[11.5px] text-gray-400 italic px-1"
+        v-if="active.notSupported"
+        class="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 mt-1"
       >
-        （这家在本步骤的细节尚未展开）
+        <div class="flex items-center gap-1.5 mb-1">
+          <div class="i-lucide-minus-circle text-gray-500 text-[12px]" />
+          <span class="text-[10px] font-bold tracking-wider text-gray-500">这一步不做</span>
+        </div>
+        <p class="text-[11.5px] text-gray-600 leading-relaxed">
+          <InlineCode :text="active.notSupported" />
+        </p>
+      </div>
+
+      <!-- explicit "one-liner is enough" — no fallback hint, contract is desc -->
+      <div
+        v-else-if="active.selfContained && !active.detail && !active.example"
+        class="text-[10.5px] text-emerald-700/80 px-1 mt-1 flex items-center gap-1"
+      >
+        <div class="i-lucide-check-circle-2 text-[11px]" />
+        <span>一句话即契约 · 无需展开</span>
+      </div>
+
+      <!-- implicit gap: we just haven't drilled down yet -->
+      <div
+        v-else-if="!active.detail && !active.example && !active.diagram"
+        class="text-[10.5px] text-gray-400 italic px-1 mt-1 flex items-center gap-1"
+      >
+        <div class="i-lucide-more-horizontal text-[11px]" />
+        <span>详细 detail / example 待补充（这家做这一步，但还没下钻）</span>
       </div>
     </div>
   </div>

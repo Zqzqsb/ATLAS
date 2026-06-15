@@ -727,7 +727,8 @@ columns:
             {
               vendor: 'Databricks UC',
               school: 'managed-cloud',
-              desc: 'Metric View 内联写 join 子句（`source` query 自带）。无独立 `relationships` 概念。',
+              desc: 'Databricks Metric View 不引入独立的 `relationships` 概念——join 子句直接内联写在 Metric View 的 `source` query 里。',
+              notSupported: '不形式化"关系"为一等公民；每个 metric view 各自带 join，跨 view 共享 join 图需要重复 SQL。',
               refs: ['dbx-mv-ref'],
             },
             {
@@ -880,7 +881,8 @@ dimensions:
             {
               vendor: 'ATLAS',
               school: 'agentic',
-              desc: '当前主要靠 RC business_context 自由文本描述指标含义；尚未形式化 measure 节点。',
+              desc: '当前 ATLAS 不形式化指标 / measure——指标含义靠 RC `business_context` 自由文本承载，依赖 LLM 在 prompt 里"读懂"。',
+              notSupported: '当前不形式化 measure 节点；同义指标走 prompt + 业务规则文本表达，没有引擎"执法"的硬约束。',
             },
             {
               vendor: 'ktx',
@@ -1026,7 +1028,8 @@ $ wren skill enrich-context propose --apply
             {
               vendor: 'dbt SL',
               school: 'semantic-layer',
-              desc: '`description` 字段是自由文本；同义词无原生位置（社区方案：用 meta tag）。',
+              desc: 'dbt SL 没给"同义词"一等位置——`description` 字段写自由文本，社区惯例是塞进 `meta` tag。',
+              notSupported: '不形式化 synonyms；上游消费方（NL2SQL 工具）需要自行从 description / meta 里抽取，没有 schema 强约束。',
             },
             {
               vendor: 'ktx',
@@ -2100,7 +2103,8 @@ else:
             {
               vendor: 'dbt SL',
               school: 'semantic-layer',
-              desc: '由消费方（Hex / Tableau / 自建）维护 example 库——dbt SL 自身不管。',
+              desc: 'dbt SL 自身不做 VQR / few-shot——把"问题→SQL"的 example 库交给消费方（Hex / Tableau / 自建 BI）。',
+              notSupported: 'dbt SL 自身不维护 NL→SQL 的 example 库；这层职责被外包给上游消费方，是"语义层只管语义、不管自然语言"的取舍。',
             },
             {
               vendor: 'ktx',

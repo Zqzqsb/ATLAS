@@ -405,6 +405,16 @@ export interface VendorTake {
   refs?: string[]
   /** optional structured diagram (rendered above the example block when present) */
   diagram?: AdapterDiagram
+  /** Explicit "this vendor does NOT do this step" marker — distinct from
+   *  "we just haven't drilled down". When set, the card renders a muted
+   *  "不形式化 / 不做" badge + the string as the gap explanation, no
+   *  "尚未补充" hint. Falsy + missing detail/example = "drill-down can be
+   *  added later". */
+  notSupported?: string
+  /** Explicit "one-liner is enough — no drill-down needed" marker. The
+   *  card hides the gray fallback hint entirely; consumers know desc
+   *  alone is the contract for this vendor's take. */
+  selfContained?: boolean
 }
 
 /** Structured detail: a 1-line summary + bullet points + optional closing line. */

@@ -125,6 +125,9 @@ export interface ArchNode {
   codeRefs?: string[]
   /** evidence source IDs (used by black-box vendor decks like Databricks/Snowflake) */
   refs?: string[]
+  /** optional mini-UI scenario used by the Interaction showcase TV
+   *  (see features/comm/model/comm.ts → InteractionScenario). */
+  scenario?: import('../../comm/model/comm').InteractionScenario
 }
 
 export interface ArchLayer {

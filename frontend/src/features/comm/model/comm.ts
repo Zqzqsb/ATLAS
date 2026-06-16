@@ -7,6 +7,51 @@ import type { Insight, NamedItem } from '../../arch/model/modules'
 
 export { ACCENTS }
 export type { Accent, AccentKey, ArchLayer, ArchNode, Insight, NamedItem }
+
+/** A "fake UI" fragment rendered inside the Interaction showcase TV.
+ *  Each fragment is a self-contained <template> block keyed by `kind`,
+ *  so the showcase can swap implementations without re-typing huge
+ *  class strings. */
+export type InteractionScenario =
+  | {
+      kind: 'chat'
+      /** the user message bubble */
+      userMsg: string
+      /** the assistant's typed-out reply, with a highlighted SQL line + a "执行" button */
+      assistantSql: string
+      /** one-line clarification the bot asked (or null if it didn't need to) */
+      clarification?: string
+    }
+  | {
+      kind: 'mcp'
+      /** function-calling toolbelt — agent picks tools to call */
+      tools: { name: string; icon: string; status: 'idle' | 'calling' | 'done'; output?: string }[]
+      /** one LLM reasoning line that prompted the tool calls */
+      reasoning: string
+    }
+  | {
+      kind: 'ide'
+      /** git-diff style: left = old SQL, right = new generated SQL, with green/red inline diff */
+      oldLine: string
+      newLines: string[]
+      /** labels: file + commit-style header */
+      filePath: string
+      commitMsg: string
+    }
+  | {
+      kind: 'bi'
+      /** rendered bar chart with mock bars + a chart caption explaining what the user asked */
+      caption: string
+      bars: { label: string; value: number; highlight?: boolean }[]
+      /** data row hint below chart (axis labels) */
+      xLabel: string
+      yLabel: string
+    }
+
+/** Augment an ArchNode with a mini-UI scenario used by InteractionShowcase.
+ *  (We actually add the optional field directly to ArchNode in
+ *   features/arch/model/architecture.ts to avoid module-augmentation
+ *   friction with TS path mapping.) */
 /* ─── L0: 通用 Context-Layer 构建框架 · 6 个核心环节按问答时间线串起来 ─── */
 export const COMM_LAYERS: ArchLayer[] = [
   {
@@ -25,6 +70,13 @@ export const COMM_LAYERS: ArchLayer[] = [
         accent: 'slate',
         flow: 'ux',
         span: 1,
+        scenario: {
+          kind: 'chat',
+          userMsg: '上个月华东区复购用户的客单价趋势怎么样？',
+          clarification: '"复购" 是按 30 天 / 90 天 / 终身?  还是说历史上下过 ≥2 单的客户?',
+          assistantSql:
+            'SELECT date_trunc(\'week\', o.ordered_at) AS wk,\n       avg(o.total_amount)              AS aov\nFROM   prod.orders o\nJOIN   prod.customers c USING (customer_id)\nWHERE  c.region = \'east-china\'\n  AND  c.is_repeat = true\nGROUP  BY 1 ORDER BY 1;',
+        },
       },
       {
         id: 'agent-tool',
@@ -34,6 +86,16 @@ export const COMM_LAYERS: ArchLayer[] = [
         accent: 'slate',
         flow: 'ux',
         span: 1,
+        scenario: {
+          kind: 'mcp',
+          reasoning: '"上个月客单价" 需要：① 找到 orders 表 ② 解析 "上个月" → 时间过滤 ③ 聚合 avg(total_amount)',
+          tools: [
+            { name: 'list_tables',         icon: 'i-lucide-database', status: 'done',   output: 'orders, customers, products' },
+            { name: 'get_schema:orders',   icon: 'i-lucide-table-2',  status: 'done',   output: '21 columns' },
+            { name: 'nl2sql',              icon: 'i-lucide-wand-2',   status: 'calling' },
+            { name: 'dry_run_sql',         icon: 'i-lucide-flask-conical', status: 'idle' },
+          ],
+        },
       },
       {
         id: 'ide-cli',
@@ -43,6 +105,19 @@ export const COMM_LAYERS: ArchLayer[] = [
         accent: 'slate',
         flow: 'ux',
         span: 1,
+        scenario: {
+          kind: 'ide',
+          filePath: 'semantic/cubes/orders.yml',
+          commitMsg: 'feat(cubes): add aov + is_repeat derived measures',
+          oldLine: '# (无 aov / is_repeat measure)',
+          newLines: [
+            'measures:',
+            '  - name: aov',
+            '    expr: "SUM(amount) / NULLIF(COUNT(DISTINCT order_id), 0)"',
+            '  - name: is_repeat',
+            '    expr: "COUNT(DISTINCT order_id) >= 2"',
+          ],
+        },
       },
       {
         id: 'bi-embed',
@@ -52,6 +127,18 @@ export const COMM_LAYERS: ArchLayer[] = [
         accent: 'slate',
         flow: 'ux',
         span: 1,
+        scenario: {
+          kind: 'bi',
+          caption: '上个月 · 华东区 · 复购客单价（万元）',
+          xLabel: '周',
+          yLabel: 'AOV (¥)',
+          bars: [
+            { label: 'W1', value: 412 },
+            { label: 'W2', value: 458 },
+            { label: 'W3', value: 521, highlight: true },
+            { label: 'W4', value: 487 },
+          ],
+        },
       },
     ],
   },

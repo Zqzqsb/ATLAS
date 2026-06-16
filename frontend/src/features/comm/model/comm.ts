@@ -442,7 +442,7 @@ export interface VendorVariant {
 
 /* ─── Code-ref system: chips that auto-link to a public github file ─── */
 
-export type RepoKey = 'wrenai' | 'dbt-sl' | 'cube' | 'atlas' | 'ktx' | 'metricflow'
+export type RepoKey = 'wrenai' | 'dbt-sl' | 'cube' | 'atlas' | 'ktx' | 'metricflow' | 'okf'
 
 /** Public-repo registry — codebases we can deep-link into.
  *  Vendors that are closed-source (Snowflake, Databricks, Fabric, Oracle …)
@@ -454,6 +454,7 @@ export const REPO_REGISTRY: Record<RepoKey, { label: string; base: string | null
   'cube':       { label: 'cube-js/cube',                  base: 'https://github.com/cube-js/cube/blob/master' },
   'atlas':      { label: 'ATLAS (internal)',              base: null },
   'ktx':        { label: 'Kaelio/ktx',                    base: 'https://github.com/Kaelio/ktx/blob/main' },
+  'okf':        { label: 'GoogleCloudPlatform/knowledge-catalog', base: 'https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main' },
 }
 
 export interface CodeRef {

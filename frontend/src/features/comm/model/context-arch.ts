@@ -601,6 +601,77 @@ $ ktx mcp start            # 起 MCP，给 agent 用`,
                 { repo: 'ktx', path: 'packages/cli/src/context', label: 'context engine' },
               ],
             },
+            {
+              vendor: 'OKF · GoogleCloudPlatform',
+              school: 'open-context',
+              primary: false,
+              desc: 'OKF 把"语义"定义为 **一个 .md 文件 = 一个 concept**（YAML frontmatter + Markdown body）；无 schema 强约束，type/title/desc/resource/tags 由 producer 自由约定。',
+              detail: {
+                summary:
+                  'OKF (Open Knowledge Format) 是 Google 在 knowledge-catalog 仓库里推出的 vendor-neutral 元数据目录格式。它故意不立 schema，而是用"一个 .md 一个 concept"做最小公约数：frontmatter `type` 字段是路由键，其余字段 KV 自由扩展；body 用标准 Markdown 加 `# Schema` / `# Examples` / `# Citations` 等约定 heading。bundle = 一棵 .md 目录树，可 git 化、可 tarball 分发。',
+                bullets: [
+                  {
+                    label: '一个 .md = 一个 entity',
+                    icon: 'i-lucide-file-text',
+                    accent: 'slate',
+                    body: '最小知识单元就是文件——`type: BigQuery Table` 的 .md 描述一张表，`type: Playbook` 的 .md 描述一次应急流程。`type` 值不注册，consumers MUST 容忍未知 type。',
+                  },
+                  {
+                    label: 'Path-as-ID',
+                    icon: 'i-lucide-route',
+                    accent: 'violet',
+                    body: '概念 ID = 文件相对 bundle 路径去 .md 后缀——git mv / refactor 全部天然支持，不会出现"rename 改 ID 然后所有 link 断"的灾难。',
+                  },
+                  {
+                    label: 'Frontmatter = 小 schema',
+                    icon: 'i-lucide-list-tree',
+                    accent: 'emerald',
+                    body: '`type` 必填（消费方路由键）；`title` / `description` / `resource` / `tags` 推荐；任何其它字段都能自由加，consumers 不能因 schema 升级拒绝旧 bundle。',
+                  },
+                  {
+                    label: 'No type registry',
+                    icon: 'i-lucide-unplug',
+                    accent: 'amber',
+                    body: '跟 MDL / Cube DSL / dbt SL 不同——OKF 不规定 type 集合，也不规定"指标" / "维度" / "关系" 字段。MetricView、Playbook、Incident 都可以是 type 之一。',
+                  },
+                ],
+                closing:
+                  '一句话：OKF 是"元数据目录的 Markdown 化"——牺牲结构化换取 vendor-neutral / Git 化 / 人和 Agent 都能读。比 MDL 弱、比 Atlas RC 强，正好占生态空位。',
+              },
+              example: {
+                lang: 'yaml',
+                caption: 'okf/bundles/ga4/tables/events_.md · 真实 OKF concept',
+                code: `---
+type: BigQuery Table
+title: GA4 Events
+description: One row per GA4 event (pageview, purchase, add_to_cart, ...) from the obfuscated e-commerce sample.
+resource: bigquery://ga4-obfuscated-sample-ecommerce.analytics_249147898.events_
+tags: [ga4, events, web-analytics]
+timestamp: 2026-05-28T14:30:00Z
+---
+
+# Schema
+
+| Column         | Type      | Description                                  |
+|----------------|-----------|----------------------------------------------|
+| event_name     | STRING    | e.g. "page_view", "purchase", "add_to_cart". |
+| event_date     | DATE      | UTC date the event was logged.               |
+| user_pseudo_id | STRING    | GA4 client id (pseudonymous).                |
+
+# Joins
+
+Joined with [users](/tables/users.md) on \`user_pseudo_id\`.
+
+# Citations
+
+[1] [GA4 BigQuery export schema](https://support.google.com/analytics/answer/7029846)`,
+              },
+              code: [
+                { repo: 'okf', path: 'okf/SPEC.md', label: 'OKF SPEC v0.1' },
+                { repo: 'okf', path: 'okf/bundles/ga4/tables/events_.md', label: 'bundles/ga4/tables/events_.md' },
+                { repo: 'okf', path: 'okf/README.md', label: 'README (Why OKF?)' },
+              ],
+            },
           ],
         },
         {
@@ -2149,6 +2220,7 @@ else:
       { vendor: 'Databricks UC', school: 'managed-cloud', cells: ['Metric Views', '云内', '仓内', '内置'] },
       { vendor: 'Fabric DA', school: 'managed-cloud', cells: ['Business Semantics', '云内', '仓内', '内置'] },
       { vendor: 'ktx', school: 'open-context', cells: ['SL YAML + wiki MD', 'CLI introspect + 已有源', 'Git + .ktx 索引', 'BM25 + 向量 hybrid'] },
+      { vendor: 'OKF · GoogleCloudPlatform', school: 'open-context', cells: ['OKF .md (YAML+MD)', 'enrichment_agent (BQ/Web)', 'Git (文件即资产)', 'FTS / embed / link 任意'] },
     ],
   },
 }

@@ -75,6 +75,14 @@ const router = createRouter({
       meta: { title: 'ATLAS - Snowflake Architecture' }
     },
 
+    // OKF (Open Knowledge Format) — GoogleCloudPlatform/knowledge-catalog
+    {
+      path: '/okf',
+      name: 'Okf',
+      component: () => import('@/features/okf/index.vue'),
+      meta: { title: 'ATLAS - OKF (Open Knowledge Format)' }
+    },
+
     // Catch all - redirect to landing
     {
       path: '/:pathMatch(.*)*',

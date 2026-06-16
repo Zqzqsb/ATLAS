@@ -31,21 +31,67 @@ export type InteractionScenario =
     }
   | {
       kind: 'ide'
-      /** git-diff style: left = old SQL, right = new generated SQL, with green/red inline diff */
-      oldLine: string
-      newLines: string[]
-      /** labels: file + commit-style header */
-      filePath: string
-      commitMsg: string
+      /** Left pane: VSCode-style editor with an AI-assistant chat asking for the change. */
+      left: {
+        /** Editor file tab (path + language hint icon) */
+        filePath: string
+        /** Mock code lines rendered in the editor body. Mix of kept lines
+         *  + new lines that the AI just wrote. Each line: { code, kind } where
+         *  kind ∈ 'kept' | 'new' | 'new-active' | 'margin' */
+        lines: { code: string; kind: 'kept' | 'new' | 'new-active' | 'margin' }[]
+        /** Right-side AI chat panel inside the editor */
+        chat: {
+          /** user prompt in the chat */
+          userPrompt: string
+          /** AI reply (short, one or two lines) */
+          aiReply: string
+        }
+      }
+      /** Right pane: GitHub-style PR page. The diff is a *summary* of the
+       *  editor's new lines + an old baseline. */
+      right: {
+        /** PR title (becomes the commit msg on merge) */
+        title: string
+        /** "+N −M" change badge */
+        additions: number
+        deletions: number
+        /** CI status line under the title */
+        ciLabel: string
+        ciState: 'pass' | 'pending' | 'fail'
+        /** Reviewer chips */
+        reviewers: string[]
+        /** Files-changed diff (just the conceptual patch; not full file) */
+        patch: {
+          filePath: string
+          oldBlock: string[]
+          newBlock: string[]
+        }
+      }
     }
   | {
       kind: 'bi'
-      /** rendered bar chart with mock bars + a chart caption explaining what the user asked */
-      caption: string
-      bars: { label: string; value: number; highlight?: boolean }[]
-      /** data row hint below chart (axis labels) */
-      xLabel: string
-      yLabel: string
+      /** Left pane: a static BI dashboard (the pre-existing artifact the
+       *  user is already looking at). */
+      left: {
+        title: string
+        subtitle: string
+        xLabel: string
+        yLabel: string
+        bars: { label: string; value: number; highlight?: boolean }[]
+      }
+      /** Right pane: an "Ask this chart" NL side panel that the BI surfaces
+       *  inject next to an existing chart. Shows a user prompt, the SQL the
+       *  Context Layer generated, and the resulting narrative answer. */
+      right: {
+        /** suggested NL actions shown above the input (chips) */
+        suggestions: string[]
+        /** the user's free-text question (typed in the input) */
+        userPrompt: string
+        /** the SQL the Context Layer produced to answer it */
+        sql: string
+        /** one-paragraph narrative answer the user reads */
+        answer: string
+      }
     }
 
 /** Augment an ArchNode with a mini-UI scenario used by InteractionShowcase.
@@ -107,16 +153,51 @@ export const COMM_LAYERS: ArchLayer[] = [
         span: 1,
         scenario: {
           kind: 'ide',
-          filePath: 'semantic/cubes/orders.yml',
-          commitMsg: 'feat(cubes): add aov + is_repeat derived measures',
-          oldLine: '# (无 aov / is_repeat measure)',
-          newLines: [
-            'measures:',
-            '  - name: aov',
-            '    expr: "SUM(amount) / NULLIF(COUNT(DISTINCT order_id), 0)"',
-            '  - name: is_repeat',
-            '    expr: "COUNT(DISTINCT order_id) >= 2"',
-          ],
+          left: {
+            filePath: 'semantic/cubes/orders.yml',
+            lines: [
+              { code: '# semantic/cubes/orders.yml',                 kind: 'kept' },
+              { code: 'model: orders',                               kind: 'kept' },
+              { code: '',                                            kind: 'kept' },
+              { code: 'measures:',                                   kind: 'kept' },
+              { code: '  - name: total_revenue',                     kind: 'kept' },
+              { code: '    expr: "SUM(orders.amount)"',              kind: 'kept' },
+              { code: '  - name: order_count',                       kind: 'kept' },
+              { code: '    expr: "COUNT(DISTINCT order_id)"',        kind: 'kept' },
+              { code: '',                                            kind: 'margin' },
+              { code: '  - name: aov',                               kind: 'new-active' },
+              { code: '    expr: "SUM(amount) / NULLIF(COUNT(DISTINCT order_id), 0)"', kind: 'new-active' },
+              { code: '',                                            kind: 'margin' },
+              { code: '  - name: is_repeat',                         kind: 'new' },
+              { code: '    expr: "COUNT(DISTINCT order_id) >= 2"',    kind: 'new' },
+            ],
+            chat: {
+              userPrompt: '给 orders 加 aov + is_repeat 两个指标',
+              aiReply: '已写入 cubes/orders.yml · 5 行 · commit 后推 PR',
+            },
+          },
+          right: {
+            title: 'feat(cubes): add aov + is_repeat derived measures',
+            additions: 5,
+            deletions: 0,
+            ciLabel: '✓ Checks passed',
+            ciState: 'pass',
+            reviewers: ['alice', 'bob', 'carol'],
+            patch: {
+              filePath: 'semantic/cubes/orders.yml',
+              oldBlock: [
+                '  - name: order_count',
+                '    expr: "COUNT(DISTINCT order_id)"',
+              ],
+              newBlock: [
+                '  - name: aov',
+                '    expr: "SUM(amount) / NULLIF(COUNT(DISTINCT order_id), 0)"',
+                '',
+                '  - name: is_repeat',
+                '    expr: "COUNT(DISTINCT order_id) >= 2"',
+              ],
+            },
+          },
         },
       },
       {
@@ -129,15 +210,28 @@ export const COMM_LAYERS: ArchLayer[] = [
         span: 1,
         scenario: {
           kind: 'bi',
-          caption: '上个月 · 华东区 · 复购客单价（万元）',
-          xLabel: '周',
-          yLabel: 'AOV (¥)',
-          bars: [
-            { label: 'W1', value: 412 },
-            { label: 'W2', value: 458 },
-            { label: 'W3', value: 521, highlight: true },
-            { label: 'W4', value: 487 },
-          ],
+          left: {
+            title: '上个月 · 华东区 · 复购客单价',
+            subtitle: '已有 BI 看板（Looker / Tableau / Superset 等）',
+            xLabel: '周',
+            yLabel: 'AOV (¥)',
+            bars: [
+              { label: 'W1', value: 412 },
+              { label: 'W2', value: 458 },
+              { label: 'W3', value: 521, highlight: true },
+              { label: 'W4', value: 487 },
+            ],
+          },
+          right: {
+            suggestions: [
+              '解释 W3 飙升原因',
+              '对比去年同周',
+              '按品类拆开看',
+            ],
+            userPrompt: '为什么 W3 客单价比 W2 涨了 14%？',
+            sql: 'SELECT reason_code, SUM(amount) AS s\nFROM   prod.orders o\nJOIN   prod.refund_reasons r USING (order_id)\nWHERE  o.region = \'east-china\'\n  AND  o.is_repeat = true\n  AND  DATE_TRUNC(\'week\', o.ordered_at) = DATE \'2026-05-12\'\nGROUP  BY 1 ORDER BY s DESC LIMIT 3;',
+            answer: 'W3 客单价 521 比 W2 458 高 14% · 主要来自 ① 复购用户客单价基数本身较高 (¥638 vs ¥420) ② W3 的 5/14 "高端会员日" 拉动 ③ 退货率从 8% 降到 5%，分母缩水。',
+          },
         },
       },
     ],

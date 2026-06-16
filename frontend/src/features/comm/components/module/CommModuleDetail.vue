@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ACCENTS } from '../../../arch/model/architecture'
 import StageDetail from './StageDetail.vue'
+import InteractionShowcase from '../overview/InteractionShowcase.vue'
 import type { CommFlowDef } from '../../model/comm'
 
 const props = defineProps<{ flow: CommFlowDef }>()
@@ -40,6 +41,11 @@ const showNotes = ref(true)
         讲解备注
       </button>
     </div>
+
+    <!-- TV-style mini-UI showcase: lives at the very top of the
+         Interaction sub-view, so the 4 entry-point forms are visually
+         obvious before drilling into principles / steps. -->
+    <InteractionShowcase v-if="flow.id === 'ux'" class="mb-6" />
 
     <StageDetail :flow="flow" :show-notes="showNotes" />
   </div>

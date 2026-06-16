@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { COMM_LAYERS, type ArchNode, type ArchLayer } from '../../model/comm'
 import { ACCENTS } from '../../../arch/model/architecture'
-import InteractionShowcase from './InteractionShowcase.vue'
 
 const emit = defineEmits<{ select: [node: ArchNode, ev: MouseEvent] }>()
 
@@ -73,9 +72,6 @@ function onNodeClick(node: ArchNode, ev: MouseEvent) {
 
     <!-- Layered stack -->
     <template v-for="(layer, idx) in COMM_LAYERS" :key="layer.id">
-      <!-- TV-style mini-UI showcase shown above the Interaction layer -->
-      <InteractionShowcase v-if="layer.id === 'ux'" class="mb-3" />
-
       <div
         class="relative rounded-2xl border px-5 py-4 overflow-hidden shadow-sm"
         :class="layerAccentClasses(layer).surface"

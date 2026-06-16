@@ -12,12 +12,18 @@
  *
  *   Supported langs: yaml, sql, python, bash/shell, json, ts/typescript,
  *   text (no highlight). Unknown lang falls back to text.
+ *
+ *   `dark` controls the wrapper background. Default = light (slate-900 BG,
+ *   light text). Set `dark` only when the parent already has a dark
+ *   background (e.g. embedded inside a code-card or a dark section).
  */
 import { computed } from 'vue'
 
 const props = defineProps<{
   code: string
   lang?: string
+  /** Render against an already-dark parent (skip the slate-900 wrapper). */
+  dark?: boolean
 }>()
 
 const lang = computed(() => (props.lang || 'text').toLowerCase())
@@ -31,9 +37,18 @@ type Rule = { name: string; re: RegExp }
 
 const RULES: Record<string, Rule[]> = {
   yaml: [
+    { name: 'docsep',  re: /^---\s*$/ },
     { name: 'comment', re: /(^|\s)#[^\n]*/ },
     { name: 'string',  re: /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/ },
     { name: 'key',     re: /^(\s*-\s*)?([A-Za-z_][\w-]*)(\s*:)/m },
+    /* Bare value: only after a key colon, on the same line, up to comment/EOL.
+     * Two flavors:
+     *   - bracketed:  [a, b, c]  /  { x: y }
+     *   - bare list:  ga4, events, web-analytics
+     *   - bare text:  BigQuery Table / 2026-05-28T14:30:00Z
+     * We DO NOT match values inside a comment line — the comment rule
+     * already consumed those in earlier passes. */
+    { name: 'list',    re: /^\s*-\s+\S.*$/m },
     { name: 'number',  re: /\b\d+(?:\.\d+)?\b/ },
     { name: 'bool',    re: /\b(?:true|false|null|yes|no)\b/ },
     { name: 'punct',   re: /[\[\]{},|>]/ },
@@ -84,19 +99,23 @@ RULES.typescript = RULES.ts!
 RULES.javascript = RULES.ts!
 RULES.js = RULES.ts!
 
-/** Color palette (mapped via class names → unocss inline rgb). */
+/** Color palette — tuned for a dark `bg-slate-900` wrapper (the default
+ *  rendering). High contrast vs the previous slate-100/200 text. */
 const COLORS: Record<string, string> = {
-  comment: 'text-gray-500 italic',
+  text:    'text-slate-100',
+  comment: 'text-slate-500 italic',
   string:  'text-emerald-300',
   value:   'text-emerald-300',
-  key:     'text-sky-300',
+  key:     'text-sky-300 font-semibold',
   kw:      'text-violet-300 font-semibold',
   fn:      'text-amber-300',
   number:  'text-orange-300',
   bool:    'text-rose-300',
-  punct:   'text-gray-400',
+  punct:   'text-slate-400',
   prompt:  'text-emerald-400 font-bold',
   flag:    'text-cyan-300',
+  list:    'text-amber-200',
+  docsep:  'text-slate-500 font-bold',
 }
 
 interface Token { type: string; value: string }
@@ -183,6 +202,9 @@ const html = computed(() =>
 
 <template>
   <pre
-    class="px-3 py-3 text-[11.5px] font-mono text-gray-100 overflow-x-auto leading-relaxed border-t border-gray-700 whitespace-pre"
+    class="text-[11.5px] font-mono overflow-x-auto leading-relaxed border-t whitespace-pre"
+    :class="props.dark
+      ? 'px-3 py-3 text-slate-100 border-transparent'
+      : 'px-3.5 py-3.5 text-slate-100 bg-slate-900 border-slate-800 rounded-b-lg'"
   ><code v-html="html" /></pre>
 </template>

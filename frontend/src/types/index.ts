@@ -136,6 +136,7 @@ export interface GroundingResult {
   reasoning?: string              // LLM reasoning for fine selection
   mode?: string                   // "sequential", "parallel", "coarse_only"
   strategy?: string               // "small_scale" | "large_scale" — grounding strategy used
+  fallbackNote?: string           // Set when a forced vector search fell back to direct pass-through
   // Linking agent's independent selection (may be a subset of retrieval)
   linkingTables?: GroundingTable[]
   linkingColumns?: GroundingColumn[]
@@ -155,6 +156,17 @@ export interface SuggestedFieldFromLinking {
   selected: boolean
 }
 
+// A single recalled signal from vector search (entity + similarity)
+export interface RetrievalSignalInfo {
+  signal_type: string   // "table" | "column" | "context" | "sql_template" ...
+  entity_name: string
+  content?: string
+  score: number         // cosine similarity (1 - distance)
+  source_table?: string
+  source_column?: string
+  data_type?: string
+}
+
 // ExecutionLog for grounding transparency
 export interface ExecutionLog {
   phase: string        // "vector_search", "fine_selection"
@@ -162,6 +174,7 @@ export interface ExecutionLog {
   result_count: number // Number of results
   duration_ms: number  // Execution time in milliseconds
   summary: string      // Human-readable summary
+  signals?: RetrievalSignalInfo[] // Recalled entities for semantic display
 }
 
 export interface GroundingTable {
@@ -224,6 +237,7 @@ export interface Text2SQLRequest {
 
 export interface Text2SQLOptions {
   linkingMode: 'rc' | 'schema_only' | 'off' // rc=RC+linking, schema_only=raw DDL, off=no schema aid
+  retrievalMode?: 'auto' | 'vector' | 'direct' // auto=by table count, vector=force vector search, direct=force schema pass-through
   useReact: boolean
   maxIterations: number
   temperature?: number

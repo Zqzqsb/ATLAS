@@ -69,6 +69,14 @@ type AdaptiveGroundingRequest struct {
 	// ForceSmallScale forces SmallScale strategy regardless of table count.
 	// Used for ablation study: full schema injection to LLM without vector retrieval.
 	ForceSmallScale bool
+	// ForceLargeScale forces LargeScale strategy (vector retrieval) regardless of table count.
+	// Used by the frontend "Retrieval Mode = Force Vector" display toggle.
+	// Takes effect only when ForceSmallScale is not set.
+	ForceLargeScale bool
+	// FallbackNote is set internally when a forced LargeScale run falls back to
+	// SmallScale (e.g. the datasource has no vector index). It is surfaced to the
+	// frontend so the card can annotate why vector search was skipped.
+	FallbackNote string
 }
 
 // AdaptiveGroundingResult extends GroundingResult with strategy information
@@ -117,9 +125,13 @@ func (p *AdaptivePipeline) Ground(ctx context.Context, req *AdaptiveGroundingReq
 
 // detectStrategy determines the grounding strategy based on schema scale
 func (p *AdaptivePipeline) detectStrategy(req *AdaptiveGroundingRequest) GroundingStrategy {
-	// Per-request override (for ablation study)
+	// Per-request override (for ablation study). ForceSmallScale wins over ForceLargeScale.
 	if req.ForceSmallScale {
 		return StrategySmallScale
+	}
+	// Per-request override: force vector retrieval regardless of table count.
+	if req.ForceLargeScale {
+		return StrategyLargeScale
 	}
 
 	// Config-level override
@@ -154,11 +166,16 @@ func (p *AdaptivePipeline) groundSmallScale(ctx context.Context, req *AdaptiveGr
 	// Small-scale: immediately push all tables/columns so the frontend
 	// can show the "schema loaded" card without waiting for the LLM.
 	if req.ProgressCallback != nil {
+		msg := "Schema loaded (small scale — no vector search needed)"
+		if req.FallbackNote != "" {
+			msg = req.FallbackNote
+		}
 		req.ProgressCallback("schema_loaded", map[string]interface{}{
-			"message":     "Schema loaded (small scale — no vector search needed)",
-			"table_count": len(req.AllSchemas),
-			"schemas":     req.AllSchemas,
-			"strategy":    string(StrategySmallScale),
+			"message":       msg,
+			"table_count":   len(req.AllSchemas),
+			"schemas":       req.AllSchemas,
+			"strategy":      string(StrategySmallScale),
+			"fallback_note": req.FallbackNote,
 		})
 	}
 
@@ -471,6 +488,17 @@ func (p *AdaptivePipeline) groundLargeScale(ctx context.Context, req *AdaptiveGr
 	retResult, err := p.doVectorRetrieval(ctx, req)
 	if err != nil {
 		log.Warn("[LargeScale] Vector retrieval failed, falling back to small-scale", "error", err)
+		return p.groundSmallScale(ctx, req, start)
+	}
+
+	// Forced vector search on a datasource with no vector index yields zero signals.
+	// Fall back to small-scale (full schema pass-through) so the user still gets a result,
+	// and annotate the card so it's clear why vector search was skipped.
+	if req.ForceLargeScale && len(retResult.coarseResult.Signals) == 0 {
+		log.Warn("[LargeScale] Forced vector search but no signals (no vector index?), falling back to small-scale",
+			"table_count", len(req.AllSchemas),
+		)
+		req.FallbackNote = "No vector index for this datasource — fell back to direct schema pass-through"
 		return p.groundSmallScale(ctx, req, start)
 	}
 

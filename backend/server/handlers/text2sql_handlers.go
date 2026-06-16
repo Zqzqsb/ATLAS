@@ -31,12 +31,19 @@ type Text2SQLRequest struct {
 // Text2SQLOptions holds optional parameters.
 type Text2SQLOptions struct {
 	LinkingMode     string `json:"linking_mode"`      // "rc" | "schema_only" | "off" (default: "rc")
+	RetrievalMode   string `json:"retrieval_mode"`    // "auto" | "vector" | "direct" (default: "auto")
 	UseReact        bool   `json:"use_react"`
 	MaxIterations   int    `json:"max_iterations"`
 	Stream          bool   `json:"stream"`
 	GroundingOnly   bool   `json:"grounding_only"` // When true, stop after grounding (for field alignment)
 	SkipGrounding   bool   `json:"skip_grounding"` // When true, skip grounding and use InjectedGrounding
 }
+
+// ForceSmallScale reports whether the retrieval mode forces direct schema pass-through.
+func (o Text2SQLOptions) ForceSmallScale() bool { return o.RetrievalMode == "direct" }
+
+// ForceLargeScale reports whether the retrieval mode forces vector search.
+func (o Text2SQLOptions) ForceLargeScale() bool { return o.RetrievalMode == "vector" }
 
 // Derived helpers from LinkingMode
 func (o Text2SQLOptions) UseRichContext() bool { return o.LinkingMode == "rc" || o.LinkingMode == "" }
@@ -89,6 +96,43 @@ type ExecutionLogInfo struct {
 	ResultCount int    `json:"result_count"`
 	DurationMs  int64  `json:"duration_ms"`
 	Summary     string `json:"summary"`
+}
+
+// RetrievalSignalInfo is a frontend-friendly view of a single vector-search hit,
+// used to render recalled signals semantically (entity + similarity) instead of raw SQL.
+type RetrievalSignalInfo struct {
+	SignalType   string  `json:"signal_type"`
+	EntityName   string  `json:"entity_name"`
+	Content      string  `json:"content,omitempty"`
+	Score        float64 `json:"score"`
+	SourceTable  string  `json:"source_table,omitempty"`
+	SourceColumn string  `json:"source_column,omitempty"`
+	DataType     string  `json:"data_type,omitempty"`
+}
+
+// toRetrievalSignalInfos converts raw grounding signals (from a progress callback)
+// into the frontend-friendly shape. Returns nil if the input isn't a signal slice.
+func toRetrievalSignalInfos(raw interface{}) []RetrievalSignalInfo {
+	sigs, ok := raw.([]*grounding.RetrievalSignal)
+	if !ok {
+		return nil
+	}
+	out := make([]RetrievalSignalInfo, 0, len(sigs))
+	for _, s := range sigs {
+		if s == nil {
+			continue
+		}
+		out = append(out, RetrievalSignalInfo{
+			SignalType:   string(s.SignalType),
+			EntityName:   s.EntityName,
+			Content:      s.Content,
+			Score:        float64(s.Score),
+			SourceTable:  s.SourceTable,
+			SourceColumn: s.SourceColumn,
+			DataType:     s.Metadata,
+		})
+	}
+	return out
 }
 
 // GroundedTableInfo represents a grounded table in response.
@@ -312,7 +356,8 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					TableCount:      len(schemas),
 					LinkingMode:     linkingMode,
 					DBAdapter:       groundingDBAdapter,
-					ForceSmallScale: false,
+					ForceSmallScale: req.Options.ForceSmallScale(),
+					ForceLargeScale: req.Options.ForceLargeScale(),
 				ProgressCallback: func(stage string, data map[string]interface{}) {
 					// Lock to protect concurrent SSE writes — in ReactAsync mode,
 					// retrieval goroutine and ReAct LLM goroutine call this concurrently.
@@ -349,6 +394,7 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 								"columns":           columns,
 								"execution_time_ms": 0,
 								"strategy":          data["strategy"],
+								"fallback_note":     data["fallback_note"],
 							})
 							flusher.Flush()
 						}
@@ -377,6 +423,11 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 								DurationMs:  execLog.Duration.Milliseconds(),
 								Summary:     execLog.Summary,
 							}
+						}
+						// Forward the actual recalled entities so the frontend can render
+						// them semantically (entity + similarity) instead of just the SQL.
+						if signals := toRetrievalSignalInfos(data["signals"]); signals != nil {
+							sseData["signals"] = signals
 						}
 						SendSSE(c.Writer, "retrieval_signal", sseData)
 						flusher.Flush()
@@ -545,7 +596,21 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 					log.Warn("Grounding failed", "error", err)
 					groundingErr = err
 				}
+			} else {
+				// Schemas failed to load or none found — surface so the empty
+				// Vector Search card is explained instead of silently blank.
+				if err != nil {
+					groundingErr = fmt.Errorf("failed to load schema for grounding: %w", err)
+				} else {
+					groundingErr = fmt.Errorf("no schema available for datasource %d — grounding skipped", datasourceID)
+				}
+				log.Warn("Grounding skipped: schema unavailable", "error", groundingErr)
 			}
+		} else {
+			// Grounding pipeline / lakebase / datasource not ready — make it observable.
+			groundingErr = fmt.Errorf("grounding unavailable: pipeline=%v lakebase=%v datasource_id=%d",
+				h.groundingService.IsAvailable(), h.lakebaseService != nil, datasourceID)
+			log.Warn("Grounding skipped: dependencies unavailable", "error", groundingErr)
 		}
 
 		// No legacy fallback — adaptive pipeline is the only path
@@ -590,6 +655,15 @@ func (h *Handler) Text2SQLStream(c *gin.Context) {
 			SendSSE(c.Writer, "grounding_complete", groundingInfo)
 			flusher.Flush()
 		}
+	} else if req.Options.UseGrounding() && h.groundingService == nil {
+		// Grounding requested but the service was never initialized — almost always
+		// because the embedding provider has no API key. Surface it so the empty
+		// Vector Search card is explained instead of silently blank.
+		logger.With("component", "text2sql_handler").Warn("Grounding requested but service unavailable (embedding not configured)")
+		SendSSE(c.Writer, "grounding_error", map[string]string{
+			"error": "Semantic grounding unavailable — embedding provider not configured (missing API key). Vector search is disabled; SQL was generated via direct schema linking.",
+		})
+		flusher.Flush()
 	}
 
 	// If grounding_only mode, stop here — frontend will show field panel and re-call with fieldDescription
@@ -780,7 +854,8 @@ func (h *Handler) performGrounding(ctx context.Context, req *Text2SQLRequest) *G
 		AllSchemas:      schemas,
 		TableCount:      len(schemas),
 		LinkingMode:     resolveLinkingMode(req.Options),
-		ForceSmallScale: false,
+		ForceSmallScale: req.Options.ForceSmallScale(),
+		ForceLargeScale: req.Options.ForceLargeScale(),
 	})
 	if err != nil {
 		log.Warn("Grounding failed (continuing without)", "error", err)

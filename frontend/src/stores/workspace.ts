@@ -63,6 +63,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // Query options
   const queryOptions = ref<Text2SQLOptions>({
     linkingMode: 'rc',
+    retrievalMode: 'auto',
     useReact: true,
     maxIterations: 5
   })
@@ -447,9 +448,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                   ...partialRetrieval,
                   strategy: 'small_scale',
                   retrievalDurationMs: event.data.execution_time_ms || 0,
+                  ...(event.data.fallback_note ? { fallbackNote: event.data.fallback_note } : {}),
                 } as GroundingResult
               } else if (groundingResult.value) {
-                groundingResult.value = { ...groundingResult.value, strategy: 'small_scale' } as GroundingResult
+                groundingResult.value = {
+                  ...groundingResult.value,
+                  strategy: 'small_scale',
+                  ...(event.data.fallback_note ? { fallbackNote: event.data.fallback_note } : {}),
+                } as GroundingResult
               }
               advanceGroundingStage('retrieval_done')
               // Only delay the visual reveal (skeleton → real content)
@@ -497,6 +503,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                     result_count: log.result_count,
                     duration_ms: log.duration_ms,
                     summary: log.summary,
+                    signals: event.data.signals || [],
                   }
                 ],
               }

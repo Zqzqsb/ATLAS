@@ -185,12 +185,23 @@ const useFieldAlignment = ref(false)
 const selectedModel = ref('')
 const useReact = ref(true)
 const linkingMode = ref<'rc' | 'schema_only' | 'off'>('rc')
+const retrievalMode = ref<'auto' | 'vector' | 'direct'>('auto')
 
 // Linking mode options for the NSelect
 const linkingModeOptions = [
   { label: 'Rich Context', value: 'rc' },
   { label: 'Schema Only', value: 'schema_only' },
   { label: 'Off', value: 'off' }
+]
+
+// Retrieval mode options — controls whether vector search runs.
+// auto: backend decides by table count (default)
+// vector: force vector search (large-scale path)
+// direct: force full-schema pass-through (no vector search)
+const retrievalModeOptions = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'Vector Search', value: 'vector' },
+  { label: 'Direct', value: 'direct' }
 ]
 
 // Model options - loaded from backend /models API
@@ -293,13 +304,14 @@ const vectorSearchStage = computed(() => {
   const backendLatency = workspaceStore.groundingResult?.retrievalLatencyMs
   const backendDuration = workspaceStore.groundingResult?.retrievalDurationMs
   const clientDuration = end && start ? end - start : 0
+  const hasError = !!workspaceStore.groundingError
   const isCompleted = stageDone && hasGroundingContent.value
   const isEmpty = stageDone && !hasGroundingContent.value
   return {
-    // Active only while still waiting for retrieval data — once done (completed or empty), stop
-    active: isExecuting.value && workspaceStore.groundingStage !== 'idle' && !isCompleted && !isEmpty,
-    // Treat empty as completed too — so RealtimeCard renders the content slot (shows "No context available")
-    completed: isCompleted || isEmpty,
+    // Active only while still waiting for retrieval data — once done (completed/empty/error), stop
+    active: !hasError && isExecuting.value && workspaceStore.groundingStage !== 'idle' && !isCompleted && !isEmpty,
+    // Treat empty/error as completed too — so RealtimeCard renders the content slot
+    completed: isCompleted || isEmpty || hasError,
     empty: isEmpty,
     data: workspaceStore.groundingResult,
     // For small_scale: no vector retrieval → use client-side round-trip time
@@ -314,6 +326,57 @@ const vectorSearchStage = computed(() => {
 
 // Detect small-scale strategy (no vector search, schema passed directly)
 const isSmallScale = computed(() => workspaceStore.groundingResult?.strategy === 'small_scale')
+
+// Fallback note set when a forced vector search fell back to direct pass-through
+const retrievalFallbackNote = computed(() => workspaceStore.groundingResult?.fallbackNote || '')
+
+// Subtitle for the first pipeline card
+const vectorCardSubtitle = computed(() => {
+  if (retrievalFallbackNote.value) return retrievalFallbackNote.value
+  if (isSmallScale.value) return 'Small-scale path · full schema sent to linker'
+  return undefined
+})
+
+// --- Recalled-signal semantic display (Vector Search card) ---
+const SIGNAL_LABELS: Record<string, string> = {
+  table: 'Tables',
+  column: 'Columns',
+  context: 'Business Terms',
+  term: 'Business Terms',
+  sql_template: 'SQL Templates',
+  domain_knowledge: 'Domain Knowledge',
+  relationship: 'Relationships'
+}
+const SIGNAL_COLORS: Record<string, string> = {
+  table: '#3b82f6',
+  column: '#06b6d4',
+  context: '#8b5cf6',
+  term: '#8b5cf6',
+  sql_template: '#f59e0b'
+}
+// Resolve a bucket's signal type from its signals (fallback: parse the summary text)
+function bucketType(log: { signals?: { signal_type: string }[]; summary?: string; phase?: string }): string {
+  const first = log.signals?.[0]
+  if (first) return first.signal_type
+  const m = /for (\w+)\b/.exec(log.summary || '')
+  return m?.[1] || log.phase || 'signal'
+}
+function signalLabel(t: string): string { return SIGNAL_LABELS[t] || t }
+function signalColor(t: string): string { return SIGNAL_COLORS[t] || '#64748b' }
+function scorePct(s: number): number { return Math.max(0, Math.min(100, Math.round((s || 0) * 100))) }
+
+// Table/term signals embed text as "Table <name>: <desc>" — split into a clean
+// entity label + description. Column signals already carry "table.column" + content.
+function entityName(sig: { entity_name?: string }): string {
+  const m = /^(?:Table|Column|Term|SQL Template)\s+([^:]+):/i.exec(sig.entity_name || '')
+  return m?.[1]?.trim() || sig.entity_name || ''
+}
+function entityDesc(sig: { entity_name?: string; content?: string }): string {
+  const m = /^(?:Table|Column|Term|SQL Template)\s+[^:]+:\s*([\s\S]*)$/i.exec(sig.entity_name || '')
+  if (m?.[1]) return m[1].trim()
+  if (sig.content && sig.content !== sig.entity_name) return sig.content
+  return ''
+}
 
 // Whether columns were explicitly selected by LLM (vs. all columns pass-through)
 const hasExplicitColumns = computed(() => (workspaceStore.groundingResult?.linkingColumns?.length ?? 0) > 0)
@@ -675,6 +738,7 @@ async function doExecuteGroundingOnly() {
   workspaceStore.queryOptions.maxIterations = maxIterations.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.linkingMode = linkingMode.value
+  workspaceStore.queryOptions.retrievalMode = retrievalMode.value
 
   try {
     await workspaceStore.executeQuery(question.value, undefined, true) // groundingOnly=true
@@ -693,6 +757,7 @@ async function doExecuteFull(fieldDescription?: string) {
   workspaceStore.queryOptions.maxIterations = maxIterations.value
   workspaceStore.queryOptions.useReact = useReact.value
   workspaceStore.queryOptions.linkingMode = linkingMode.value
+  workspaceStore.queryOptions.retrievalMode = retrievalMode.value
 
   try {
     await workspaceStore.executeQuery(question.value, fieldDescription, false)
@@ -833,6 +898,27 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
 
+            <!-- Retrieval Mode -->
+            <div class="param-item">
+              <label class="text-xs font-semibold text-gray-500 mb-2 block tracking-wide">
+                Retrieval Mode
+                <span class="text-[10px] font-normal text-gray-400 normal-case tracking-normal">— vector search</span>
+              </label>
+              <NSelect
+                v-model:value="retrievalMode"
+                :options="retrievalModeOptions"
+                :disabled="isExecuting"
+                size="small"
+              />
+              <p class="text-[10px] text-gray-400 mt-1 leading-snug">
+                {{ retrievalMode === 'vector'
+                  ? 'Force vector search (falls back to direct if no index).'
+                  : retrievalMode === 'direct'
+                    ? 'Skip vector search — pass full schema to the linker.'
+                    : 'Auto: vector search only when tables exceed the threshold.' }}
+              </p>
+            </div>
+
             <!-- Switches Row -->
             <div class="flex items-center justify-end pt-2 border-t border-gray-50">
               <div class="flex items-center gap-2">
@@ -936,8 +1022,8 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
       <!-- Stage 1: Vector Search / Schema Loaded -->
       <div ref="vectorSearchRef" class="scroll-mt-4">
       <RealtimeCard
-        :title="isSmallScale ? 'Schema Loaded' : 'Vector Search'"
-        :subtitle="isSmallScale ? 'Small-scale path · full schema sent to linker' : undefined"
+        :title="retrievalFallbackNote ? 'Schema Loaded (vector fallback)' : (isSmallScale ? 'Schema Loaded' : 'Vector Search')"
+        :subtitle="vectorCardSubtitle"
         :icon="isSmallScale ? 'i-lucide-database' : 'i-lucide-search'"
         :active="vectorSearchStage.active"
         :pending="isExecuting && !vectorSearchStage.active && !vectorSearchStage.completed"
@@ -957,8 +1043,16 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
           </div>
         </template>
         <template #content>
+          <!-- Grounding error: vector search couldn't run — make it observable here -->
+          <div v-if="workspaceStore.groundingError" class="flex items-start gap-3 py-3 px-3 rounded-lg bg-red-50 border border-red-200">
+            <div class="i-lucide-alert-triangle text-lg text-red-500 flex-shrink-0 mt-0.5" />
+            <div class="min-w-0">
+              <span class="text-sm font-semibold text-red-700 block">Vector search unavailable</span>
+              <span class="text-xs text-red-600 leading-relaxed block mt-0.5">{{ workspaceStore.groundingError }}</span>
+            </div>
+          </div>
           <!-- Skeleton screen: shows table names from local cache while waiting for backend -->
-          <div v-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
+          <div v-else-if="workspaceStore.showSkeleton && workspaceStore.skeletonTables.length > 0" class="space-y-4 animate-pulse">
             <div class="flex items-center gap-2 mb-2">
             <div class="i-lucide-table-2 text-sm text-blue-400" />
               <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Analyzing {{ workspaceStore.skeletonTables.length }} tables...</span>
@@ -1055,29 +1149,59 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
               </div>
             </div>
 
-            <!-- Execution Logs (vector search SQL queries — belong to this stage) -->
+            <!-- Recalled Signals — semantic view of vector-search hits (entity + similarity) -->
             <div v-if="workspaceStore.groundingResult.executionLogs?.length" class="stagger-item" style="--stagger: 2">
-              <NCollapse :default-expanded-names="[]" arrow-placement="left">
-                <NCollapseItem name="logs">
+              <NCollapse :default-expanded-names="['signals']" arrow-placement="left">
+                <NCollapseItem name="signals">
                   <template #header>
                     <div class="flex items-center gap-2">
-                      <div class="i-lucide-terminal text-sm text-gray-500" />
-                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Vector Search Queries</span>
-                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }})</span>
+                      <div class="i-lucide-radar text-sm text-blue-500" />
+                      <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Recalled Signals</span>
+                      <span class="text-xs text-gray-400">({{ workspaceStore.groundingResult.executionLogs.length }} channels)</span>
                     </div>
                   </template>
                   <div class="space-y-2 mt-2">
                     <div
                       v-for="(log, idx) in workspaceStore.groundingResult.executionLogs"
                       :key="idx"
-                      class="p-3 rounded-lg bg-gray-800 text-xs font-mono"
+                      class="rounded-lg border border-gray-150 bg-white overflow-hidden"
                     >
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-green-400 font-bold">{{ log.phase }}</span>
-                        <span class="text-gray-400">{{ log.duration_ms }}ms · {{ log.result_count }} results</span>
+                      <!-- Channel header -->
+                      <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70 border-b border-gray-100">
+                        <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: signalColor(bucketType(log)) }" />
+                        <span class="text-[11px] font-bold text-gray-700">{{ signalLabel(bucketType(log)) }}</span>
+                        <span class="text-[10px] text-gray-400 ml-auto">{{ log.result_count }} hits · {{ log.duration_ms }}ms</span>
                       </div>
-                      <div class="text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
-                      <div v-if="log.summary" class="mt-2 text-gray-500 italic">{{ log.summary }}</div>
+                      <!-- Recalled entities with similarity -->
+                      <div v-if="log.signals && log.signals.length" class="px-3 py-2 space-y-1">
+                        <div
+                          v-for="(sig, si) in log.signals.slice(0, 8)"
+                          :key="si"
+                          class="flex items-center gap-2"
+                        >
+                          <span class="text-[11px] font-mono font-semibold text-gray-700 truncate shrink-0 max-w-[45%]" :title="entityName(sig)">{{ entityName(sig) }}</span>
+                          <span v-if="entityDesc(sig)" class="text-[10px] text-gray-400 truncate min-w-0 flex-1" :title="entityDesc(sig)">{{ entityDesc(sig) }}</span>
+                          <div class="ml-auto flex items-center gap-1.5 shrink-0">
+                            <div class="w-14 h-1 rounded-full bg-gray-100 overflow-hidden">
+                              <div class="h-full rounded-full" :style="{ width: scorePct(sig.score) + '%', backgroundColor: signalColor(bucketType(log)) }" />
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-400 w-8 text-right">{{ scorePct(sig.score) }}%</span>
+                          </div>
+                        </div>
+                        <div v-if="log.signals.length > 8" class="text-[10px] text-gray-400 pt-0.5">+{{ log.signals.length - 8 }} more</div>
+                      </div>
+                      <div v-else class="px-3 py-2 text-[10px] text-gray-400 italic">No results recalled for this channel</div>
+                      <!-- Raw SQL (secondary, collapsed) -->
+                      <NCollapse arrow-placement="left">
+                        <NCollapseItem :name="'sql-' + idx">
+                          <template #header>
+                            <span class="text-[10px] text-gray-400 font-medium pl-3">Show SQL</span>
+                          </template>
+                          <div class="px-3 pb-2">
+                            <div class="p-2 rounded bg-gray-800 text-[10px] font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">{{ log.sql }}</div>
+                          </div>
+                        </NCollapseItem>
+                      </NCollapse>
                     </div>
                   </div>
                 </NCollapseItem>
@@ -1598,7 +1722,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
                 <div class="i-lucide-check text-green-400 text-xs" />
                 <span class="text-[11px] text-green-400 font-bold uppercase tracking-wide">SQL Generated</span>
               </div>
-              <pre class="text-[11px] text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
+              <pre class="text-[11px] text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed sql-preview-pre">{{ sqlGenerationStage.sql.substring(0, 200) }}{{ sqlGenerationStage.sql.length > 200 ? '...' : '' }}</pre>
             </div>
             
             <!-- Loading state -->
@@ -1645,7 +1769,7 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
             <div>
               <h4 class="text-red-700 font-bold mb-1">Grounding Error</h4>
               <p class="text-sm text-red-600">{{ workspaceStore.groundingError }}</p>
-              <p class="text-xs text-red-400 mt-2">The grounding pipeline failed. SQL generation was not started.</p>
+              <p class="text-xs text-red-400 mt-2">Vector search / semantic grounding was skipped. SQL below (if any) was generated via direct schema linking.</p>
             </div>
           </div>
           <button
@@ -1850,22 +1974,26 @@ async function handleFeedback(type: 'positive' | 'negative', note?: string) {
   }
 }
 
-/* SQL highlight animation */
+/* SQL highlight animation — fade + tiny slide, no max-height so it never clashes
+   with the surrounding card's expand/collapse transition. */
 .sql-highlight-enter {
-  animation: expandIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: sqlFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes expandIn {
+@keyframes sqlFadeIn {
   from {
     opacity: 0;
-    max-height: 0;
-    transform: scaleY(0.95);
+    transform: translateY(-4px);
   }
   to {
     opacity: 1;
-    max-height: 300px;
-    transform: scaleY(1);
+    transform: translateY(0);
   }
+}
+
+.sql-preview-pre {
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 /* Content fade animation */

@@ -46,6 +46,7 @@ export const queryApi = {
         injected_grounding: request.injectedGrounding || undefined,
         options: {
           linking_mode: request.options.linkingMode || 'rc',
+          retrieval_mode: request.options.retrievalMode || 'auto',
           use_react: request.options.useReact,
           max_iterations: request.options.maxIterations,
           grounding_only: request.options.groundingOnly || false,

@@ -791,6 +791,49 @@ func (s *LakebaseService) CountEmbeddings(ctx context.Context, dsID int64) (int6
 	return s.vectorRepo.CountEmbeddingsByDatasource(ctx, dsID)
 }
 
+// WarmupVectorSearch primes the vector-search path so the first real query does
+// not pay the cold-start cost. The first SearchSimilar after process start is
+// slow because it brute-force scans rc_embeddings, pulling InnoDB pages from
+// disk into a cold buffer pool. We issue one throwaway search per datasource
+// (with a dummy unit vector) to populate the buffer pool and warm the
+// connection pool. Intended to be called in a background goroutine at startup.
+func (s *LakebaseService) WarmupVectorSearch(ctx context.Context) {
+	if !s.IsConnected() || s.vectorRepo == nil {
+		return
+	}
+
+	datasources, err := s.ListDatasources(ctx)
+	if err != nil {
+		logger.L().Warn("WarmupVectorSearch: failed to list datasources", "error", err)
+		return
+	}
+
+	// Unit vector (non-zero so cosine distance is well-defined).
+	dummyVector := make([]float32, lakebase.DefaultEmbeddingDimension)
+	if len(dummyVector) > 0 {
+		dummyVector[0] = 1.0
+	}
+
+	for _, ds := range datasources {
+		select {
+		case <-ctx.Done():
+			logger.L().Warn("WarmupVectorSearch: cancelled", "error", ctx.Err())
+			return
+		default:
+		}
+
+		start := time.Now()
+		if _, err := s.vectorRepo.SearchSimilar(ctx, ds.ID, dummyVector, 1); err != nil {
+			logger.L().Warn("WarmupVectorSearch: search failed", "datasource_id", ds.ID, "error", err)
+			continue
+		}
+		logger.L().Info("WarmupVectorSearch: warmed datasource",
+			"datasource_id", ds.ID,
+			"duration", time.Since(start).Round(time.Millisecond),
+		)
+	}
+}
+
 // ===========================================
 // Change Log Operations
 // ===========================================

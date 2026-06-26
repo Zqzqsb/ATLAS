@@ -166,6 +166,20 @@ func main() {
 		}
 	}
 
+	// ========================================
+	// Background Vector-Search Warm-up
+	// ========================================
+	// The first vector_search after startup is slow because it brute-force scans
+	// rc_embeddings against a cold InnoDB buffer pool. Prime it in the background
+	// so the user's first real query stays fast. Non-blocking; failures are logged.
+	if lakebaseService != nil {
+		go func() {
+			warmCtx, warmCancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer warmCancel()
+			lakebaseService.WarmupVectorSearch(warmCtx)
+		}()
+	}
+
 	// Create handlers with dependencies
 	h, err := handlers.New(&handlers.HandlerDependencies{
 		Config:           cfg,

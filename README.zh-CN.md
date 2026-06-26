@@ -1,10 +1,12 @@
 # ATLAS
 
+[English](README.md) | **简体中文**
+
 **A**daptive **T**ext-to-SQL with **L**ifecycle-**A**ware **S**elf-maintaining Context
 
 > VLDB 2026 Demo Track
 
-ATLAS 将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内——无外部向量库、无一致性问题、完整 ACID 保障。
+ATLAS 将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RDBMS 内,免去外部向量库与跨存储不一致。
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)

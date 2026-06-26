@@ -63,6 +63,7 @@ refs/
 spider/*
 
 .codebuddy
+.cursor/
 .skills
 pics
 

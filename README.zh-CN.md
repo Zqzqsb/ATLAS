@@ -63,7 +63,7 @@ Coordinator–Executor 架构：DDL 检测器对比 `information_schema` 差异 
 | − ReAct 循环 | 93.3 | 56.7 | 2.3 |
 | − Rich Context | 80.0 | 53.3 | 4.9 |
 
-> 详细消融结果: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+> 详细消融结果: [AtlasCore](https://github.com/zqzqsb/AtlasCore)
 
 ## 系统架构
 
@@ -75,7 +75,7 @@ Coordinator–Executor 架构：DDL 检测器对比 `information_schema` 差异 
 ## 快速开始
 
 ```bash
-git clone https://github.com/Zqzqsb/atlas.git
+git clone https://github.com/zqzqsb/atlas.git
 cd atlas
 
 # 一条命令：自动从 .example 生成配置、构建、启动，并做健康/数据源自检
@@ -148,7 +148,7 @@ atlas/
 ```bibtex
 @inproceedings{atlas2026vldb,
   title     = {ATLAS: Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context},
-  author    = {Anonymous},
+  author    = {Zhang, Qing and Hu, Shijing and Lu, Zhihui},
   booktitle = {Proceedings of the VLDB Endowment, Demo Track},
   year      = {2026}
 }

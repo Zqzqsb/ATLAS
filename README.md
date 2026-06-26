@@ -63,7 +63,7 @@ Coordinator–executor architecture: DDL Detector diffs `information_schema` →
 | − ReAct Loop | 93.3 | 56.7 | 2.3 |
 | − Rich Context | 80.0 | 53.3 | 4.9 |
 
-> Detailed ablation results: [AtlasCore](https://github.com/Zqzqsb/AtlasCore)
+> Detailed ablation results: [AtlasCore](https://github.com/zqzqsb/AtlasCore)
 
 ## Architecture
 
@@ -75,7 +75,7 @@ Coordinator–executor architecture: DDL Detector diffs `information_schema` →
 ## Quick Start
 
 ```bash
-git clone https://github.com/Zqzqsb/atlas.git
+git clone https://github.com/zqzqsb/atlas.git
 cd atlas
 
 # One command: bootstraps configs from examples, builds, starts,
@@ -154,7 +154,7 @@ atlas/
 ```bibtex
 @inproceedings{atlas2026vldb,
   title     = {ATLAS: Adaptive Text-to-SQL with Lifecycle-Aware Self-maintaining Context},
-  author    = {Anonymous},
+  author    = {Zhang, Qing and Hu, Shijing and Lu, Zhihui},
   booktitle = {Proceedings of the VLDB Endowment, Demo Track},
   year      = {2026}
 }

@@ -436,6 +436,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               execution_logs: event.data.execution_logs,
             })
 
+            // Preserve the signal-bearing executionLogs built incrementally from
+            // earlier `retrieval_signal` events. The `execution_logs` carried by
+            // `retrieval_complete` only have counts/SQL (no per-entity signals),
+            // so transformGroundingResult would otherwise clobber the recalled
+            // entities and the UI would show "N hits · No results recalled".
+            const existingLogs = (groundingResult.value as any)?.executionLogs as any[] | undefined
+            if (partialRetrieval && existingLogs?.some((l) => l?.signals?.length)) {
+              partialRetrieval.executionLogs = existingLogs
+            }
+
             // For small_scale, data arrives instantly (0ms). Delay skeleton→data
             // visual transition for polish, but set groundingResult and stage
             // IMMEDIATELY so later events (linking_complete, grounding_complete)

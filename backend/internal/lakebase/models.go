@@ -182,6 +182,25 @@ type EmbeddingWithDistance struct {
 	Distance float64 `json:"distance" db:"distance"`
 }
 
+// SearchDocument is the sparse/full-text counterpart of an embedding row.
+type SearchDocument struct {
+	ID           int64      `json:"id" db:"id"`
+	DatasourceID int64      `json:"datasource_id" db:"datasource_id"`
+	EntityType   EntityType `json:"entity_type" db:"entity_type"`
+	EntityID     int64      `json:"entity_id" db:"entity_id"`
+	Title        string     `json:"title" db:"title"`
+	Body         string     `json:"body" db:"body"`
+	IsDeleted    bool       `json:"is_deleted" db:"is_deleted"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// SparseSearchResult represents a full-text recall hit.
+type SparseSearchResult struct {
+	SearchDocument
+	Score float64 `json:"score" db:"score"`
+}
+
 // DefaultEmbeddingModel is the default embedding model (Volcengine Ark multimodal embedding)
 const DefaultEmbeddingModel = "doubao-embedding-vision-250615"
 
@@ -219,5 +238,3 @@ type ChangeLog struct {
 	ChangeReason  string          `json:"change_reason" db:"change_reason"`
 	CreatedAt     time.Time       `json:"created_at" db:"created_at"`
 }
-
-

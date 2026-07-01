@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_entity (datasource_id, entity_type, entity_id),
     INDEX idx_entity (entity_type, entity_id),
     INDEX idx_stale (is_stale),
     INDEX idx_deleted (is_deleted),
@@ -142,7 +143,27 @@ CREATE TABLE IF NOT EXISTS rc_embeddings (
 COMMENT='Vector embeddings for semantic search';
 
 -- ============================================================
--- 7. Business Context (unified table/column context)
+-- 7. Sparse Search Documents (FULLTEXT recall for hybrid retrieval)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rc_search_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    datasource_id INT NOT NULL,
+    entity_type ENUM('table', 'column', 'term', 'query', 'context', 'relationship') NOT NULL,
+    entity_id INT NOT NULL COMMENT 'ID in the corresponding rc_* table',
+    title VARCHAR(512) NOT NULL COMMENT 'Short entity label for exact/sparse recall',
+    body TEXT NOT NULL COMMENT 'Searchable schema/context text',
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Soft delete flag',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_search_entity (datasource_id, entity_type, entity_id),
+    INDEX idx_search_ds_type (datasource_id, entity_type, is_deleted),
+    FULLTEXT INDEX ft_search_title_body (title, body)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+COMMENT='Sparse full-text documents for hybrid schema recall';
+
+-- ============================================================
+-- 8. Business Context (unified table/column context)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rc_business_context (
     id INT AUTO_INCREMENT PRIMARY KEY,

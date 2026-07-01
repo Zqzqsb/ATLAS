@@ -18,10 +18,10 @@ var initSQL string
 
 // columnDef represents a column definition parsed from init SQL.
 type columnDef struct {
-	Name         string
-	TypeSQL      string // e.g. "INT AUTO_INCREMENT", "VARCHAR(255) NOT NULL"
-	FullDef      string // full original line (minus trailing comma)
-	AfterColumn  string // the column defined immediately before this one (for ADD COLUMN ... AFTER)
+	Name        string
+	TypeSQL     string // e.g. "INT AUTO_INCREMENT", "VARCHAR(255) NOT NULL"
+	FullDef     string // full original line (minus trailing comma)
+	AfterColumn string // the column defined immediately before this one (for ADD COLUMN ... AFTER)
 }
 
 // tableDef represents a table definition parsed from init SQL.
@@ -149,6 +149,12 @@ func AutoMigrate(ctx context.Context, pool *ConnectionPool) error {
 	// 4. Ensure UNIQUE KEY uq_entity on rc_embeddings (datasource_id, entity_type, entity_id)
 	if err := ensureUniqueEmbeddingIndex(ctx, db, &applied); err != nil {
 		logger.L().Warn("AutoMigrate: failed to ensure unique embedding index", "error", err)
+	}
+
+	if err := ensureSearchDocumentsTable(ctx, db, &applied); err != nil {
+		logger.L().Warn("AutoMigrate: failed to ensure search documents table", "error", err)
+	} else if err := backfillSearchDocuments(ctx, db, &applied); err != nil {
+		logger.L().Warn("AutoMigrate: failed to backfill search documents", "error", err)
 	}
 
 	if applied > 0 {
@@ -318,11 +324,12 @@ func needsModify(targetDef, actualType string) bool {
 
 // normalizeType extracts and normalizes a base type string for comparison.
 // E.g. "VARCHAR(255) NOT NULL COMMENT '...'" → "varchar(255)"
-//      "int(11)"                              → "int"
-//      "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"  → "timestamp"
-//      "ENUM('a','b','c') NOT NULL"           → "enum('a','b','c')"
-//      "DECIMAL(3,2)"                         → "decimal(3,2)"
-//      "VECTOR(2048)"                         → "vector(2048)"
+//
+//	"int(11)"                              → "int"
+//	"TIMESTAMP DEFAULT CURRENT_TIMESTAMP"  → "timestamp"
+//	"ENUM('a','b','c') NOT NULL"           → "enum('a','b','c')"
+//	"DECIMAL(3,2)"                         → "decimal(3,2)"
+//	"VECTOR(2048)"                         → "vector(2048)"
 func normalizeType(t string) string {
 	t = strings.TrimSpace(t)
 	if t == "" {
@@ -419,5 +426,63 @@ func ensureUniqueEmbeddingIndex(ctx context.Context, db *sql.DB, applied *int) e
 		return fmt.Errorf("add unique key uq_entity: %w", err)
 	}
 	*applied++
+	return nil
+}
+
+func ensureSearchDocumentsTable(ctx context.Context, db *sql.DB, applied *int) error {
+	exists, err := tableExists(ctx, db, "rc_search_documents")
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	logger.L().Info("AutoMigrate: creating rc_search_documents table")
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS rc_search_documents (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			datasource_id INT NOT NULL,
+			entity_type ENUM('table', 'column', 'term', 'query', 'context', 'relationship') NOT NULL,
+			entity_id INT NOT NULL COMMENT 'ID in the corresponding rc_* table',
+			title VARCHAR(512) NOT NULL COMMENT 'Short entity label for exact/sparse recall',
+			body TEXT NOT NULL COMMENT 'Searchable schema/context text',
+			is_deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Soft delete flag',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NULL DEFAULT NULL,
+			FOREIGN KEY (datasource_id) REFERENCES rc_datasources(id) ON DELETE CASCADE,
+			UNIQUE KEY uq_search_entity (datasource_id, entity_type, entity_id),
+			INDEX idx_search_ds_type (datasource_id, entity_type, is_deleted),
+			FULLTEXT INDEX ft_search_title_body (title, body)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		COMMENT='Sparse full-text documents for hybrid schema recall'
+	`)
+	if err != nil {
+		return fmt.Errorf("create rc_search_documents: %w", err)
+	}
+	*applied++
+	return nil
+}
+
+func backfillSearchDocuments(ctx context.Context, db *sql.DB, applied *int) error {
+	exists, err := tableExists(ctx, db, "rc_search_documents")
+	if err != nil || !exists {
+		return err
+	}
+
+	res, err := db.ExecContext(ctx, `
+		INSERT IGNORE INTO rc_search_documents
+		(datasource_id, entity_type, entity_id, title, body, is_deleted, created_at, updated_at)
+		SELECT datasource_id, entity_type, entity_id, LEFT(entity_text, 512), entity_text,
+		       is_deleted, created_at, updated_at
+		FROM rc_embeddings
+	`)
+	if err != nil {
+		return fmt.Errorf("backfill rc_search_documents: %w", err)
+	}
+	if affected, _ := res.RowsAffected(); affected > 0 {
+		logger.L().Info("AutoMigrate: backfilled sparse search documents", "count", affected)
+		*applied++
+	}
 	return nil
 }

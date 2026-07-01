@@ -124,15 +124,31 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 	}
 
 	searchStart := time.Now()
-	results, err := r.vectorRepo.SearchSimilar(ctx, req.DatasourceID, queryVector, totalTopK)
+	denseResults, err := r.vectorRepo.SearchSimilar(ctx, req.DatasourceID, queryVector, totalTopK)
 	searchDuration := time.Since(searchStart)
 	if err != nil {
 		log.Error("[Retrieve] Unified vector search failed", "error", err)
 		return nil, fmt.Errorf("unified vector search failed: %w", err)
 	}
-	log.Debug("[Retrieve] Unified search completed",
-		"total_results", len(results),
-		"duration", searchDuration.Round(time.Millisecond),
+
+	sparseTopK := r.config.SparseTopK
+	if sparseTopK <= 0 {
+		sparseTopK = totalTopK / 2
+	}
+	sparseStart := time.Now()
+	sparseResults, sparseErr := r.vectorRepo.SearchSparse(ctx, req.DatasourceID, req.Query, sparseTopK)
+	sparseDuration := time.Since(sparseStart)
+	if sparseErr != nil {
+		log.Warn("[Retrieve] Sparse search failed", "error", sparseErr)
+	}
+
+	results := mergeDenseSparseResults(denseResults, sparseResults, totalTopK)
+	log.Debug("[Retrieve] Hybrid search completed",
+		"dense_results", len(denseResults),
+		"sparse_results", len(sparseResults),
+		"merged_results", len(results),
+		"dense_duration", searchDuration.Round(time.Millisecond),
+		"sparse_duration", sparseDuration.Round(time.Millisecond),
 	)
 
 	// Bucket results by entity type → signal type
@@ -207,6 +223,15 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		allSignals = append(allSignals, signals...)
 	}
 
+	executionLogs = append(executionLogs, ExecutionLog{
+		Phase:       "sparse_search",
+		SQL:         "SELECT id, title, body, MATCH(title, body) AGAINST (?) AS score FROM rc_search_documents WHERE datasource_id = ? ORDER BY score DESC LIMIT ?",
+		Params:      []interface{}{req.Query, req.DatasourceID, sparseTopK},
+		ResultCount: len(sparseResults),
+		Duration:    sparseDuration,
+		Summary:     fmt.Sprintf("Sparse full-text recall: found %d results in %v", len(sparseResults), sparseDuration.Round(time.Millisecond)),
+	})
+
 	// Sort by score (descending)
 	sort.Slice(allSignals, func(i, j int) bool {
 		return allSignals[i].Score > allSignals[j].Score
@@ -243,6 +268,82 @@ func (r *CoarseRetriever) Retrieve(ctx context.Context, req *RetrievalRequest) (
 		QueryVector:   queryVector,
 		ExecutionLogs: executionLogs,
 	}, nil
+}
+
+func mergeDenseSparseResults(dense []*lakebase.EmbeddingWithDistance, sparse []*lakebase.SparseSearchResult, limit int) []*lakebase.EmbeddingWithDistance {
+	type mergedHit struct {
+		result     *lakebase.EmbeddingWithDistance
+		denseRank  int
+		sparseRank int
+	}
+
+	byKey := make(map[string]*mergedHit)
+	for i, result := range dense {
+		key := fmt.Sprintf("%s:%d", result.EntityType, result.EntityID)
+		byKey[key] = &mergedHit{result: result, denseRank: i + 1}
+	}
+	sparseCount := len(sparse)
+	for i, result := range sparse {
+		key := fmt.Sprintf("%s:%d", result.EntityType, result.EntityID)
+		hit, ok := byKey[key]
+		if !ok {
+			// Sparse-only hit: no cosine distance available, so approximate one
+			// from the sparse rank so the displayed relevance degrades smoothly
+			// (top sparse hit ~0.75 similarity, tail ~0.35).
+			frac := float64(i) / float64(maxInt(sparseCount-1, 1))
+			distance := 0.25 + 0.4*frac
+			hit = &mergedHit{
+				result: &lakebase.EmbeddingWithDistance{
+					Embedding: lakebase.Embedding{
+						ID:           result.ID,
+						DatasourceID: result.DatasourceID,
+						EntityType:   result.EntityType,
+						EntityID:     result.EntityID,
+						EntityText:   result.Body,
+						IsDeleted:    result.IsDeleted,
+						CreatedAt:    result.CreatedAt,
+						UpdatedAt:    result.UpdatedAt,
+					},
+					Distance: distance,
+				},
+			}
+			byKey[key] = hit
+		}
+		hit.sparseRank = i + 1
+	}
+
+	hits := make([]*mergedHit, 0, len(byKey))
+	for _, hit := range byKey {
+		hits = append(hits, hit)
+	}
+	rrf := func(rank int) float64 {
+		if rank <= 0 {
+			return 0
+		}
+		return 1.0 / float64(60+rank)
+	}
+	sort.Slice(hits, func(i, j int) bool {
+		return rrf(hits[i].denseRank)+rrf(hits[i].sparseRank) > rrf(hits[j].denseRank)+rrf(hits[j].sparseRank)
+	})
+
+	if limit > 0 && len(hits) > limit {
+		hits = hits[:limit]
+	}
+	// Preserve the real cosine distance for display/scoring; RRF only drives
+	// ordering. Overwriting Distance with (1 - RRF) here would collapse every
+	// displayed relevance to ~2-3% since RRF scores are tiny by construction.
+	merged := make([]*lakebase.EmbeddingWithDistance, 0, len(hits))
+	for _, hit := range hits {
+		merged = append(merged, hit.result)
+	}
+	return merged
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // deduplicateColumnSignals keeps only the highest-score signal per table.column pair.

@@ -14,12 +14,12 @@ import (
 type SignalType string
 
 const (
-	SignalTypeTable          SignalType = "table"
-	SignalTypeColumn         SignalType = "column"
-	SignalTypeContext        SignalType = "context"
-	SignalTypeSQLTemplate    SignalType = "sql_template"
+	SignalTypeTable           SignalType = "table"
+	SignalTypeColumn          SignalType = "column"
+	SignalTypeContext         SignalType = "context"
+	SignalTypeSQLTemplate     SignalType = "sql_template"
 	SignalTypeDomainKnowledge SignalType = "domain_knowledge"
-	SignalTypeRelationship   SignalType = "relationship"
+	SignalTypeRelationship    SignalType = "relationship"
 )
 
 // RetrievalSignal represents a single retrieval result from vector search
@@ -124,14 +124,15 @@ type CoarseRetrievalConfig struct {
 	MinScore      float32 `json:"min_score" yaml:"min_score"`
 	Speculative   bool    `json:"speculative" yaml:"speculative"`
 	TimeoutMs     int     `json:"timeout_ms" yaml:"timeout_ms"`
+	SparseTopK    int     `json:"sparse_top_k" yaml:"sparse_top_k"`
 }
 
 // LinkingAgentConfig configures the LLM-based linking agent
 type LinkingAgentConfig struct {
-	MaxTablesInContext   int              `json:"max_tables_in_context" yaml:"max_tables_in_context"`
-	IncludeColumnDetails bool             `json:"include_column_details" yaml:"include_column_details"`
-	IncludeRichContext   bool             `json:"include_rich_context" yaml:"include_rich_context"`
-	ConfidenceThreshold  float32          `json:"confidence_threshold" yaml:"confidence_threshold"`
+	MaxTablesInContext   int               `json:"max_tables_in_context" yaml:"max_tables_in_context"`
+	IncludeColumnDetails bool              `json:"include_column_details" yaml:"include_column_details"`
+	IncludeRichContext   bool              `json:"include_rich_context" yaml:"include_rich_context"`
+	ConfidenceThreshold  float32           `json:"confidence_threshold" yaml:"confidence_threshold"`
 	Strategy             GroundingStrategy `json:"strategy" yaml:"strategy"`
 }
 
@@ -181,6 +182,7 @@ func DefaultGroundingConfig() *GroundingConfig {
 			MinScore:      0.15,
 			Speculative:   true,
 			TimeoutMs:     5000,
+			SparseTopK:    100,
 		},
 		ScaleThreshold: 30,
 		LinkingAgent: LinkingAgentConfig{

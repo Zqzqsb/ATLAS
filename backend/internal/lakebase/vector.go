@@ -23,8 +23,11 @@ type VectorRepository interface {
 	SaveEmbeddingBatch(ctx context.Context, embeddings []*Embedding) error
 	UpsertEmbedding(ctx context.Context, emb *Embedding) error
 	DeleteEmbeddingsByDatasource(ctx context.Context, dsID int64) error
+	UpsertSearchDocument(ctx context.Context, doc *SearchDocument) error
+	DeleteSearchDocumentsByDatasource(ctx context.Context, dsID int64) error
 	SearchSimilar(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error)
 	SearchSimilarByType(ctx context.Context, dsID int64, entityType EntityType, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error)
+	SearchSparse(ctx context.Context, dsID int64, query string, topK int) ([]*SparseSearchResult, error)
 	CountEmbeddingsByDatasource(ctx context.Context, dsID int64) (int64, error)
 }
 
@@ -136,6 +139,7 @@ func (r *MySQLVectorRepository) SaveEmbeddingBatch(ctx context.Context, embeddin
 		embedding = VALUES(embedding),
 		embedding_model = VALUES(embedding_model),
 		is_stale = 0,
+		is_deleted = 0,
 		updated_at = NOW()
 	`
 
@@ -165,24 +169,116 @@ func (r *MySQLVectorRepository) DeleteEmbeddingsByDatasource(ctx context.Context
 	return err
 }
 
-// SearchSimilar performs vector similarity search scoped to a single datasource.
-//
-// MariaDB's HNSW index is a global graph; adding WHERE predicates causes the
-// engine to traverse the graph and post-filter, which can return far fewer
-// results than requested when the target partition is semantically distant from
-// the HNSW entry-point. We therefore use a scoped brute-force scan restricted
-// to the target datasource. With a composite index on (datasource_id, is_deleted),
-// the engine only touches rows belonging to the target datasource, keeping
-// latency proportional to partition size rather than total table size.
+func (r *MySQLVectorRepository) DeleteSearchDocumentsByDatasource(ctx context.Context, dsID int64) error {
+	_, err := r.pool.ExecContext(ctx, `DELETE FROM rc_search_documents WHERE datasource_id = ?`, dsID)
+	return err
+}
+
+func (r *MySQLVectorRepository) UpsertSearchDocument(ctx context.Context, doc *SearchDocument) error {
+	query := `
+		INSERT INTO rc_search_documents
+		(datasource_id, entity_type, entity_id, title, body, is_deleted)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+		title = VALUES(title),
+		body = VALUES(body),
+		is_deleted = VALUES(is_deleted),
+		updated_at = NOW()
+	`
+	_, err := r.pool.ExecContext(ctx, query,
+		doc.DatasourceID, doc.EntityType, doc.EntityID, doc.Title, doc.Body, doc.IsDeleted)
+	if err != nil {
+		return fmt.Errorf("lakebase: failed to upsert search document: %w", err)
+	}
+	return nil
+}
+
+func (r *MySQLVectorRepository) SearchSparse(ctx context.Context, dsID int64, text string, topK int) ([]*SparseSearchResult, error) {
+	if topK <= 0 || strings.TrimSpace(text) == "" {
+		return nil, nil
+	}
+
+	query := `
+		SELECT id, datasource_id, entity_type, entity_id, title, body, is_deleted,
+		       created_at, updated_at,
+		       MATCH(title, body) AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+		FROM rc_search_documents
+		WHERE datasource_id = ?
+		  AND is_deleted = 0
+		  AND MATCH(title, body) AGAINST (? IN NATURAL LANGUAGE MODE)
+		ORDER BY score DESC
+		LIMIT ?
+	`
+	rows, err := r.pool.QueryContext(ctx, query, text, dsID, text, topK)
+	if err != nil {
+		return nil, fmt.Errorf("lakebase: failed to sparse search documents: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*SparseSearchResult
+	for rows.Next() {
+		res := &SparseSearchResult{}
+		var updatedAt sql.NullTime
+		if err := rows.Scan(&res.ID, &res.DatasourceID, &res.EntityType, &res.EntityID,
+			&res.Title, &res.Body, &res.IsDeleted, &res.CreatedAt, &updatedAt, &res.Score); err != nil {
+			return nil, fmt.Errorf("lakebase: failed to scan sparse result: %w", err)
+		}
+		if updatedAt.Valid {
+			res.UpdatedAt = updatedAt.Time
+		}
+		results = append(results, res)
+	}
+	return results, rows.Err()
+}
+
+// SearchSimilar performs hybrid vector retrieval: global HNSW overfetch first,
+// then application-side datasource filtering, with scoped brute-force fallback
+// when ANN candidates are insufficient after filtering.
 func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error) {
 	if len(queryVector) != DefaultEmbeddingDimension {
 		return nil, fmt.Errorf("%w: expected %d, got %d", ErrVectorDimMismatch, DefaultEmbeddingDimension, len(queryVector))
 	}
+	if topK <= 0 {
+		return nil, nil
+	}
 
+	overfetchK := topK * 10
+	if overfetchK < 1000 {
+		overfetchK = 1000
+	}
+	if overfetchK > 10000 {
+		overfetchK = 10000
+	}
+
+	annResults, err := r.searchSimilarGlobalHNSW(ctx, queryVector, overfetchK)
+	if err == nil {
+		filtered := make([]*EmbeddingWithDistance, 0, topK)
+		for _, result := range annResults {
+			if result.DatasourceID != dsID || result.IsDeleted {
+				continue
+			}
+			filtered = append(filtered, result)
+			if len(filtered) >= topK {
+				break
+			}
+		}
+		minRequired := topK / 2
+		if minRequired < 1 {
+			minRequired = 1
+		}
+		if len(filtered) >= minRequired {
+			return filtered, nil
+		}
+	}
+
+	return r.searchSimilarScopedBruteForce(ctx, dsID, queryVector, topK)
+}
+
+func (r *MySQLVectorRepository) searchSimilarScopedBruteForce(ctx context.Context, dsID int64, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error) {
 	vectorStr := vectorToString(queryVector)
 	query := `
 		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       embedding_model, created_at, updated_at,
+		       embedding_model, is_stale, is_deleted, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
 		FROM rc_embeddings IGNORE INDEX (idx_embedding_hnsw)
 		WHERE datasource_id = ? AND is_deleted = 0
@@ -191,6 +287,20 @@ func (r *MySQLVectorRepository) SearchSimilar(ctx context.Context, dsID int64, q
 	`
 
 	return r.searchEmbeddings(ctx, query, vectorStr, dsID, topK)
+}
+
+func (r *MySQLVectorRepository) searchSimilarGlobalHNSW(ctx context.Context, queryVector []float32, topK int) ([]*EmbeddingWithDistance, error) {
+	vectorStr := vectorToString(queryVector)
+	query := `
+		SELECT id, datasource_id, entity_type, entity_id, entity_text,
+		       embedding_model, is_stale, is_deleted, created_at, updated_at,
+		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
+		FROM rc_embeddings FORCE INDEX (idx_embedding_hnsw)
+		ORDER BY distance ASC
+		LIMIT ?
+	`
+
+	return r.searchEmbeddings(ctx, query, vectorStr, topK)
 }
 
 // SearchSimilarByType performs brute-force search filtered by datasource and entity type.
@@ -202,7 +312,7 @@ func (r *MySQLVectorRepository) SearchSimilarByType(ctx context.Context, dsID in
 	vectorStr := vectorToString(queryVector)
 	query := `
 		SELECT id, datasource_id, entity_type, entity_id, entity_text,
-		       embedding_model, created_at, updated_at,
+		       embedding_model, is_stale, is_deleted, created_at, updated_at,
 		       VEC_DISTANCE_COSINE(embedding, VEC_FromText(?)) AS distance
 		FROM rc_embeddings IGNORE INDEX (idx_embedding_hnsw)
 		WHERE datasource_id = ? AND entity_type = ? AND is_deleted = 0
@@ -238,7 +348,7 @@ func (r *MySQLVectorRepository) searchEmbeddings(ctx context.Context, query stri
 		var updatedAt sql.NullTime
 		err := rows.Scan(
 			&ewd.ID, &ewd.DatasourceID, &ewd.EntityType, &ewd.EntityID, &ewd.EntityText,
-			&ewd.EmbeddingModel, &ewd.CreatedAt, &updatedAt, &ewd.Distance)
+			&ewd.EmbeddingModel, &ewd.IsStale, &ewd.IsDeleted, &ewd.CreatedAt, &updatedAt, &ewd.Distance)
 		if err != nil {
 			return nil, fmt.Errorf("lakebase: failed to scan embedding result: %w", err)
 		}
@@ -265,6 +375,8 @@ func (r *MySQLVectorRepository) UpsertEmbedding(ctx context.Context, emb *Embedd
 		entity_text = VALUES(entity_text),
 		embedding = VALUES(embedding),
 		embedding_model = VALUES(embedding_model),
+		is_stale = 0,
+		is_deleted = 0,
 		updated_at = NOW()
 	`
 	_, err := r.pool.ExecContext(ctx, query,

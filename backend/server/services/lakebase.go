@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"atlas/internal/logger"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +12,7 @@ import (
 	"atlas/internal/config"
 	"atlas/internal/embedding"
 	"atlas/internal/lakebase"
+	"atlas/internal/logger"
 )
 
 // LakebaseService provides high-level operations for lake-base storage
@@ -222,8 +223,8 @@ func (s *LakebaseService) ListDatasources(ctx context.Context) ([]*lakebase.Data
 
 // SyncSchemaResult holds the result of a schema sync operation
 type SyncSchemaResult struct {
-	TablesCount   int `json:"tables_count"`
-	ColumnsCount  int `json:"columns_count"`
+	TablesCount    int `json:"tables_count"`
+	ColumnsCount   int `json:"columns_count"`
 	RelationsCount int `json:"relations_count"`
 }
 
@@ -393,11 +394,6 @@ func (s *LakebaseService) SyncAllSchemas(ctx context.Context, databases []config
 			ds.Description = sql.NullString{String: dbCfg.Description, Valid: true}
 			_ = s.repo.UpdateDatasource(ctx, ds)
 		}
-		if err != nil {
-			logger.L().Warn("SyncAllSchemas: failed to get/create datasource", "db", dbCfg.ID, "error", err)
-			continue
-		}
-
 		// 2. Connect to the target business database
 		adapter, err := adapterFactory(dbCfg.ID)
 		if err != nil {
@@ -455,9 +451,12 @@ func (s *LakebaseService) PruneAllContext(ctx context.Context, dsID int64) error
 		return fmt.Errorf("lakebase service: not connected")
 	}
 
-	// First delete embeddings associated with this datasource
+	// First delete embeddings and sparse search documents associated with this datasource
 	if err := s.vectorRepo.DeleteEmbeddingsByDatasource(ctx, dsID); err != nil {
 		return fmt.Errorf("failed to delete embeddings: %w", err)
+	}
+	if err := s.vectorRepo.DeleteSearchDocumentsByDatasource(ctx, dsID); err != nil {
+		return fmt.Errorf("failed to delete search documents: %w", err)
 	}
 
 	// Then delete all rich context data
@@ -540,6 +539,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 	type embItem struct {
 		entityType lakebase.EntityType
 		entityID   int64
+		title      string
 		text       string
 	}
 	var items []embItem
@@ -556,7 +556,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		} else {
 			embText = fmt.Sprintf("Table %s", table.TableName)
 		}
-		items = append(items, embItem{lakebase.EntityTypeTable, table.ID, embText})
+		items = append(items, embItem{entityType: lakebase.EntityTypeTable, entityID: table.ID, title: table.TableName, text: embText})
 		result.TablesProcessed++
 	}
 
@@ -578,7 +578,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 		if col.Synonyms.Valid && col.Synonyms.String != "" {
 			embText += fmt.Sprintf(". Synonyms: %s", col.Synonyms.String)
 		}
-		items = append(items, embItem{lakebase.EntityTypeColumn, col.ID, embText})
+		items = append(items, embItem{entityType: lakebase.EntityTypeColumn, entityID: col.ID, title: col.TableName + "." + col.ColumnName, text: embText})
 		result.ColumnsProcessed++
 	}
 
@@ -590,7 +590,7 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 			if term.Synonyms.Valid && term.Synonyms.String != "" {
 				embText += fmt.Sprintf(". Synonyms: %s", term.Synonyms.String)
 			}
-			items = append(items, embItem{lakebase.EntityTypeTerm, term.ID, embText})
+			items = append(items, embItem{entityType: lakebase.EntityTypeTerm, entityID: term.ID, title: term.Term, text: embText})
 			result.ContextsProcessed++
 		}
 	}
@@ -627,20 +627,32 @@ func (s *LakebaseService) GenerateAndSaveEmbeddings(ctx context.Context, dsID in
 			return nil, fmt.Errorf("embedding batch failed at offset %d: %w", i, err)
 		}
 
-		// Upsert each embedding individually (incremental update)
+		// Upsert each embedding and its sparse document individually.
 		for j, vec := range vectors {
+			item := batch[j]
 			emb := &lakebase.Embedding{
 				DatasourceID:   dsID,
-				EntityType:     batch[j].entityType,
-				EntityID:       batch[j].entityID,
-				EntityText:     batch[j].text,
+				EntityType:     item.entityType,
+				EntityID:       item.entityID,
+				EntityText:     item.text,
 				Embedding:      vec,
 				EmbeddingModel: s.config.Embedding.Model,
 			}
 			if err := s.vectorRepo.UpsertEmbedding(ctx, emb); err != nil {
-				logger.L().Warn("Embedding: failed to upsert", "entity_type", batch[j].entityType, "entity_id", batch[j].entityID, "error", err)
+				logger.L().Warn("Embedding: failed to upsert", "entity_type", item.entityType, "entity_id", item.entityID, "error", err)
 			} else {
 				result.TotalEmbeddings++
+			}
+
+			doc := &lakebase.SearchDocument{
+				DatasourceID: dsID,
+				EntityType:   item.entityType,
+				EntityID:     item.entityID,
+				Title:        item.title,
+				Body:         item.text,
+			}
+			if err := s.vectorRepo.UpsertSearchDocument(ctx, doc); err != nil {
+				logger.L().Warn("Embedding: failed to upsert search document", "entity_type", item.entityType, "entity_id", item.entityID, "error", err)
 			}
 		}
 	}
@@ -774,6 +786,15 @@ func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, con
 		log.Error("upsert embedding failed", "entity_id", entityID, "error", err)
 		return fmt.Errorf("upsert embedding failed: %w", err)
 	}
+	if err := s.vectorRepo.UpsertSearchDocument(ctx, &lakebase.SearchDocument{
+		DatasourceID: dsID,
+		EntityType:   entityType,
+		EntityID:     entityID,
+		Title:        searchDocumentTitle(entityType, embText),
+		Body:         embText,
+	}); err != nil {
+		log.Warn("upsert search document failed", "entity_id", entityID, "error", err)
+	}
 
 	log.Info("embedding upserted successfully",
 		"entity_type", entityType,
@@ -781,6 +802,29 @@ func (s *LakebaseService) EmbedEntityByName(ctx context.Context, dsID int64, con
 		"vector_dim", len(vec),
 	)
 	return nil
+}
+
+func searchDocumentTitle(entityType lakebase.EntityType, text string) string {
+	switch entityType {
+	case lakebase.EntityTypeTable:
+		return strings.TrimPrefix(strings.SplitN(text, ":", 2)[0], "Table ")
+	case lakebase.EntityTypeColumn:
+		prefix := strings.SplitN(text, " ", 3)
+		if len(prefix) >= 2 {
+			return strings.TrimPrefix(prefix[1], "Column ")
+		}
+	case lakebase.EntityTypeTerm:
+		if strings.HasPrefix(text, "Term '") {
+			rest := strings.TrimPrefix(text, "Term '")
+			if idx := strings.Index(rest, "'"); idx >= 0 {
+				return rest[:idx]
+			}
+		}
+	}
+	if idx := strings.Index(text, ":"); idx > 0 {
+		return strings.TrimSpace(text[:idx])
+	}
+	return text
 }
 
 // CountEmbeddings returns the count of embeddings for a datasource
@@ -956,4 +1000,3 @@ func (s *LakebaseService) UpsertTerm(ctx context.Context, dsID int64, term, defi
 	}
 	return s.repo.UpsertTerm(ctx, dsID, term, definition, synonyms, examples, category)
 }
-

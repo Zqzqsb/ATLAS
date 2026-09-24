@@ -12,12 +12,14 @@ ATLAS co-locates schema metadata, semantic annotations, and vector embeddings en
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#evaluation)
 
+## Demo Video
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">
     <img src="https://img.youtube.com/vi/U6VXHwE-dhg/maxresdefault.jpg" alt="ATLAS Demo Video" width="100%"/>
   </a>
 </p>
-<p align="center"><em>Demo video · <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">Watch on YouTube</a></em></p>
+<p align="center"><em><a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">Watch on YouTube</a></em></p>
 
 ## Innovations
 

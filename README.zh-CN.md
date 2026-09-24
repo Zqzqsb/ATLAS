@@ -12,12 +12,14 @@ ATLAS 将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RD
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](deploy/docker-compose.yml)
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#评估结果)
 
+## 演示视频
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">
     <img src="https://img.youtube.com/vi/U6VXHwE-dhg/maxresdefault.jpg" alt="ATLAS Demo 视频" width="100%"/>
   </a>
 </p>
-<p align="center"><em>演示视频 · <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">在 YouTube 观看</a></em></p>
+<p align="center"><em><a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">在 YouTube 观看</a></em></p>
 
 ## 核心创新
 

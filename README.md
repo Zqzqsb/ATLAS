@@ -19,12 +19,12 @@ ATLAS co-locates schema metadata, semantic annotations, and vector embeddings en
 </p>
 <p align="center"><em>Demo video · <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">Watch on YouTube</a></em></p>
 
+## Innovations
+
 <p align="center">
   <img src="docs/images/demo_ui.png" alt="ATLAS Demo Interface" width="100%"/>
 </p>
 <p align="center"><em>(a) Forest-chunked onboarding on 517 tables &nbsp; (b) Two-stage adaptive query &nbsp; (c) Autonomous schema evolution</em></p>
-
-## Innovations
 
 ### 1. Unified In-Database Storage
 

@@ -13,6 +13,13 @@ ATLAS 将 Schema 元数据、语义标注和向量嵌入全部存储在单一 RD
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#评估结果)
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">
+    <img src="https://img.youtube.com/vi/U6VXHwE-dhg/maxresdefault.jpg" alt="ATLAS Demo 视频" width="100%"/>
+  </a>
+</p>
+<p align="center"><em>演示视频 · <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">在 YouTube 观看</a></em></p>
+
+<p align="center">
   <img src="docs/images/demo_ui.png" alt="ATLAS Demo 界面" width="100%"/>
 </p>
 <p align="center"><em>(a) 517 表 Forest-Chunked Onboarding &nbsp; (b) 两阶段自适应查询 &nbsp; (c) 自主 Schema 演进</em></p>

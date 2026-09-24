@@ -13,6 +13,13 @@ ATLAS co-locates schema metadata, semantic annotations, and vector embeddings en
 [![BIRD EX](https://img.shields.io/badge/BIRD_dev-76.40%25_EX-brightgreen)](#evaluation)
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">
+    <img src="https://img.youtube.com/vi/U6VXHwE-dhg/maxresdefault.jpg" alt="ATLAS Demo Video" width="100%"/>
+  </a>
+</p>
+<p align="center"><em>Demo video · <a href="https://www.youtube.com/watch?v=U6VXHwE-dhg">Watch on YouTube</a></em></p>
+
+<p align="center">
   <img src="docs/images/demo_ui.png" alt="ATLAS Demo Interface" width="100%"/>
 </p>
 <p align="center"><em>(a) Forest-chunked onboarding on 517 tables &nbsp; (b) Two-stage adaptive query &nbsp; (c) Autonomous schema evolution</em></p>
